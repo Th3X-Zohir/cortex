@@ -1,7 +1,7 @@
 services:
-  conduit-bridge:
+  cortex:
     build: .
-    container_name: conduit-bridge
+    container_name: cortex
     ports:
       - "31338:31338"
       - "5900:5900"
@@ -11,8 +11,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      - conduit-profiles:/root/.conduit
+      - cortex-profiles:/root/.cortex
     restart: unless-stopped
 
 volumes:
-  conduit-profiles:
+  cortex-profiles:

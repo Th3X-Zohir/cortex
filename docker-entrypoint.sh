@@ -4,7 +4,7 @@ set -e
 pkill -9 -f chromium || true
 pkill -9 -f chrome || true
 
-rm -rf /root/.conduit/profiles/*/SingletonLock 2>/dev/null || true
+rm -rf /root/.cortex/profiles/*/SingletonLock 2>/dev/null || true
 rm -rf /tmp/.X99-lock 2>/dev/null || true
 
 Xvfb :99 -screen 0 1280x900x24 -ac >/tmp/xvfb.log 2>&1 &

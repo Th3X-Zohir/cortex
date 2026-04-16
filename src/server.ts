@@ -56,7 +56,7 @@ export class BridgeServer {
       this._registry.restoreSessions().catch(err =>
         logger.warn(`Session restore error: ${err.message}`),
       );
-    }, 3000);
+    }, 500);
 
     // Session keepalive: every 5 minutes, check and reconnect stale providers
     this._keepaliveTimer = setInterval(() => {

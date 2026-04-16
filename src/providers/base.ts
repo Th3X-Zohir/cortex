@@ -101,8 +101,8 @@ export abstract class BaseProvider implements ProviderAdapter {
   }
 
   private async _restoreWithRetry(): Promise<boolean> {
-    const maxAttempts = 2;
-    const delays = [5000, 10000]; // backoff: 5s, 10s (longer to give user time to login)
+    const maxAttempts = 3;
+    const delays = [500, 1500, 3000]; // backoff: 0.5s, 1.5s, 3s
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       if (attempt > 0) {
