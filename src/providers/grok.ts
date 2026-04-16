@@ -40,7 +40,7 @@ export class GrokProvider extends BaseProvider {
     const userMsg = buildUserMessage(req.messages);
 
     await page.evaluate(`
-      window.__conduitGrok = { text:'', done:false, startTime:Date.now(), fetchHits:0 };
+      window.__cortexGrok = { text:'', done:false, startTime:Date.now(), fetchHits:0 };
     `);
 
     const editor = page.locator('.ProseMirror, [contenteditable="true"]').first();
@@ -69,10 +69,10 @@ export class GrokProvider extends BaseProvider {
       await new Promise(r => setTimeout(r, pollInterval));
 
       const result = await page.evaluate(`
-        window.__conduitGrok ? {
-          text: window.__conduitGrok.text || '',
-          done: !!window.__conduitGrok.done,
-          fetchHits: window.__conduitGrok.fetchHits || 0
+        window.__cortexGrok ? {
+          text: window.__cortexGrok.text || '',
+          done: !!window.__cortexGrok.done,
+          fetchHits: window.__cortexGrok.fetchHits || 0
         } : { text:'', done:false, fetchHits:0 }
       `) as { text: string; done: boolean; fetchHits: number };
 
@@ -121,9 +121,9 @@ export class GrokProvider extends BaseProvider {
   private async _injectInterceptor(page: import('playwright').Page): Promise<void> {
     await page.evaluate(`
       (() => {
-        if (window.__conduitGrokPatched) return;
+        if (window.__cortexGrokPatched) return;
 
-        window.__conduitGrok = { text: '', done: false, startTime: 0, fetchHits: 0 };
+        window.__cortexGrok = { text: '', done: false, startTime: 0, fetchHits: 0 };
 
         const _fetch = window.fetch;
         window.fetch = async function(...args) {
@@ -136,10 +136,10 @@ export class GrokProvider extends BaseProvider {
               url.includes('chat/completions') ||
               url.includes('grok/share')) {
 
-            window.__conduitGrok.fetchHits = (window.__conduitGrok.fetchHits || 0) + 1;
-            window.__conduitGrok.text = '';
-            window.__conduitGrok.done = false;
-            window.__conduitGrok.startTime = Date.now();
+            window.__cortexGrok.fetchHits = (window.__cortexGrok.fetchHits || 0) + 1;
+            window.__cortexGrok.text = '';
+            window.__cortexGrok.done = false;
+            window.__cortexGrok.startTime = Date.now();
 
             const clone = res.clone();
             (async () => {
@@ -149,7 +149,7 @@ export class GrokProvider extends BaseProvider {
                 let buffer = '';
                 while (true) {
                   const { done, value } = await reader.read();
-                  if (done) { window.__conduitGrok.done = true; break; }
+                  if (done) { window.__cortexGrok.done = true; break; }
                   buffer += decoder.decode(value, { stream: true });
 
                   const lines = buffer.split('\\n');
@@ -160,21 +160,21 @@ export class GrokProvider extends BaseProvider {
                     if (!line.startsWith('data: ')) continue;
                     const raw = line.slice(6).trim();
                     if (!raw || raw === '[DONE]') {
-                      if (raw === '[DONE]') window.__conduitGrok.done = true;
+                      if (raw === '[DONE]') window.__cortexGrok.done = true;
                       continue;
                     }
                     try {
                       const d = JSON.parse(raw);
                       if (d.choices && d.choices[0]?.delta?.content) {
-                        window.__conduitGrok.text += d.choices[0].delta.content;
+                        window.__cortexGrok.text += d.choices[0].delta.content;
                         parsed = true;
                       }
                       if (d.result?.response) {
-                        window.__conduitGrok.text = d.result.response;
+                        window.__cortexGrok.text = d.result.response;
                         parsed = true;
                       }
                       if (d.token && typeof d.token === 'string') {
-                        window.__conduitGrok.text += d.token;
+                        window.__cortexGrok.text += d.token;
                         parsed = true;
                       }
                     } catch {}
@@ -183,21 +183,21 @@ export class GrokProvider extends BaseProvider {
                   if (!parsed && buffer.length > 0) {
                     try {
                       const j = JSON.parse(buffer);
-                      if (j.result?.response) window.__conduitGrok.text = j.result.response;
-                      else if (j.modelResponse?.message) window.__conduitGrok.text = j.modelResponse.message;
+                      if (j.result?.response) window.__cortexGrok.text = j.result.response;
+                      else if (j.modelResponse?.message) window.__cortexGrok.text = j.modelResponse.message;
                     } catch {}
                   }
                 }
               } catch {
-                window.__conduitGrok.done = true;
+                window.__cortexGrok.done = true;
               }
             })();
           }
           return res;
         };
 
-        window.__conduitGrokPatched = true;
-        console.log('[conduit] Grok fetch interceptor installed');
+        window.__cortexGrokPatched = true;
+        console.log('[cortex] Grok fetch interceptor installed');
       })()
     `);
     logger.debug('[grok] interceptor injected');

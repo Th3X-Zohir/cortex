@@ -65,7 +65,7 @@ export class ClaudeProvider extends BaseProvider {
     // Reset capture state before sending
     this._meta = this._defaultMeta();
     await page.evaluate(`
-      window.__conduit = { text:'', done:false, thinking:false, toolName:null, toolRunning:false, inputTokens:0, outputTokens:0, startTime:Date.now() };
+      window.__cortex = { text:'', done:false, thinking:false, toolName:null, toolRunning:false, inputTokens:0, outputTokens:0, startTime:Date.now() };
     `);
 
     const userMsg = buildUserMessage(req.messages);
@@ -104,15 +104,15 @@ export class ClaudeProvider extends BaseProvider {
       await new Promise(r => setTimeout(r, pollInterval));
 
       const result = await page.evaluate(`
-        window.__conduit ? {
-          text: window.__conduit.text || '',
-          done: !!window.__conduit.done,
-          thinking: !!window.__conduit.thinking,
-          toolName: window.__conduit.toolName || null,
-          toolRunning: !!window.__conduit.toolRunning,
-          inputTokens: window.__conduit.inputTokens || 0,
-          outputTokens: window.__conduit.outputTokens || 0,
-          elapsed: window.__conduit.startTime ? Date.now() - window.__conduit.startTime : 0
+        window.__cortex ? {
+          text: window.__cortex.text || '',
+          done: !!window.__cortex.done,
+          thinking: !!window.__cortex.thinking,
+          toolName: window.__cortex.toolName || null,
+          toolRunning: !!window.__cortex.toolRunning,
+          inputTokens: window.__cortex.inputTokens || 0,
+          outputTokens: window.__cortex.outputTokens || 0,
+          elapsed: window.__cortex.startTime ? Date.now() - window.__cortex.startTime : 0
         } : { text:'', done:false, thinking:false, toolName:null, toolRunning:false, inputTokens:0, outputTokens:0, elapsed:0 }
       `) as {
         text: string; done: boolean;
@@ -157,10 +157,10 @@ export class ClaudeProvider extends BaseProvider {
 
     await this._ctx.addInitScript(`
       (() => {
-        if (window.__conduitPatched) return;
+        if (window.__cortexPatched) return;
 
         // State object shared with Playwright evaluate calls
-        window.__conduit = {
+        window.__cortex = {
           text: '', done: false,
           thinking: false, toolName: null, toolRunning: false,
           inputTokens: 0, outputTokens: 0, startTime: 0
@@ -174,14 +174,14 @@ export class ClaudeProvider extends BaseProvider {
           // Intercept Claude's completion API calls
           if (url.includes('completion') || url.includes('chat_conversations')) {
             // Reset for new completion
-            window.__conduit.text = '';
-            window.__conduit.done = false;
-            window.__conduit.thinking = false;
-            window.__conduit.toolName = null;
-            window.__conduit.toolRunning = false;
-            window.__conduit.inputTokens = 0;
-            window.__conduit.outputTokens = 0;
-            window.__conduit.startTime = Date.now();
+            window.__cortex.text = '';
+            window.__cortex.done = false;
+            window.__cortex.thinking = false;
+            window.__cortex.toolName = null;
+            window.__cortex.toolRunning = false;
+            window.__cortex.inputTokens = 0;
+            window.__cortex.outputTokens = 0;
+            window.__cortex.startTime = Date.now();
 
             // Clone response so Claude's UI is unaffected
             const clone = res.clone();
@@ -192,7 +192,7 @@ export class ClaudeProvider extends BaseProvider {
                 let buffer = '';
                 while (true) {
                   const { done, value } = await reader.read();
-                  if (done) { window.__conduit.done = true; break; }
+                  if (done) { window.__cortex.done = true; break; }
                   buffer += decoder.decode(value, { stream: true });
                   const lines = buffer.split('\\n');
                   buffer = lines.pop() || '';
@@ -204,40 +204,40 @@ export class ClaudeProvider extends BaseProvider {
                       const d = JSON.parse(raw);
                       // Text content
                       if (d.type === 'content_block_delta' && d.delta?.type === 'text_delta') {
-                        window.__conduit.text += d.delta.text;
+                        window.__cortex.text += d.delta.text;
                       }
                       // Thinking state
                       if (d.type === 'content_block_start' && d.content_block?.type === 'thinking') {
-                        window.__conduit.thinking = true;
+                        window.__cortex.thinking = true;
                       }
                       if (d.type === 'content_block_stop') {
-                        window.__conduit.thinking = false;
-                        window.__conduit.toolRunning = false;
+                        window.__cortex.thinking = false;
+                        window.__cortex.toolRunning = false;
                       }
                       // Tool use
                       if (d.type === 'content_block_start' && d.content_block?.type === 'tool_use') {
-                        window.__conduit.toolName = d.content_block.name || 'tool';
-                        window.__conduit.toolRunning = true;
+                        window.__cortex.toolName = d.content_block.name || 'tool';
+                        window.__cortex.toolRunning = true;
                       }
                       // Usage stats
                       if (d.type === 'message_delta' && d.usage) {
-                        window.__conduit.outputTokens = d.usage.output_tokens || 0;
+                        window.__cortex.outputTokens = d.usage.output_tokens || 0;
                       }
                       if (d.type === 'message_start' && d.message?.usage) {
-                        window.__conduit.inputTokens = d.message.usage.input_tokens || 0;
+                        window.__cortex.inputTokens = d.message.usage.input_tokens || 0;
                       }
                     } catch {}
                   }
                 }
               } catch {
-                window.__conduit.done = true;
+                window.__cortex.done = true;
               }
             })();
           }
           return res;
         };
 
-        window.__conduitPatched = true;
+        window.__cortexPatched = true;
       })()
     `);
 

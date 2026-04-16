@@ -1,0 +1,531 @@
+{
+	"info": {
+		"name": "cortex",
+		"description": "OpenAI-compatible AI proxy — Grok, Claude, Gemini, ChatGPT via headless browser",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:31338"
+		},
+		{
+			"key": "defaultPrompt",
+			"value": "Say hello in 5 words"
+		},
+		{
+			"key": "defaultTemp",
+			"value": "0.7"
+		},
+		{
+			"key": "defaultMaxTokens",
+			"value": "150"
+		}
+	],
+	"item": [
+		{
+			"name": "Health",
+			"request": {
+				"name": "Health Check",
+				"url": "{{baseUrl}}/health",
+				"method": "GET",
+				"header": []
+			}
+		},
+		{
+			"name": "Models",
+			"request": {
+				"name": "List Models",
+				"url": "{{baseUrl}}/v1/models",
+				"method": "GET",
+				"header": []
+			}
+		},
+		{
+			"name": "Status",
+			"request": {
+				"name": "Get Status",
+				"url": "{{baseUrl}}/v1/status",
+				"method": "GET",
+				"header": []
+			}
+		},
+		{
+			"name": "ChatGPT",
+			"item": [
+				{
+					"name": "web-chatgpt/gpt-5.4-pro",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "GPT-5.4 Pro - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "GPT-5.4 Pro - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				},
+				{
+					"name": "web-chatgpt/gpt-5.4-thinking",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "GPT-5.4 Thinking - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "GPT-5.4 Thinking - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				},
+				{
+					"name": "web-chatgpt/gpt-5.3-instant",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "GPT-5.3 Instant - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.3-instant\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "GPT-5.3 Instant - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.3-instant\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				},
+				{
+					"name": "web-chatgpt/gpt-5-thinking-mini",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "GPT-5 Thinking Mini - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5-thinking-mini\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "GPT-5 Thinking Mini - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5-thinking-mini\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				},
+				{
+					"name": "web-chatgpt/o3",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "o3 - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/o3\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "o3 - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/o3\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Grok",
+			"item": [
+				{
+					"name": "web-grok/grok-expert",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "Grok Expert - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-expert\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "Grok Expert - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-expert\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				},
+				{
+					"name": "web-grok/grok-fast",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "Grok Fast - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "Grok Fast - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				},
+				{
+					"name": "web-grok/grok-heavy",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "Grok Heavy - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-heavy\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "Grok Heavy - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-heavy\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				},
+				{
+					"name": "web-grok/grok-4.20-beta",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "Grok 4.20 Beta - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-4.20-beta\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "Grok 4.20 Beta - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-4.20-beta\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Claude",
+			"item": [
+				{
+					"name": "web-claude/claude-opus",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "Claude Opus - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-opus\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "Claude Opus - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-opus\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				},
+				{
+					"name": "web-claude/claude-sonnet",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "Claude Sonnet - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-sonnet\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "Claude Sonnet - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-sonnet\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				},
+				{
+					"name": "web-claude/claude-haiku",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "Claude Haiku - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-haiku\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "Claude Haiku - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-haiku\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Gemini",
+			"item": [
+				{
+					"name": "web-gemini/gemini-3-fast",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "Gemini 3 Fast - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "Gemini 3 Fast - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				},
+				{
+					"name": "web-gemini/gemini-3-thinking",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "Gemini 3 Thinking - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "Gemini 3 Thinking - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				},
+				{
+					"name": "web-gemini/gemini-3.1-pro",
+					"item": [
+						{
+							"name": "Non-Streaming",
+							"request": {
+								"name": "Gemini 3.1 Pro - Non-Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3.1-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						},
+						{
+							"name": "Streaming",
+							"request": {
+								"name": "Gemini 3.1 Pro - Streaming",
+								"url": "{{baseUrl}}/v1/chat/completions",
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3.1-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Login",
+			"item": [
+				{
+					"name": "ChatGPT",
+					"request": {
+						"name": "Login ChatGPT",
+						"url": "{{baseUrl}}/v1/login/chatgpt",
+						"method": "POST",
+						"header": []
+					}
+				},
+				{
+					"name": "Grok",
+					"request": {
+						"name": "Login Grok",
+						"url": "{{baseUrl}}/v1/login/grok",
+						"method": "POST",
+						"header": []
+					}
+				},
+				{
+					"name": "Claude",
+					"request": {
+						"name": "Login Claude",
+						"url": "{{baseUrl}}/v1/login/claude",
+						"method": "POST",
+						"header": []
+					}
+				},
+				{
+					"name": "Gemini",
+					"request": {
+						"name": "Login Gemini",
+						"url": "{{baseUrl}}/v1/login/gemini",
+						"method": "POST",
+						"header": []
+					}
+				}
+			]
+		},
+		{
+			"name": "Logout",
+			"item": [
+				{
+					"name": "ChatGPT",
+					"request": {
+						"name": "Logout ChatGPT",
+						"url": "{{baseUrl}}/v1/logout/chatgpt",
+						"method": "POST",
+						"header": []
+					}
+				},
+				{
+					"name": "Grok",
+					"request": {
+						"name": "Logout Grok",
+						"url": "{{baseUrl}}/v1/logout/grok",
+						"method": "POST",
+						"header": []
+					}
+				},
+				{
+					"name": "Claude",
+					"request": {
+						"name": "Logout Claude",
+						"url": "{{baseUrl}}/v1/logout/claude",
+						"method": "POST",
+						"header": []
+					}
+				},
+				{
+					"name": "Gemini",
+					"request": {
+						"name": "Logout Gemini",
+						"url": "{{baseUrl}}/v1/logout/gemini",
+						"method": "POST",
+						"header": []
+					}
+				}
+			]
+		}
+	]
+}

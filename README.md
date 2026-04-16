@@ -1,4 +1,4 @@
-# conduit-bridge
+# cortex
 
 **Current version:** `0.2.0` — pre-release
 
@@ -6,18 +6,18 @@ Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Cl
 
 No OpenClaw required. Works on any machine with Node.js 20+ and Chromium.
 
-> Part of the [Conduit](https://github.com/elvatis/conduit-vscode) ecosystem — powers the conduit-vscode VS Code extension.
+> OpenAI-compatible AI proxy bridging Grok, Claude, Gemini, and ChatGPT via headless browser.
 
 ---
 
 ## How It Works
 
-conduit-bridge launches Chromium via Playwright, logs into AI provider websites on your behalf, and exposes them as a local OpenAI-compatible API. Sessions are persisted to disk so you only need to log in once.
+cortex launches Chromium via Playwright, logs into AI provider websites on your behalf, and exposes them as a local OpenAI-compatible API. Sessions are persisted to disk so you only need to log in once.
 
 ```
 Your app / VS Code extension
         ↓  OpenAI API (HTTP)
-conduit-bridge :31338
+cortex :31338
         ↓  Playwright (headless Chromium)
 Grok / Claude / Gemini / ChatGPT
 ```
@@ -50,8 +50,8 @@ Grok / Claude / Gemini / ChatGPT
 
 ```bash
 # From source (until npm publish)
-git clone https://github.com/elvatis/conduit-bridge
-cd conduit-bridge
+git clone https://github.com/Th3X-Zohir/cortex
+cd cortex
 npm install
 npm run build
 ```
@@ -64,7 +64,7 @@ npm run build
 ```bash
 node dist/cli.js start
 # or after npm install -g:
-conduit-bridge start
+cortex start
 ```
 
 Options:
@@ -76,16 +76,16 @@ Options:
 
 ### Log into a provider (first time)
 ```bash
-conduit-bridge login grok
-conduit-bridge login claude
-conduit-bridge login gemini
-conduit-bridge login chatgpt
+cortex login grok
+cortex login claude
+cortex login gemini
+cortex login chatgpt
 ```
-A browser window opens. Log in as you normally would. The session is saved to `~/.conduit/profiles/` and restored automatically on next start.
+A browser window opens. Log in as you normally would. The session is saved to `~/.cortex/profiles/` and restored automatically on next start.
 
 ### Check status
 ```bash
-conduit-bridge status
+cortex status
 ```
 
 ---
@@ -96,7 +96,7 @@ The proxy implements the OpenAI API:
 
 ### `GET /health`
 ```json
-{ "status": "ok", "service": "conduit-bridge", "version": "0.2.0" }
+{ "status": "ok", "service": "cortex", "version": "0.2.0" }
 ```
 
 ### `GET /v1/models`
@@ -149,7 +149,7 @@ Closes the browser context for that provider.
 ## Library Usage
 
 ```typescript
-import { BridgeServer, loadConfig } from '@elvatis/conduit-bridge';
+import { BridgeServer, loadConfig } from 'cortex';
 
 const cfg = loadConfig({ port: 31338 });
 const server = new BridgeServer(cfg);
@@ -165,9 +165,9 @@ const status = await server.registry.getStatus();
 
 | Path | Description |
 |---|---|
-| `~/.conduit/config.json` | Bridge configuration |
-| `~/.conduit/profiles/<provider>-profile/` | Playwright persistent browser profiles (cookies) |
-| `~/.conduit/<provider>-expiry.json` | Session expiry metadata |
+| `~/.cortex/config.json` | Bridge configuration |
+| `~/.cortex/profiles/<provider>-profile/` | Playwright persistent browser profiles (cookies) |
+| `~/.cortex/<provider>-expiry.json` | Session expiry metadata |
 
 ---
 
@@ -178,5 +178,5 @@ const status = await server.registry.getStatus();
 - HTTP proxy server with OpenAI-compatible API
 - 4 providers: Grok, Claude, Gemini, ChatGPT (15 models total)
 - Persistent browser profiles with automatic session restore
-- CLI: `conduit-bridge start|status|login|config`
+- CLI: `cortex start|status|login|config`
 - Library API for embedding in other tools (conduit-vscode)

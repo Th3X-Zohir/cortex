@@ -48,7 +48,7 @@ export class GeminiProvider extends BaseProvider {
 
     // Reset capture state before sending
     await page.evaluate(`
-      window.__conduitGemini = { text:'', done:false, startTime:Date.now() };
+      window.__cortexGemini = { text:'', done:false, startTime:Date.now() };
     `);
 
     const editor = page.locator('.ql-editor, [contenteditable="true"], rich-textarea, .input-area textarea, .text-input-field').first();
@@ -79,9 +79,9 @@ export class GeminiProvider extends BaseProvider {
       await new Promise(r => setTimeout(r, pollInterval));
 
       const result = await page.evaluate(`
-        window.__conduitGemini ? {
-          text: window.__conduitGemini.text || '',
-          done: !!window.__conduitGemini.done
+        window.__cortexGemini ? {
+          text: window.__cortexGemini.text || '',
+          done: !!window.__cortexGemini.done
         } : { text:'', done:false }
       `) as { text: string; done: boolean };
 
@@ -119,9 +119,9 @@ export class GeminiProvider extends BaseProvider {
 
     await this._ctx.addInitScript(`
       (() => {
-        if (window.__conduitGeminiPatched) return;
+        if (window.__cortexGeminiPatched) return;
 
-        window.__conduitGemini = { text: '', done: false, startTime: 0 };
+        window.__cortexGemini = { text: '', done: false, startTime: 0 };
 
         const _fetch = window.fetch;
         window.fetch = async function(...args) {
@@ -141,9 +141,9 @@ export class GeminiProvider extends BaseProvider {
             // Gemini often returns application/x-protobuf-stream or text/event-stream
             if (!ct && !url.includes('$rpc')) return res;
 
-            window.__conduitGemini.text = '';
-            window.__conduitGemini.done = false;
-            window.__conduitGemini.startTime = Date.now();
+            window.__cortexGemini.text = '';
+            window.__cortexGemini.done = false;
+            window.__cortexGemini.startTime = Date.now();
 
             const clone = res.clone();
             (async () => {
@@ -153,7 +153,7 @@ export class GeminiProvider extends BaseProvider {
                 let fullBuffer = '';
                 while (true) {
                   const { done, value } = await reader.read();
-                  if (done) { window.__conduitGemini.done = true; break; }
+                  if (done) { window.__cortexGemini.done = true; break; }
                   const chunk = decoder.decode(value, { stream: true });
                   fullBuffer += chunk;
 
@@ -172,9 +172,9 @@ export class GeminiProvider extends BaseProvider {
                           longest = s;
                         }
                       }
-                      if (longest.length > window.__conduitGemini.text.length) {
+                      if (longest.length > window.__cortexGemini.text.length) {
                         // Unescape JSON string
-                        window.__conduitGemini.text = longest
+                        window.__cortexGemini.text = longest
                           .replace(/\\\\n/g, '\\n')
                           .replace(/\\\\t/g, '\\t')
                           .replace(/\\\\"/g, '"')
@@ -193,24 +193,24 @@ export class GeminiProvider extends BaseProvider {
                       const d = JSON.parse(raw);
                       // OpenAI-compatible
                       if (d.choices?.[0]?.delta?.content) {
-                        window.__conduitGemini.text += d.choices[0].delta.content;
+                        window.__cortexGemini.text += d.choices[0].delta.content;
                       }
                       // Gemini candidate format
                       if (d.candidates?.[0]?.content?.parts?.[0]?.text) {
-                        window.__conduitGemini.text = d.candidates[0].content.parts[0].text;
+                        window.__cortexGemini.text = d.candidates[0].content.parts[0].text;
                       }
                     } catch {}
                   }
                 }
               } catch {
-                window.__conduitGemini.done = true;
+                window.__cortexGemini.done = true;
               }
             })();
           }
           return res;
         };
 
-        window.__conduitGeminiPatched = true;
+        window.__cortexGeminiPatched = true;
       })()
     `);
 

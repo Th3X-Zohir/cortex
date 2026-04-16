@@ -11,7 +11,7 @@ export interface ApiKeyConfig {
 export interface BridgeConfig {
   port: number;
   host: string;
-  profileBaseDir: string;   // e.g. ~/.conduit/profiles
+  profileBaseDir: string;   // e.g. ~/.cortex/profiles
   headless: boolean;        // false = visible browser (for login)
   logLevel: 'silent' | 'info' | 'debug';
   apiKeys: ApiKeyConfig;    // API keys for CLI/SDK-based providers

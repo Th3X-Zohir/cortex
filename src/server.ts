@@ -189,7 +189,7 @@ export class BridgeServer {
             const data = JSON.stringify({
               id, object: 'chat.completion.chunk', model,
               choices: [{ index: 0, delta: { content: chunk }, finish_reason: null }],
-              ...(meta ? { conduit_meta: meta } : {}),
+              ...(meta ? { cortex_meta: meta } : {}),
             });
             res.write(`data: ${data}\n\n`);
           }
@@ -198,7 +198,7 @@ export class BridgeServer {
           const doneData = JSON.stringify({
             id, object: 'chat.completion.chunk', model,
             choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
-            ...(finalMeta ? { conduit_meta: finalMeta } : {}),
+            ...(finalMeta ? { cortex_meta: finalMeta } : {}),
           });
           res.write(`data: ${doneData}\n\n`);
           res.write('data: [DONE]\n\n');

@@ -133,7 +133,7 @@ export abstract class ApiBaseProvider implements ProviderAdapter {
       logger.warn(`[${this.name}] no API key found. Options:`);
       logger.warn(`  1. Log into the provider's CLI tool (claude, gemini, codex) - auto-detected`);
       logger.warn(`  2. Set env var (ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY)`);
-      logger.warn(`  3. Manual: conduit-bridge config apiKeys.${this.name} <key>`);
+      logger.warn(`  3. Manual: cortex config apiKeys.${this.name} <key>`);
       return false;
     }
     return true;
@@ -144,7 +144,7 @@ export abstract class ApiBaseProvider implements ProviderAdapter {
     throw new Error(
       `${this.name} uses API keys, not browser login. ` +
       `Log into the provider's CLI tool, set an env var, or run: ` +
-      `conduit-bridge config apiKeys.${this.name} <key>`,
+      `cortex config apiKeys.${this.name} <key>`,
     );
   }
 

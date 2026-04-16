@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// conduit-bridge CLI — standalone entry point
+// cortex CLI — standalone entry point
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -40,7 +40,7 @@ configureLogger(cfg);
 
 switch (cmd) {
   case 'start': {
-    logger.info(`conduit-bridge v${CLI_VERSION} starting on ${cfg.host}:${cfg.port}…`);
+    logger.info(`cortex v${CLI_VERSION} starting on ${cfg.host}:${cfg.port}…`);
     const server = new BridgeServer(cfg);
     server.start().catch(err => {
       logger.error(`Failed to start: ${err.message}`);
@@ -68,7 +68,7 @@ switch (cmd) {
       res.on('end', () => {
         try {
           const status = JSON.parse(data);
-          console.log(`conduit-bridge v${status.version} — uptime ${status.uptime}s`);
+          console.log(`cortex v${status.version} — uptime ${status.uptime}s`);
           for (const p of status.providers) {
             const icon = p.sessionValid ? '✅' : (p.hasProfile ? '⚠️ ' : '❌');
             console.log(`  ${icon} ${p.name.padEnd(8)} ${p.sessionValid ? 'connected' : (p.hasProfile ? 'profile exists, not connected' : 'no profile')}`);
@@ -78,7 +78,7 @@ switch (cmd) {
         }
       });
     }).on('error', () => {
-      console.log(`conduit-bridge is NOT running on ${cfg.host}:${cfg.port}`);
+      console.log(`cortex is NOT running on ${cfg.host}:${cfg.port}`);
       process.exit(1);
     });
     break;
@@ -87,8 +87,8 @@ switch (cmd) {
   case 'login': {
     const provider = args[1] as 'grok' | 'claude' | 'gemini' | 'chatgpt' | undefined;
     if (!provider) {
-      console.error('Usage: conduit-bridge login <grok|claude|gemini|chatgpt>');
-      console.error('  (API providers use keys, not login: conduit-bridge config apiKeys.claude-api <key>)');
+      console.error('Usage: cortex login <grok|claude|gemini|chatgpt>');
+      console.error('  (API providers use keys, not login: cortex config apiKeys.claude-api <key>)');
       process.exit(1);
     }
     // Send login request to running instance
@@ -105,7 +105,7 @@ switch (cmd) {
       });
     });
     req.on('error', () => {
-      console.error(`conduit-bridge is not running. Start it first with: conduit-bridge start`);
+      console.error(`cortex is not running. Start it first with: cortex start`);
       process.exit(1);
     });
     req.end();
@@ -138,17 +138,17 @@ switch (cmd) {
   }
 
   default:
-    console.log(`conduit-bridge v${CLI_VERSION}
+    console.log(`cortex v${CLI_VERSION}
 
 Usage:
-  conduit-bridge start [--port=31338] [--host=127.0.0.1] [--log-level=info]
-  conduit-bridge status
-  conduit-bridge login <grok|claude|gemini|chatgpt>
-  conduit-bridge config [key] [value]
+  cortex start [--port=31338] [--host=127.0.0.1] [--log-level=info]
+  cortex status
+  cortex login <grok|claude|gemini|chatgpt>
+  cortex config [key] [value]
 
 API providers (no browser needed):
-  conduit-bridge config apiKeys.claude-api <ANTHROPIC_API_KEY>
-  conduit-bridge config apiKeys.gemini-api <GOOGLE_AI_API_KEY>
-  conduit-bridge config apiKeys.codex-api  <OPENAI_API_KEY>
+  cortex config apiKeys.claude-api <ANTHROPIC_API_KEY>
+  cortex config apiKeys.gemini-api <GOOGLE_AI_API_KEY>
+  cortex config apiKeys.codex-api  <OPENAI_API_KEY>
 `);
 }

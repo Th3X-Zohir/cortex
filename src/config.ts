@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import type { BridgeConfig } from './types.js';
 
-const CONFIG_DIR = join(homedir(), '.conduit');
+const CONFIG_DIR = join(homedir(), '.cortex');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 const DEFAULTS: BridgeConfig = {
