@@ -1,5 +1,5 @@
 import type { BridgeConfig, ChatRequest, ModelDefinition } from '../types.js';
-import type { BrowserContext } from 'playwright';
+import type { BrowserContext, Locator } from 'playwright';
 import { BaseProvider } from './base.js';
 import { logger } from '../logger.js';
 import { buildUserMessage } from './grok.js';
@@ -51,15 +51,57 @@ export class GeminiProvider extends BaseProvider {
       window.__cortexGemini = { text:'', done:false, startTime:Date.now() };
     `);
 
-    const editor = page.locator('.ql-editor, [contenteditable="true"], rich-textarea, .input-area textarea, .text-input-field').first();
+    const editorSelectors = [
+      'textarea.inputarea',
+      '[contenteditable="true"][role="textbox"]',
+      '[contenteditable="true"]',
+      'rich-textarea',
+      '.ql-editor',
+      '.input-area textarea',
+      '.text-input-field',
+    ];
+
+    let editor: Locator | null = null;
+    for (const sel of editorSelectors) {
+      const count = await page.locator(sel).count();
+      if (count > 0) {
+        editor = page.locator(sel).first();
+        logger.info(`[gemini] editor found: ${sel} (${count} elements)`);
+        break;
+      }
+    }
+
+    if (!editor) throw new Error('[gemini] could not find input editor element');
     await editor.waitFor({ timeout: 15000 });
-    await editor.click();
-    await new Promise(r => setTimeout(r, 300));
-    const tagName = await editor.evaluate(el => el.tagName.toLowerCase());
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const info = await page.evaluate(`
+      (() => {
+        const el = document.querySelector('textarea.inputarea, [contenteditable="true"][role="textbox"], [contenteditable="true"], rich-textarea, .ql-editor, .input-area textarea, .text-input-field');
+        if (!el) return { tagName: '', isEditable: false, className: '' };
+        return {
+          tagName: el.tagName?.toLowerCase() ?? '',
+          isEditable: el.getAttribute('contenteditable') !== null || el.contentEditable === 'true',
+          className: el.className ?? ''
+        };
+      })()
+    `) as { tagName: string; isEditable: boolean; className: string };
+    const tagName = info.tagName;
+    const isEditable = info.isEditable;
+    const className = info.className;
+    logger.info(`[gemini] input tag=${tagName}, contenteditable=${isEditable}, class=${className}`);
+
     if (tagName === 'textarea' || tagName === 'input') {
       await editor.fill(userMsg);
     } else {
-      await editor.pressSequentially(userMsg, { delay: 30 });
+      await editor.click();
+      await new Promise(r => setTimeout(r, 500));
+      try {
+        await editor.pressSequentially(userMsg, { delay: 50 });
+      } catch (seqErr) {
+        logger.warn(`[gemini] pressSequentially failed: ${(seqErr as Error).message}, trying keyboard.type...`);
+        await page.keyboard.type(userMsg, { delay: 50 });
+      }
     }
 
     await new Promise(r => setTimeout(r, 300));
