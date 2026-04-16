@@ -1,0 +1,5 @@
+{
+  "model": "web-gemini/gemini-3-fast",
+  "messages": [{"role": "user", "content": "say hi"}],
+  "stream": false
+}
