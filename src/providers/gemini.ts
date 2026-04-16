@@ -82,8 +82,8 @@ export class GeminiProvider extends BaseProvider {
     logger.info(`[gemini] message sent, waiting for response...`);
 
     // Poll loop
-    const timeout = 90000;
-    const pollInterval = 500;
+    const timeout = 20000;
+    const pollInterval = 200;
     const start = Date.now();
     let lastLength = 0;
     let stableCount = 0;
@@ -124,22 +124,22 @@ export class GeminiProvider extends BaseProvider {
       }
 
       // If fetch has hits and we have content, great — keep polling
-      // If fetch has NO hits after 5s and we have no content, try DOM
-      if (result.fetchHits === 0 && !hasContent && elapsed > 5000) {
+      // If fetch has NO hits after 2s and we have no content, try DOM
+      if (result.fetchHits === 0 && !hasContent && elapsed > 2000) {
         logger.info(`[gemini] no fetch intercept after ${elapsed}ms, checking DOM...`);
         yield* this._pollForResponseDOM(page, start);
         return;
       }
 
-      // If fetch has hits but no content for 15s, fall back to DOM
-      if (!hasContent && elapsed > 15000 && result.fetchHits > 0) {
+      // If fetch has hits but no content for 5s, fall back to DOM
+      if (!hasContent && elapsed > 5000 && result.fetchHits > 0) {
         logger.info(`[gemini] fetch intercept active but no content after ${elapsed}ms, falling back to DOM...`);
         yield* this._pollForResponseDOM(page, start);
         return;
       }
 
-      // Log progress periodically
-      if (elapsed > 10000 && elapsed % 10000 < pollInterval) {
+      // Log progress every 5s
+      if (elapsed > 5000 && elapsed % 5000 < pollInterval) {
         logger.info(`[gemini] polling... (${elapsed}ms, fetchHits=${result.fetchHits}, textLen=${result.text.length})`);
       }
     }
@@ -308,8 +308,8 @@ export class GeminiProvider extends BaseProvider {
       '.markdown',
     ];
 
-    const timeout = 60000;
-    const pollInterval = 400;
+    const timeout = 15000;
+    const pollInterval = 200;
     let lastLength = 0;
     let stableCount = 0;
     let matchedSelector = '';
