@@ -1,0 +1,18 @@
+services:
+  conduit-bridge:
+    build: .
+    container_name: conduit-bridge
+    ports:
+      - "31338:31338"
+      - "5900:5900"
+      - "6080:6080"
+    environment:
+      DISPLAY: ":99"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - conduit-profiles:/root/.conduit
+    restart: unless-stopped
+
+volumes:
+  conduit-profiles:
