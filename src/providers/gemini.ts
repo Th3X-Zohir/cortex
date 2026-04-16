@@ -301,55 +301,82 @@ export class GeminiProvider extends BaseProvider {
       (() => {
         const inputEl = document.querySelector('.ql-editor, [contenteditable="true"]');
 
-        // Find all elements that have meaningful text and are NOT the input
+        // Look for message-role elements first (most specific)
+        const byRole = document.querySelectorAll('[data-message-author-role="assistant"], [data-message-author-role="model"]');
+        const roleResults = Array.from(byRole).map(el => ({
+          tag: el.tagName,
+          class: el.className?.substring(0, 80),
+          id: el.id,
+          text: el.textContent?.trim().substring(0, 100),
+          dataTestId: el.getAttribute('data-testid'),
+          role: el.getAttribute('data-message-author-role'),
+          childCount: el.children.length,
+          score: 100 // highest priority
+        }));
+
+        // Find all other elements
         const candidates = [];
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
         let el;
         while (el = walker.nextNode()) {
-          // Skip the input element itself
           if (el === inputEl) continue;
-          // Skip small elements
-          if (el.textContent?.trim().length < 10) continue;
-          // Skip hidden elements
+          const text = el.textContent?.trim() || '';
+          if (text.length < 20) continue;
           const style = window.getComputedStyle(el);
           if (style.display === 'none' || style.visibility === 'hidden') continue;
-          // Skip very large elements (probably the whole page)
-          if (el.textContent?.trim().length > 5000) continue;
+          // Skip root app containers and nav/sidebar
+          const cls = el.className || '';
+          const skipTags = ['APP-ROOT', 'NAV', 'ASIDE', 'HEADER', 'FOOTER', 'NOSCRIPT'];
+          const skipClasses = ['nav', 'sidebar', 'menu', 'header', 'footer', 'chat-app', 'app-root', 'ng-tns', 'ng-host'];
+          if (skipTags.includes(el.tagName)) continue;
+          if (skipClasses.some(c => cls.includes(c))) continue;
+
+          // Score based on response/message indicators
+          let score = 0;
+          if (el.getAttribute('data-message-author-role')) score = 50;
+          else if (el.getAttribute('data-testid')?.includes('message')) score = 30;
+          else if (el.getAttribute('data-testid')?.includes('response')) score = 25;
+          else if (cls.includes('message-body')) score = 20;
+          else if (cls.includes('response-text') || cls.includes('response-content')) score = 20;
+          else if (cls.includes('answer') && !cls.includes('nav')) score = 10;
+          else if (text.length < 500) score = 3; // prefer smaller, focused elements
+          else if (text.length > 3000) score = -10; // penalize huge elements
 
           candidates.push({
             tag: el.tagName,
-            class: el.className?.substring(0, 80),
+            class: cls.substring(0, 80),
             id: el.id,
-            text: el.textContent?.trim().substring(0, 100),
+            text: text.substring(0, 100),
             dataTestId: el.getAttribute('data-testid'),
             role: el.getAttribute('role'),
-            childCount: el.children.length
+            childCount: el.children.length,
+            score
           });
         }
-        // Sort by specificity: elements with data-testid, role=article, or response-related classes
-        candidates.sort((a, b) => {
-          const aScore = (a.dataTestId ? 10 : 0) + (a.role === 'article' ? 5 : 0) + ((a.class || '').includes('response') ? 5 : 0) + ((a.class || '').includes('message') ? 3 : 0) + ((a.class || '').includes('gemini') ? 2 : 0);
-          const bScore = (b.dataTestId ? 10 : 0) + (b.role === 'article' ? 5 : 0) + ((b.class || '').includes('response') ? 5 : 0) + ((b.class || '').includes('message') ? 3 : 0) + ((b.class || '').includes('gemini') ? 2 : 0);
-          return bScore - aScore;
-        });
-        return candidates.slice(0, 20);
+
+        // Combine and sort by score descending
+        const all = [...roleResults, ...candidates];
+        all.sort((a, b) => b.score - a.score);
+        return all.slice(0, 15);
       })()
     `);
 
     logger.info('[gemini] DOM scan results: ' + JSON.stringify(scanResult).slice(0, 500));
 
     // Build selectors from the scan results
-    type ScanEntry = { tag: string; class: string; id: string; text: string; dataTestId: string; role: string; childCount: number };
+    type ScanEntry = { tag: string; class: string; id: string; text: string; dataTestId: string; role: string; childCount: number; score: number };
     const typedResult = scanResult as ScanEntry[] | null;
-    if (!typedResult) {
-      logger.warn('[gemini] DOM scan returned null');
+    if (!typedResult || typedResult.length === 0) {
+      logger.warn('[gemini] DOM scan returned null/empty');
       return;
     }
     const discoveredSelectors: string[] = [];
     for (const c of typedResult) {
+      if (c.role && (c.role === 'assistant' || c.role === 'model')) {
+        discoveredSelectors.push(`[data-message-author-role="${c.role}"]`);
+      }
       if (c.dataTestId) discoveredSelectors.push(`[data-testid="${c.dataTestId}"]`);
       if (c.id) discoveredSelectors.push(`#${c.id}`);
-      if (c.class) discoveredSelectors.push(`.${c.class.split(' ').filter(Boolean).join('.')}`);
     }
 
     const selectors = [
