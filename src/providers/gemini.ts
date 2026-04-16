@@ -294,18 +294,75 @@ export class GeminiProvider extends BaseProvider {
     page: import('playwright').Page,
     startTime: number,
   ): AsyncGenerator<string> {
-    logger.info('[gemini] DOM polling started');
+    logger.info('[gemini] DOM polling started — doing deep scan to find response element...');
+
+    // Deep scan to find response text container
+    const scanResult = await page.evaluate(`
+      (() => {
+        const inputEl = document.querySelector('.ql-editor, [contenteditable="true"]');
+
+        // Find all elements that have meaningful text and are NOT the input
+        const candidates = [];
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+        let el;
+        while (el = walker.nextNode()) {
+          // Skip the input element itself
+          if (el === inputEl) continue;
+          // Skip small elements
+          if (el.textContent?.trim().length < 10) continue;
+          // Skip hidden elements
+          const style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden') continue;
+          // Skip very large elements (probably the whole page)
+          if (el.textContent?.trim().length > 5000) continue;
+
+          candidates.push({
+            tag: el.tagName,
+            class: el.className?.substring(0, 80),
+            id: el.id,
+            text: el.textContent?.trim().substring(0, 100),
+            dataTestId: el.getAttribute('data-testid'),
+            role: el.getAttribute('role'),
+            childCount: el.children.length
+          });
+        }
+        // Sort by specificity: elements with data-testid, role=article, or response-related classes
+        candidates.sort((a, b) => {
+          const aScore = (a.dataTestId ? 10 : 0) + (a.role === 'article' ? 5 : 0) + ((a.class || '').includes('response') ? 5 : 0) + ((a.class || '').includes('message') ? 3 : 0) + ((a.class || '').includes('gemini') ? 2 : 0);
+          const bScore = (b.dataTestId ? 10 : 0) + (b.role === 'article' ? 5 : 0) + ((b.class || '').includes('response') ? 5 : 0) + ((b.class || '').includes('message') ? 3 : 0) + ((b.class || '').includes('gemini') ? 2 : 0);
+          return bScore - aScore;
+        });
+        return candidates.slice(0, 20);
+      })()
+    `);
+
+    logger.info('[gemini] DOM scan results: ' + JSON.stringify(scanResult).slice(0, 500));
+
+    // Build selectors from the scan results
+    type ScanEntry = { tag: string; class: string; id: string; text: string; dataTestId: string; role: string; childCount: number };
+    const typedResult = scanResult as ScanEntry[] | null;
+    if (!typedResult) {
+      logger.warn('[gemini] DOM scan returned null');
+      return;
+    }
+    const discoveredSelectors: string[] = [];
+    for (const c of typedResult) {
+      if (c.dataTestId) discoveredSelectors.push(`[data-testid="${c.dataTestId}"]`);
+      if (c.id) discoveredSelectors.push(`#${c.id}`);
+      if (c.class) discoveredSelectors.push(`.${c.class.split(' ').filter(Boolean).join('.')}`);
+    }
 
     const selectors = [
-      '.ql-editor',
-      '[class*="response"]',
-      '[class*="answer"]',
-      '[class*="result"]',
+      ...discoveredSelectors,
       '[data-testid*="response"]',
+      '[data-message-content]',
+      '[class*="response"]',
+      '[class*="message"]',
+      '[class*="answer"]',
+      '[class*="gemini"]',
       '[role="article"]',
       '[role="log"]',
       'article',
-      '.markdown',
     ];
 
     const timeout = 15000;
@@ -329,15 +386,25 @@ export class GeminiProvider extends BaseProvider {
         if (!matchedSelector) continue;
       }
 
-      const lastEl = page.locator(matchedSelector).last();
-      const text = await lastEl.textContent().catch(() => '');
-      if (!text) continue;
+      // Get all matching elements and find the LAST one that has content
+      const allEls = page.locator(matchedSelector);
+      const count = await allEls.count().catch(() => 0);
+      let foundText = '';
+      for (let i = count - 1; i >= 0; i--) {
+        const text = await allEls.nth(i).textContent().catch(() => '');
+        if (text && text.trim().length > 5) {
+          foundText = text.trim();
+          break;
+        }
+      }
 
-      if (text.length > lastLength) {
-        const newText = text.slice(lastLength);
-        logger.info(`[gemini] DOM yield: +${newText.length} chars (total: ${text.length})`);
+      if (!foundText) continue;
+
+      if (foundText.length > lastLength) {
+        const newText = foundText.slice(lastLength);
+        logger.info(`[gemini] DOM yield: +${newText.length} chars (total: ${foundText.length})`);
         yield newText;
-        lastLength = text.length;
+        lastLength = foundText.length;
         stableCount = 0;
       } else {
         stableCount++;
