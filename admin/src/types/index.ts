@@ -15,6 +15,7 @@ export type Permission =
   | 'admins:manage'
   | 'config:manage'
   | 'providers:manage'
+  | 'playground:use'
 
 export interface ApiKey {
   id: string
@@ -231,6 +232,39 @@ export interface ModelCatalog {
   providers: ProviderStatus[]
   models: ModelCatalogItem[]
   apiKeysConfigured: Record<string, boolean>
+}
+
+export interface PlaygroundMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+export interface PlaygroundRequest {
+  model: string
+  messages: PlaygroundMessage[]
+  temperature?: number
+  max_tokens?: number
+  newConversation?: boolean
+}
+
+export interface PlaygroundResponse {
+  id: string
+  object: 'chat.completion'
+  model: string
+  provider: string
+  masterApi: boolean
+  limited: boolean
+  loggedAs: string
+  choices: Array<{
+    index: number
+    message: { role: 'assistant'; content: string }
+    finish_reason: string
+  }>
+  usage: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
 }
 
 export interface BridgeStatus {

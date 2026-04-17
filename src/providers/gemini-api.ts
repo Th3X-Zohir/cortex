@@ -83,7 +83,7 @@ export class GeminiApiProvider extends ApiBaseProvider {
     this._meta = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
     for await (const chunk of result.stream) {
-      const usage = chunk.response?.usageMetadata;
+      const usage = (chunk as any).usageMetadata;
       if (usage) {
         this._meta = {
           inputTokens: usage.promptTokenCount ?? this._meta.inputTokens,

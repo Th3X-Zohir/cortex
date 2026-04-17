@@ -7,6 +7,8 @@ import type {
   Health,
   LoginResponse,
   ModelCatalog,
+  PlaygroundRequest,
+  PlaygroundResponse,
   RequestLog,
   Stats,
   UsageSummary,
@@ -171,6 +173,14 @@ export const api = {
   },
 
   health: () => request<Health>('/health'),
+
+  playground: {
+    chat: (data: PlaygroundRequest) =>
+      request<PlaygroundResponse>('/playground/chat', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
 
   providers: {
     status: () => request<BridgeStatus>('/providers/status'),

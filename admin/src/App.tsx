@@ -50,13 +50,14 @@ import type {
   BridgeStatus,
   Config,
   ModelCatalog,
+  PlaygroundResponse,
   RequestLog,
   Stats,
   UsageSummary,
   Permission,
 } from '@/types'
 
-type SectionId = 'overview' | 'access' | 'limits' | 'logs' | 'providers' | 'vnc' | 'docs' | 'admins' | 'settings'
+type SectionId = 'overview' | 'access' | 'limits' | 'logs' | 'providers' | 'playground' | 'vnc' | 'docs' | 'admins' | 'settings'
 
 const sections: Array<{ id: SectionId; label: string; icon: typeof Activity; permission?: Permission }> = [
   { id: 'overview', label: 'Overview', icon: BarChart3, permission: 'dashboard:read' },
@@ -64,6 +65,7 @@ const sections: Array<{ id: SectionId; label: string; icon: typeof Activity; per
   { id: 'limits', label: 'Daily Limits', icon: Gauge, permission: 'dashboard:read' },
   { id: 'logs', label: 'Logs', icon: Activity, permission: 'logs:read' },
   { id: 'providers', label: 'Model Control', icon: Cpu, permission: 'providers:manage' },
+  { id: 'playground', label: 'API Playground', icon: TerminalSquare, permission: 'playground:use' },
   { id: 'vnc', label: 'VNC Viewer', icon: Monitor, permission: 'providers:manage' },
   { id: 'docs', label: 'API Docs', icon: BookOpen, permission: 'dashboard:read' },
   { id: 'admins', label: 'Admin Users', icon: Users, permission: 'admins:manage' },
@@ -187,6 +189,7 @@ function App() {
           {active === 'limits' && <DailyLimits />}
           {active === 'logs' && <Logs />}
           {active === 'providers' && <Providers />}
+          {active === 'playground' && <ApiPlayground />}
           {active === 'vnc' && <VncViewer />}
           {active === 'docs' && <ApiDocs />}
           {active === 'admins' && <AdminUsers currentAdmin={admin} />}
@@ -368,9 +371,9 @@ function Overview() {
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <Panel title="Token accounting" description="Prompt and completion token totals from provider metadata when available, otherwise estimated from text.">
           <div className="grid gap-4 sm:grid-cols-3">
-            <Metric label="Input tokens" value={formatNumber(stats.overview.promptTokens)} helper="Prompt side" icon={TerminalSquare} />
-            <Metric label="Output tokens" value={formatNumber(stats.overview.completionTokens)} helper="Completion side" icon={Cpu} />
-            <Metric label="Total tokens" value={formatNumber(stats.overview.totalTokens)} helper="All logged traffic" icon={Gauge} />
+            <InlineStat label="Input tokens" value={formatNumber(stats.overview.promptTokens)} helper="Prompt side" icon={TerminalSquare} />
+            <InlineStat label="Output tokens" value={formatNumber(stats.overview.completionTokens)} helper="Completion side" icon={Cpu} />
+            <InlineStat label="Total tokens" value={formatNumber(stats.overview.totalTokens)} helper="All logged traffic" icon={Gauge} />
           </div>
         </Panel>
         <Panel title="Recent failures" description="Latest rejected or failed requests.">
@@ -735,6 +738,141 @@ function Logs() {
   )
 }
 
+function ApiPlayground() {
+  const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
+  const [model, setModel] = useState('')
+  const [systemPrompt, setSystemPrompt] = useState('You are a precise assistant for operational testing.')
+  const [prompt, setPrompt] = useState('')
+  const [temperature, setTemperature] = useState(0.7)
+  const [maxTokens, setMaxTokens] = useState(800)
+  const [newConversation, setNewConversation] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<PlaygroundResponse | null>(null)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const next = await api.providers.models()
+      setCatalog(next)
+      setModel(current => current || next.models[0]?.id || '')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    setError(null)
+    setResult(null)
+
+    const trimmedPrompt = prompt.trim()
+    if (!model) {
+      setError('Select a model before sending a request.')
+      return
+    }
+    if (!trimmedPrompt) {
+      setError('Enter a user prompt before sending a request.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const messages = [
+        ...(systemPrompt.trim() ? [{ role: 'system' as const, content: systemPrompt.trim() }] : []),
+        { role: 'user' as const, content: trimmedPrompt },
+      ]
+      setResult(await api.playground.chat({
+        model,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+        newConversation,
+      }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Playground request failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const selectedModel = catalog?.models.find(item => item.id === model)
+
+  return (
+    <Page title="API Playground" description="Super-admin master API testing with no daily or per-minute key limits. Every request is written to Logs as Admin Playground.">
+      {error && <Alert tone="bad">{error}</Alert>}
+      <div className="grid gap-5 xl:grid-cols-[minmax(360px,0.85fr)_minmax(0,1.15fr)]">
+        <Panel title="Request" description="Send a privileged operational request through the selected provider.">
+          <form className="space-y-4" onSubmit={submit}>
+            <Field label="Model">
+              <select className="input" value={model} onChange={event => setModel(event.target.value)} disabled={loading}>
+                {(catalog?.models ?? []).map(item => (
+                  <option key={item.id} value={item.id}>{item.displayName} - {item.provider}</option>
+                ))}
+              </select>
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Temperature">
+                <input className="input" type="number" min="0" max="2" step="0.1" value={temperature} onChange={event => setTemperature(Number(event.target.value))} />
+              </Field>
+              <Field label="Max tokens">
+                <input className="input" type="number" min="1" max="32000" value={maxTokens} onChange={event => setMaxTokens(Number(event.target.value))} />
+              </Field>
+            </div>
+            <Field label="System prompt">
+              <textarea className="input min-h-24 resize-y" value={systemPrompt} onChange={event => setSystemPrompt(event.target.value)} />
+            </Field>
+            <Field label="User prompt">
+              <textarea className="input min-h-40 resize-y" value={prompt} onChange={event => setPrompt(event.target.value)} placeholder="Write the request to test..." />
+            </Field>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input type="checkbox" checked={newConversation} onChange={event => setNewConversation(event.target.checked)} />
+              Start a fresh provider conversation
+            </label>
+            <button className="btn-primary w-full" type="submit" disabled={submitting || loading || !model}>
+              {submitting && <Loader2 className="animate-spin" size={16} />}
+              Send master request
+            </button>
+          </form>
+        </Panel>
+
+        <div className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Metric label="Selected provider" value={selectedModel?.provider ?? 'None'} helper={selectedModel?.status?.sessionValid ? 'Connected' : 'Check status'} icon={PlugZap} tone={selectedModel?.status?.sessionValid ? 'good' : 'warn'} />
+            <Metric label="Limit mode" value="Unlimited" helper="No API-key quota applied" icon={Gauge} tone="good" />
+            <Metric label="Log label" value="Playground" helper="Visible on Logs page" icon={Activity} />
+          </div>
+
+          <Panel title="Response" description="Returned content and token accounting for the most recent playground request.">
+            {result ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <InlineStat label="Input" value={formatNumber(result.usage.prompt_tokens)} helper="prompt tokens" icon={TerminalSquare} />
+                  <InlineStat label="Output" value={formatNumber(result.usage.completion_tokens)} helper="completion tokens" icon={Cpu} />
+                  <InlineStat label="Total" value={formatNumber(result.usage.total_tokens)} helper="logged tokens" icon={Gauge} />
+                </div>
+                <div className="rounded-md bg-muted p-4">
+                  <p className="whitespace-pre-wrap text-sm leading-6">{result.choices[0]?.message.content}</p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <span className="status-pill bg-primary/10 text-primary">{result.provider}</span>
+                  <span className="status-pill bg-muted text-muted-foreground">{result.loggedAs}</span>
+                  <span className="status-pill bg-muted text-muted-foreground">No request limit</span>
+                </div>
+              </div>
+            ) : (
+              <EmptyState icon={TerminalSquare} message="Send a request to see the provider response." />
+            )}
+          </Panel>
+        </div>
+      </div>
+    </Page>
+  )
+}
+
 function Providers() {
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
   const [loading, setLoading] = useState(true)
@@ -770,10 +908,14 @@ function Providers() {
       setMessage('Enter an API key before saving.')
       return
     }
-    await api.providers.setApiKey(provider, key)
-    setApiKeyDrafts({ ...apiKeyDrafts, [provider]: '' })
-    setMessage(`${provider} credentials saved. Provider status will refresh on the next request.`)
-    await load()
+    try {
+      await api.providers.setApiKey(provider, key)
+      setApiKeyDrafts({ ...apiKeyDrafts, [provider]: '' })
+      setMessage(`${provider} credentials saved. Provider status will refresh on the next request.`)
+      await load()
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Unable to save provider credentials')
+    }
   }
 
   const grouped = useMemo(() => {
@@ -1326,6 +1468,21 @@ function Metric({ label, value, helper, icon: Icon, tone = 'neutral' }: { label:
         <div className={`rounded-md bg-muted p-2 ${toneClass}`}>
           <Icon size={20} />
         </div>
+      </div>
+    </div>
+  )
+}
+
+function InlineStat({ label, value, helper, icon: Icon }: { label: string; value: string; helper: string; icon: typeof Activity }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="rounded-md bg-muted p-2 text-accent">
+        <Icon size={18} />
+      </div>
+      <div>
+        <p className="label">{label}</p>
+        <p className="mt-2 text-2xl font-bold">{value}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{helper}</p>
       </div>
     </div>
   )

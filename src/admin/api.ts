@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { BridgeConfig, ProviderName } from '../types.js';
+import type { BridgeConfig, ChatMessage, ProviderName } from '../types.js';
 import { loadConfig, saveConfig } from '../config.js';
 import type { ProviderRegistry } from '../registry.js';
 import {
@@ -17,10 +17,11 @@ type Permission =
   | 'logs:read'
   | 'admins:manage'
   | 'config:manage'
-  | 'providers:manage';
+  | 'providers:manage'
+  | 'playground:use';
 
 const ROLE_PERMISSIONS: Record<AdminRecord['role'], Permission[]> = {
-  super_admin: ['dashboard:read', 'keys:manage', 'logs:read', 'admins:manage', 'config:manage', 'providers:manage'],
+  super_admin: ['dashboard:read', 'keys:manage', 'logs:read', 'admins:manage', 'config:manage', 'providers:manage', 'playground:use'],
   admin: ['dashboard:read', 'keys:manage', 'logs:read', 'providers:manage'],
 };
 
@@ -30,6 +31,12 @@ interface AdminContext {
   token: AdminTokenPayload;
   admin: AdminRecord;
   permissions: Permission[];
+}
+
+interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
 }
 
 export class AdminApi {
@@ -249,6 +256,12 @@ export class AdminApi {
         return true;
       }
 
+      if (url.pathname === '/api/playground/chat' && req.method === 'POST') {
+        if (!this.has(ctx, 'playground:use')) return forbidden(res);
+        await this.playgroundChat(req, res, ctx);
+        return true;
+      }
+
       if (url.pathname === '/api/providers/models' && req.method === 'GET') {
         if (!this.has(ctx, 'dashboard:read')) return forbidden(res);
         const providerStatus = await this.registry.getStatus();
@@ -274,7 +287,7 @@ export class AdminApi {
       }
 
       if (url.pathname === '/api/providers/api-keys' && req.method === 'PATCH') {
-        if (!this.has(ctx, 'config:manage')) return forbidden(res);
+        if (!this.has(ctx, 'providers:manage')) return forbidden(res);
         const body = await readJson(req);
         const provider = String(body.provider ?? '');
         if (!['claude-api', 'gemini-api', 'codex-api'].includes(provider)) {
@@ -441,6 +454,133 @@ export class AdminApi {
     });
   }
 
+  private async playgroundChat(req: IncomingMessage, res: ServerResponse, ctx: AdminContext): Promise<void> {
+    const startedAt = Date.now();
+    const body = await readJson(req);
+    const model = requireString(body.model, 'model');
+    const messages = requireMessages(body.messages);
+    const temperature = body.temperature === undefined ? undefined : Number(body.temperature);
+    const maxTokens = body.max_tokens === undefined ? undefined : asPositiveInteger(body.max_tokens, 'max_tokens');
+    const newConversation = body.newConversation === undefined ? true : Boolean(body.newConversation);
+    const provider = this.registry.providerForModel(model);
+    const providerName = provider?.name ?? 'unknown';
+
+    if (!provider) {
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, 404, startedAt, `Unknown model: ${model}`, { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
+      json(res, 404, { error: `Unknown model: ${model}`, code: 'UNKNOWN_MODEL' });
+      return;
+    }
+
+    if (temperature !== undefined && (!Number.isFinite(temperature) || temperature < 0 || temperature > 2)) {
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, 400, startedAt, 'temperature must be between 0 and 2', this.estimateTokenUsage(messages, ''));
+      json(res, 400, { error: 'temperature must be between 0 and 2', code: 'INVALID_TEMPERATURE' });
+      return;
+    }
+
+    const connected = await provider.ensureConnected();
+    if (!connected) {
+      const error = `${provider.name} is not connected`;
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, 503, startedAt, error, this.estimateTokenUsage(messages, ''));
+      json(res, 503, { error, code: 'PROVIDER_UNAVAILABLE' });
+      return;
+    }
+
+    try {
+      const content = await provider.chat({
+        model,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+        newConversation,
+      });
+      const usage = this.tokenUsage(provider, messages, content);
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, 200, startedAt, null, usage);
+      this.audit(req, ctx, 'playground_chat', 'provider', providerName, { model, usage });
+      json(res, 200, {
+        id: `admin-playground-${Date.now()}`,
+        object: 'chat.completion',
+        model,
+        provider: providerName,
+        masterApi: true,
+        limited: false,
+        loggedAs: `Admin Playground (${ctx.admin.username})`,
+        choices: [{
+          index: 0,
+          message: { role: 'assistant', content },
+          finish_reason: 'stop',
+        }],
+        usage,
+      });
+    } catch (err) {
+      const message = (err as Error).message;
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, 503, startedAt, message, this.estimateTokenUsage(messages, ''));
+      this.audit(req, ctx, 'playground_chat_failed', 'provider', providerName, { model, error: message });
+      json(res, 503, { error: message, code: 'PROVIDER_ERROR' });
+    }
+  }
+
+  private logPlaygroundRequest(
+    req: IncomingMessage,
+    ctx: AdminContext,
+    provider: string,
+    model: string,
+    messagesCount: number,
+    statusCode: number,
+    startedAt: number,
+    error: string | null,
+    usage: TokenUsage,
+  ): void {
+    this.store.logRequest({
+      api_key_id: null,
+      api_key_name: `Admin Playground (${ctx.admin.username})`,
+      provider,
+      model,
+      messages_count: messagesCount,
+      stream: 0,
+      status_code: statusCode,
+      response_time_ms: Date.now() - startedAt,
+      prompt_tokens: usage.prompt_tokens,
+      completion_tokens: usage.completion_tokens,
+      total_tokens: usage.total_tokens,
+      tokens_used: usage.total_tokens,
+      error,
+      ip_address: getIp(req),
+      user_agent: getUserAgent(req),
+    });
+  }
+
+  private tokenUsage(provider: unknown, messages: ChatMessage[], output: string): TokenUsage {
+    const fallback = this.estimateTokenUsage(messages, output);
+    const meta = provider && typeof provider === 'object' && 'currentMeta' in provider
+      ? (provider as any).currentMeta
+      : null;
+    const raw = typeof meta === 'function' ? meta.call(provider) : meta;
+    const prompt = numberOrZero(raw?.inputTokens ?? raw?.promptTokens ?? raw?.prompt_tokens);
+    const completion = numberOrZero(raw?.outputTokens ?? raw?.completionTokens ?? raw?.completion_tokens);
+    const total = numberOrZero(raw?.totalTokens ?? raw?.total_tokens);
+
+    if (prompt > 0 || completion > 0 || total > 0) {
+      return {
+        prompt_tokens: prompt || Math.max(0, total - completion),
+        completion_tokens: completion || Math.max(0, total - prompt),
+        total_tokens: total || prompt + completion,
+      };
+    }
+
+    return fallback;
+  }
+
+  private estimateTokenUsage(messages: ChatMessage[], output: string): TokenUsage {
+    const promptText = messages.map(message => `${message.role}\n${message.content}`).join('\n');
+    const prompt = estimateTokens(promptText);
+    const completion = estimateTokens(output);
+    return {
+      prompt_tokens: prompt,
+      completion_tokens: completion,
+      total_tokens: prompt + completion,
+    };
+  }
+
   private mapApiKey(key: ApiKeyRecord) {
     const today = new Date().toISOString().slice(0, 10);
     return {
@@ -532,6 +672,30 @@ function asPositiveInteger(value: unknown, field: string): number {
 function requireString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) throw new Error(`${field} is required`);
   return value.trim();
+}
+
+function requireMessages(value: unknown): ChatMessage[] {
+  if (!Array.isArray(value) || value.length === 0) throw new Error('messages must be a non-empty array');
+  return value.map((message, index) => {
+    if (!message || typeof message !== 'object') throw new Error(`messages[${index}] must be an object`);
+    const role = (message as { role?: unknown }).role;
+    const content = (message as { content?: unknown }).content;
+    if (role !== 'system' && role !== 'user' && role !== 'assistant') throw new Error(`messages[${index}].role is invalid`);
+    if (typeof content !== 'string' || content.trim().length === 0) throw new Error(`messages[${index}].content is required`);
+    return { role, content: content.trim() };
+  });
+}
+
+function estimateTokens(value: string): number {
+  if (!value) return 0;
+  const words = value.trim().split(/\s+/).filter(Boolean).length;
+  const chars = Math.ceil(value.length / 4);
+  return Math.max(1, Math.ceil((words + chars) / 2));
+}
+
+function numberOrZero(value: unknown): number {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.round(number) : 0;
 }
 
 function mapRequestLog(log: RequestLogRecord) {
