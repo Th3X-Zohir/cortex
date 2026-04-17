@@ -178,7 +178,8 @@ export class BridgeServer {
         res.writeHead(200, {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
         });
 
         const id = `chatcmpl-${Date.now()}`;
@@ -191,7 +192,9 @@ export class BridgeServer {
               choices: [{ index: 0, delta: { content: chunk }, finish_reason: null }],
               ...(meta ? { cortex_meta: meta } : {}),
             });
+            const canFlush = (res as any).flush;
             res.write(`data: ${data}\n\n`);
+            if (canFlush) (res as any).flush();
           }
           // Send final metadata with done signal
           const finalMeta = 'currentMeta' in provider ? (provider as any).currentMeta : undefined;
