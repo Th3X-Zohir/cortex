@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import * as http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -86,6 +87,18 @@ export class BridgeServer {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+    // ── PROXY /admin/* to admin service ─────────────────────────────────────
+    if (url.startsWith('/admin') || url.startsWith('/api/keys') || url === '/api/stats' || url === '/api/config' || url === '/api/requests' || url === '/api/logs' || url === '/api/health' || url === '/api/ingest') {
+      const adminPort = 31337;
+      const proxyReq = http.request({ hostname: 'localhost', port: adminPort, path: url, method, headers: req.headers }, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+        proxyRes.pipe(res);
+      });
+      proxyReq.on('error', () => { res.writeHead(502); res.end('Admin service unavailable'); });
+      req.pipe(proxyReq);
+      return;
+    }
 
     // ── GET /health ──────────────────────────────────────────────────────────
     if (url === '/health' && method === 'GET') {

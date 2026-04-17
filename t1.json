@@ -1,5 +1,1 @@
-{
-  "model": "web-gemini/gemini-3-fast",
-  "messages": [{"role": "user", "content": "say hi"}],
-  "stream": false
-}
+{"model":"web-gemini/gemini-3-fast","messages":[{"role":"user","content":"What is 7+8?"}],"newConversation":true}
