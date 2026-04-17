@@ -13,6 +13,14 @@ const DEFAULTS: BridgeConfig = {
   headless: false,       // show browser for login flows
   logLevel: 'info',
   apiKeys: {},
+  admin: {
+    dbPath: process.env.CORTEX_ADMIN_DB || join(CONFIG_DIR, 'admin.db'),
+    jwtSecret: process.env.CORTEX_ADMIN_JWT_SECRET,
+    tokenTtlSeconds: Number(process.env.CORTEX_ADMIN_TOKEN_TTL_SECONDS || 8 * 60 * 60),
+    requireApiKey: process.env.CORTEX_REQUIRE_API_KEY !== 'false',
+    logRetentionDays: Number(process.env.CORTEX_LOG_RETENTION_DAYS || 90),
+    corsOrigin: process.env.CORTEX_CORS_ORIGIN || '*',
+  },
 };
 
 export function loadConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig {
@@ -26,7 +34,16 @@ export function loadConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig 
     }
   }
 
-  return { ...DEFAULTS, ...saved, ...overrides };
+  return {
+    ...DEFAULTS,
+    ...saved,
+    ...overrides,
+    admin: {
+      ...DEFAULTS.admin,
+      ...(saved.admin ?? {}),
+      ...(overrides.admin ?? {}),
+    },
+  };
 }
 
 export function saveConfig(cfg: Partial<BridgeConfig>): void {

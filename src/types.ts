@@ -15,6 +15,14 @@ export interface BridgeConfig {
   headless: boolean;        // false = visible browser (for login)
   logLevel: 'silent' | 'info' | 'debug';
   apiKeys: ApiKeyConfig;    // API keys for CLI/SDK-based providers
+  admin: {
+    dbPath: string;
+    jwtSecret?: string;
+    tokenTtlSeconds: number;
+    requireApiKey: boolean;
+    logRetentionDays: number;
+    corsOrigin: string;
+  };
 }
 
 export interface ProviderStatus {

@@ -1,6 +1,13 @@
 node_modules/
+admin/node_modules/
 dist/
+admin/dist/
 .git/
+logs/
+data/
+admin/data/
+coverage/
+.cache/
 *.log
 .env
 .env.*

@@ -21,6 +21,11 @@ const DEFAULT_MAX_TOKENS: Record<string, number> = {
 
 export class ClaudeApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'claude-api';
+  private _meta = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+
+  get currentMeta() {
+    return { ...this._meta };
+  }
 
   readonly models: ModelDefinition[] = [
     { id: 'api-claude/claude-sonnet-4-6',  provider: 'claude-api', displayName: 'Claude Sonnet 4.6 (API)',  owned_by: 'anthropic' },
@@ -49,6 +54,9 @@ export class ClaudeApiProvider extends ApiBaseProvider {
       ...(systemMsg ? { system: systemMsg.content } : {}),
       messages: conversationMsgs,
     });
+    const inputTokens = response.usage.input_tokens ?? 0;
+    const outputTokens = response.usage.output_tokens ?? 0;
+    this._meta = { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
 
     return response.content
       .filter(block => block.type === 'text')
@@ -71,10 +79,19 @@ export class ClaudeApiProvider extends ApiBaseProvider {
       ...(systemMsg ? { system: systemMsg.content } : {}),
       messages: conversationMsgs,
     });
+    this._meta = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
     for await (const event of stream) {
       if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
         yield event.delta.text;
+      }
+      if (event.type === 'message_start') {
+        const inputTokens = event.message.usage.input_tokens ?? 0;
+        this._meta = { ...this._meta, inputTokens, totalTokens: inputTokens + this._meta.outputTokens };
+      }
+      if (event.type === 'message_delta') {
+        const outputTokens = event.usage?.output_tokens ?? 0;
+        this._meta = { ...this._meta, outputTokens, totalTokens: this._meta.inputTokens + outputTokens };
       }
     }
   }

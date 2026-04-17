@@ -1,10 +1,12 @@
 import type {
   Admin,
+  AuditLog,
   ApiKey,
+  BridgeStatus,
   Config,
   Health,
   LoginResponse,
-  Metrics,
+  ModelCatalog,
   RequestLog,
   Stats,
   UsageSummary,
@@ -27,7 +29,7 @@ async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = localStorage.getItem('cortex_admin_token')
+  const token = sessionStorage.getItem('cortex_admin_token') || localStorage.getItem('cortex_admin_token')
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -40,12 +42,14 @@ async function request<T>(
     headers,
   })
 
-  const data = await response.json()
+  const text = await response.text()
+  const data = text ? JSON.parse(text) : {}
 
   if (!response.ok) {
+    const message = typeof data.error === 'string' ? data.error : data.error?.message
     throw new ApiError(
-      data.error || 'Request failed',
-      data.code || 'UNKNOWN_ERROR',
+      message || 'Request failed',
+      data.code || data.error?.type || 'UNKNOWN_ERROR',
       response.status
     )
   }
@@ -88,6 +92,26 @@ export const api = {
     },
 
     usage: () => request<UsageSummary>('/admin/usage'),
+
+    users: {
+      list: () => request<Admin[]>('/admin/admins'),
+      create: (data: { username: string; password: string; role: Admin['role'] }) =>
+        request<Admin>('/admin/admins', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      updateRole: (id: string, role: Admin['role']) =>
+        request<Admin>(`/admin/admins/${id}/role`, {
+          method: 'PATCH',
+          body: JSON.stringify({ role }),
+        }),
+      updatePassword: (id: string, password: string) =>
+        request(`/admin/admins/${id}/password`, {
+          method: 'PATCH',
+          body: JSON.stringify({ password }),
+        }),
+      delete: (id: string) => request(`/admin/admins/${id}`, { method: 'DELETE' }),
+    },
   },
 
   logs: {
@@ -95,17 +119,42 @@ export const api = {
       limit?: number
       offset?: number
       provider?: string
+      statusCode?: number
+      apiKeyId?: string
+      from?: string
+      to?: string
       search?: string
     }) => {
       const searchParams = new URLSearchParams()
       if (params?.limit) searchParams.set('limit', String(params.limit))
       if (params?.offset) searchParams.set('offset', String(params.offset))
       if (params?.provider) searchParams.set('provider', params.provider)
+      if (params?.statusCode) searchParams.set('statusCode', String(params.statusCode))
+      if (params?.apiKeyId) searchParams.set('apiKeyId', params.apiKeyId)
+      if (params?.from) searchParams.set('from', params.from)
+      if (params?.to) searchParams.set('to', params.to)
       if (params?.search) searchParams.set('search', params.search)
       return request<{ logs: RequestLog[]; pagination: { total: number } }>(
         `/logs?${searchParams}`
       )
     },
+
+    audit: (params?: { limit?: number; offset?: number; search?: string; adminId?: string }) => {
+      const searchParams = new URLSearchParams()
+      if (params?.limit) searchParams.set('limit', String(params.limit))
+      if (params?.offset) searchParams.set('offset', String(params.offset))
+      if (params?.search) searchParams.set('search', params.search)
+      if (params?.adminId) searchParams.set('adminId', params.adminId)
+      return request<{ logs: AuditLog[]; pagination: { total: number } }>(
+        `/audit-logs?${searchParams}`
+      )
+    },
+
+    prune: (olderThanDays: number) =>
+      request<{ deleted: number }>('/logs/prune', {
+        method: 'POST',
+        body: JSON.stringify({ olderThanDays }),
+      }),
   },
 
   stats: {
@@ -114,14 +163,28 @@ export const api = {
 
   config: {
     get: () => request<Config>('/config'),
-    set: (config: Config) =>
-      request('/config', {
+    set: (config: Partial<Config>) =>
+      request<Config>('/config', {
         method: 'POST',
         body: JSON.stringify(config),
       }),
   },
 
   health: () => request<Health>('/health'),
+
+  providers: {
+    status: () => request<BridgeStatus>('/providers/status'),
+    models: () => request<ModelCatalog>('/providers/models'),
+    setApiKey: (provider: string, key: string) =>
+      request<{ provider: string; configured: boolean }>('/providers/api-keys', {
+        method: 'PATCH',
+        body: JSON.stringify({ provider, key }),
+      }),
+    login: (provider: string) =>
+      request(`/providers/${provider}/login`, { method: 'POST' }),
+    logout: (provider: string) =>
+      request(`/providers/${provider}/logout`, { method: 'POST' }),
+  },
 }
 
 export { ApiError }

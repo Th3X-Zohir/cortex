@@ -17,16 +17,18 @@
   "scripts": {
     "build": "tsc --noEmit && esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=node --packages=external --sourcemap && esbuild src/cli.ts --bundle --outfile=dist/cli.js --format=esm --platform=node --packages=external --sourcemap && node -e \"try{require('fs').chmodSync('dist/cli.js',0o755)}catch{}\"",
     "dev": "node --watch dist/cli.js",
-    "test": "node --experimental-vm-modules node_modules/.bin/vitest run",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
     "@google/generative-ai": "^0.24.1",
+    "better-sqlite3": "^12.9.0",
     "openai": "^6.33.0",
     "playwright": "^1.44.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.5.0",
     "esbuild": "^0.27.4",
     "typescript": "^5.4.0",

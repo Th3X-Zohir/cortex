@@ -13,6 +13,11 @@ const MODEL_MAP: Record<string, string> = {
 
 export class CodexApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'codex-api';
+  private _meta = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+
+  get currentMeta() {
+    return { ...this._meta };
+  }
 
   readonly models: ModelDefinition[] = [
     { id: 'api-codex/gpt-5.4-pro',          provider: 'codex-api', displayName: 'GPT-5.4 Pro (API)',          owned_by: 'openai' },
@@ -37,6 +42,11 @@ export class CodexApiProvider extends ApiBaseProvider {
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
     });
+    this._meta = {
+      inputTokens: response.usage?.prompt_tokens ?? 0,
+      outputTokens: response.usage?.completion_tokens ?? 0,
+      totalTokens: response.usage?.total_tokens ?? 0,
+    };
 
     return response.choices[0]?.message?.content ?? '';
   }
@@ -49,11 +59,20 @@ export class CodexApiProvider extends ApiBaseProvider {
       model: apiModel,
       messages: req.messages.map(m => ({ role: m.role, content: m.content })),
       stream: true,
+      stream_options: { include_usage: true },
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
     });
+    this._meta = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
     for await (const chunk of stream) {
+      if (chunk.usage) {
+        this._meta = {
+          inputTokens: chunk.usage.prompt_tokens ?? 0,
+          outputTokens: chunk.usage.completion_tokens ?? 0,
+          totalTokens: chunk.usage.total_tokens ?? 0,
+        };
+      }
       const content = chunk.choices[0]?.delta?.content;
       if (content) yield content;
     }

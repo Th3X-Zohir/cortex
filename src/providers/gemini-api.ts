@@ -10,6 +10,11 @@ const MODEL_MAP: Record<string, string> = {
 
 export class GeminiApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'gemini-api';
+  private _meta = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+
+  get currentMeta() {
+    return { ...this._meta };
+  }
 
   readonly models: ModelDefinition[] = [
     { id: 'api-gemini/gemini-3-fast',      provider: 'gemini-api', displayName: 'Gemini 3 Fast (API)',      owned_by: 'google' },
@@ -44,6 +49,12 @@ export class GeminiApiProvider extends ApiBaseProvider {
 
     const chat = model.startChat({ history });
     const result = await chat.sendMessage(lastMsg.content);
+    const usage = result.response.usageMetadata;
+    this._meta = {
+      inputTokens: usage?.promptTokenCount ?? 0,
+      outputTokens: usage?.candidatesTokenCount ?? 0,
+      totalTokens: usage?.totalTokenCount ?? 0,
+    };
     return result.response.text();
   }
 
@@ -69,8 +80,17 @@ export class GeminiApiProvider extends ApiBaseProvider {
 
     const chat = model.startChat({ history });
     const result = await chat.sendMessageStream(lastMsg.content);
+    this._meta = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
     for await (const chunk of result.stream) {
+      const usage = chunk.response?.usageMetadata;
+      if (usage) {
+        this._meta = {
+          inputTokens: usage.promptTokenCount ?? this._meta.inputTokens,
+          outputTokens: usage.candidatesTokenCount ?? this._meta.outputTokens,
+          totalTokens: usage.totalTokenCount ?? this._meta.totalTokens,
+        };
+      }
       const text = chunk.text();
       if (text) yield text;
     }

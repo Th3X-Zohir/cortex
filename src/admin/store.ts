@@ -1,0 +1,573 @@
+import Database from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { hashPassword, hashApiKey } from './auth.js';
+
+export interface AdminRecord {
+  id: string;
+  username: string;
+  password_hash: string;
+  role: 'super_admin' | 'admin';
+  created_at: string;
+  last_login: string | null;
+  must_change_password: number;
+}
+
+export interface ApiKeyRecord {
+  id: string;
+  key_hash: string;
+  key_prefix: string;
+  name: string;
+  daily_limit: number;
+  rate_limit_per_min: number;
+  active: number;
+  created_by: string;
+  created_at: string;
+  last_used: string | null;
+  total_requests: number;
+}
+
+export interface RequestLogRecord {
+  id: string;
+  api_key_id: string | null;
+  api_key_name: string | null;
+  provider: string;
+  model: string;
+  messages_count: number;
+  stream: number;
+  status_code: number | null;
+  response_time_ms: number | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  total_tokens: number | null;
+  tokens_used: number | null;
+  error: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export interface DailyUsageRecord {
+  api_key_id: string;
+  date: string;
+  request_count: number;
+}
+
+export interface AuditLogRecord {
+  id: string;
+  admin_id: string | null;
+  admin_username: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  metadata: string | null;
+  created_at: string;
+}
+
+export interface LogFilters {
+  limit?: number;
+  offset?: number;
+  provider?: string;
+  search?: string;
+  status_code?: number;
+  api_key_id?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface CreateApiKeyResult {
+  id: string;
+  key: string;
+  name: string;
+  keyPrefix: string;
+}
+
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS admins (
+  id TEXT PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'admin',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_login TEXT,
+  must_change_password INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS api_keys (
+  id TEXT PRIMARY KEY,
+  key_hash TEXT UNIQUE NOT NULL,
+  key_prefix TEXT NOT NULL,
+  name TEXT NOT NULL,
+  daily_limit INTEGER NOT NULL DEFAULT 1000,
+  rate_limit_per_min INTEGER NOT NULL DEFAULT 60,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_used TEXT,
+  total_requests INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS request_logs (
+  id TEXT PRIMARY KEY,
+  api_key_id TEXT,
+  api_key_name TEXT,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  messages_count INTEGER NOT NULL DEFAULT 0,
+  stream INTEGER NOT NULL DEFAULT 0,
+  status_code INTEGER,
+  response_time_ms INTEGER,
+  prompt_tokens INTEGER,
+  completion_tokens INTEGER,
+  total_tokens INTEGER,
+  tokens_used INTEGER,
+  error TEXT,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS daily_usage (
+  api_key_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  request_count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (api_key_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY,
+  admin_id TEXT,
+  admin_username TEXT,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  ip_address TEXT,
+  user_agent TEXT,
+  metadata TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_request_logs_created_at ON request_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_request_logs_api_key_id ON request_logs(api_key_id);
+CREATE INDEX IF NOT EXISTS idx_request_logs_provider ON request_logs(provider);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
+CREATE INDEX IF NOT EXISTS idx_api_keys_active ON api_keys(active);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_id ON audit_logs(admin_id);
+`;
+
+export class AdminStore {
+  private db: Database.Database;
+
+  constructor(dbPath: string) {
+    const dir = dirname(dbPath);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+    this.db = new Database(dbPath);
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('foreign_keys = ON');
+    this.db.exec(SCHEMA);
+    this.migrate();
+    this.seedDefaults();
+  }
+
+  private migrate(): void {
+    this.ensureColumn('request_logs', 'prompt_tokens', 'INTEGER');
+    this.ensureColumn('request_logs', 'completion_tokens', 'INTEGER');
+    this.ensureColumn('request_logs', 'total_tokens', 'INTEGER');
+  }
+
+  private ensureColumn(table: string, column: string, definition: string): void {
+    const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (!columns.some(c => c.name === column)) {
+      this.db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
+    }
+  }
+
+  private seedDefaults(): void {
+    const existing = this.db.prepare('SELECT COUNT(*) as count FROM admins').get() as { count: number };
+    if (existing.count === 0) {
+      const username = process.env.CORTEX_ADMIN_USERNAME || 'admin';
+      const password = process.env.CORTEX_ADMIN_PASSWORD || 'admin';
+      const id = randomUUID();
+      const pwHash = hashPassword(password);
+      this.db.prepare(
+        'INSERT INTO admins (id, username, password_hash, role, must_change_password) VALUES (?, ?, ?, ?, ?)'
+      ).run(id, username, pwHash, 'super_admin', process.env.CORTEX_ADMIN_PASSWORD ? 0 : 1);
+      if (process.env.CORTEX_ADMIN_PASSWORD) {
+        console.log(`[cortex:admin] Initial admin created — username: ${username}`);
+      } else {
+        console.log('[cortex:admin] Default admin created — username: admin, password: admin (CHANGE IMMEDIATELY)');
+      }
+    }
+  }
+
+  close(): void {
+    this.db.close();
+  }
+
+  get raw(): Database.Database {
+    return this.db;
+  }
+
+  // ── Admin CRUD ───────────────────────────────────────────────────────
+
+  getAdminByUsername(username: string): AdminRecord | undefined {
+    return this.db.prepare('SELECT * FROM admins WHERE username = ?').get(username) as AdminRecord | undefined;
+  }
+
+  getAdminById(id: string): AdminRecord | undefined {
+    return this.db.prepare('SELECT * FROM admins WHERE id = ?').get(id) as AdminRecord | undefined;
+  }
+
+  listAdmins(): Omit<AdminRecord, 'password_hash'>[] {
+    return this.db.prepare('SELECT id, username, role, created_at, last_login, must_change_password FROM admins ORDER BY created_at DESC').all() as Omit<AdminRecord, 'password_hash'>[];
+  }
+
+  createAdmin(username: string, password: string, role: 'super_admin' | 'admin', createdBy: string): AdminRecord {
+    const id = randomUUID();
+    const pwHash = hashPassword(password);
+    this.db.prepare(
+      'INSERT INTO admins (id, username, password_hash, role, must_change_password) VALUES (?, ?, ?, ?, 0)'
+    ).run(id, username, pwHash, role);
+    return this.getAdminById(id)!;
+  }
+
+  updateAdminRole(id: string, role: 'super_admin' | 'admin'): void {
+    this.db.prepare('UPDATE admins SET role = ? WHERE id = ?').run(role, id);
+  }
+
+  updateAdminPassword(id: string, newPassword: string): void {
+    const pwHash = hashPassword(newPassword);
+    this.db.prepare('UPDATE admins SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(pwHash, id);
+  }
+
+  updateAdminLastLogin(id: string): void {
+    this.db.prepare('UPDATE admins SET last_login = datetime(\'now\') WHERE id = ?').run(id);
+  }
+
+  deleteAdmin(id: string): void {
+    this.db.prepare('DELETE FROM admins WHERE id = ?').run(id);
+  }
+
+  countSuperAdmins(exceptId?: string): number {
+    if (exceptId) {
+      const row = this.db.prepare('SELECT COUNT(*) as count FROM admins WHERE role = ? AND id != ?').get('super_admin', exceptId) as { count: number };
+      return row.count;
+    }
+    const row = this.db.prepare('SELECT COUNT(*) as count FROM admins WHERE role = ?').get('super_admin') as { count: number };
+    return row.count;
+  }
+
+  // ── API Key CRUD ─────────────────────────────────────────────────────
+
+  createApiKey(name: string, dailyLimit: number, rateLimitPerMin: number, createdBy: string): CreateApiKeyResult {
+    const id = randomUUID();
+    const rawKey = `ctx_${randomUUID().replace(/-/g, '')}`;
+    const keyHash = hashApiKey(rawKey);
+    const keyPrefix = rawKey.slice(0, 8);
+
+    this.db.prepare(
+      'INSERT INTO api_keys (id, key_hash, key_prefix, name, daily_limit, rate_limit_per_min, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, keyHash, keyPrefix, name, dailyLimit, rateLimitPerMin, createdBy);
+
+    return { id, key: rawKey, name, keyPrefix };
+  }
+
+  listApiKeys(): ApiKeyRecord[] {
+    return this.db.prepare('SELECT * FROM api_keys ORDER BY created_at DESC').all() as ApiKeyRecord[];
+  }
+
+  getApiKeyById(id: string): ApiKeyRecord | undefined {
+    return this.db.prepare('SELECT * FROM api_keys WHERE id = ?').get(id) as ApiKeyRecord | undefined;
+  }
+
+  getApiKeyByHash(keyHash: string): ApiKeyRecord | undefined {
+    return this.db.prepare('SELECT * FROM api_keys WHERE key_hash = ?').get(keyHash) as ApiKeyRecord | undefined;
+  }
+
+  updateApiKey(id: string, updates: { name?: string; daily_limit?: number; rate_limit_per_min?: number; active?: boolean }): void {
+    const sets: string[] = [];
+    const vals: any[] = [];
+    if (updates.name !== undefined) { sets.push('name = ?'); vals.push(updates.name); }
+    if (updates.daily_limit !== undefined) { sets.push('daily_limit = ?'); vals.push(updates.daily_limit); }
+    if (updates.rate_limit_per_min !== undefined) { sets.push('rate_limit_per_min = ?'); vals.push(updates.rate_limit_per_min); }
+    if (updates.active !== undefined) { sets.push('active = ?'); vals.push(updates.active ? 1 : 0); }
+    if (sets.length === 0) return;
+    vals.push(id);
+    this.db.prepare(`UPDATE api_keys SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+  }
+
+  deleteApiKey(id: string): void {
+    this.db.prepare('DELETE FROM api_keys WHERE id = ?').run(id);
+  }
+
+  // ── API Key Validation (used by cortex proxy) ────────────────────────
+
+  validateApiKey(rawKey: string): { valid: boolean; key?: ApiKeyRecord; reason?: string; statusCode?: number } {
+    const keyHash = hashApiKey(rawKey);
+    const key = this.getApiKeyByHash(keyHash);
+    if (!key) return { valid: false, reason: 'Invalid API key', statusCode: 401 };
+    if (!key.active) return { valid: false, key, reason: 'API key is disabled', statusCode: 403 };
+
+    const today = new Date().toISOString().slice(0, 10);
+    const usage = this.getDailyUsage(key.id, today);
+    if (usage >= key.daily_limit) return { valid: false, key, reason: 'Daily limit exceeded', statusCode: 429 };
+
+    const rateOk = this.checkRateLimit(key.id, key.rate_limit_per_min);
+    if (!rateOk) return { valid: false, key, reason: 'Rate limit exceeded', statusCode: 429 };
+
+    return { valid: true, key };
+  }
+
+  incrementKeyUsage(apiKeyId: string): void {
+    const today = new Date().toISOString().slice(0, 10);
+    this.db.prepare(
+      'INSERT INTO daily_usage (api_key_id, date, request_count) VALUES (?, ?, 1) ON CONFLICT(api_key_id, date) DO UPDATE SET request_count = request_count + 1'
+    ).run(apiKeyId, today);
+    this.db.prepare('UPDATE api_keys SET total_requests = total_requests + 1, last_used = datetime(\'now\') WHERE id = ?').run(apiKeyId);
+  }
+
+  getDailyUsage(apiKeyId: string, date: string): number {
+    const row = this.db.prepare('SELECT request_count FROM daily_usage WHERE api_key_id = ? AND date = ?').get(apiKeyId, date) as { request_count: number } | undefined;
+    return row?.request_count ?? 0;
+  }
+
+  checkRateLimit(apiKeyId: string, limitPerMin: number): boolean {
+    const oneMinAgo = new Date(Date.now() - 60_000).toISOString().slice(0, 19).replace('T', ' ');
+    const row = this.db.prepare('SELECT COUNT(*) as count FROM request_logs WHERE api_key_id = ? AND created_at > ?').get(apiKeyId, oneMinAgo) as { count: number };
+    return row.count < limitPerMin;
+  }
+
+  // ── Request Logs ─────────────────────────────────────────────────────
+
+  logRequest(log: Omit<RequestLogRecord, 'id' | 'created_at'>): void {
+    const id = randomUUID();
+    this.db.prepare(
+      `INSERT INTO request_logs (id, api_key_id, api_key_name, provider, model, messages_count, stream, status_code, response_time_ms, prompt_tokens, completion_tokens, total_tokens, tokens_used, error, ip_address, user_agent, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+    ).run(
+      id,
+      log.api_key_id,
+      log.api_key_name,
+      log.provider,
+      log.model,
+      log.messages_count,
+      log.stream,
+      log.status_code,
+      log.response_time_ms,
+      log.prompt_tokens,
+      log.completion_tokens,
+      log.total_tokens,
+      log.tokens_used ?? log.total_tokens,
+      log.error,
+      log.ip_address,
+      log.user_agent,
+    );
+  }
+
+  getRequestLogs(filters: LogFilters): { logs: RequestLogRecord[]; total: number } {
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (filters.provider) { conditions.push('provider = ?'); params.push(filters.provider); }
+    if (filters.status_code) { conditions.push('status_code = ?'); params.push(filters.status_code); }
+    if (filters.api_key_id) { conditions.push('api_key_id = ?'); params.push(filters.api_key_id); }
+    if (filters.search) {
+      conditions.push('(model LIKE ? OR api_key_name LIKE ? OR error LIKE ?)');
+      const term = `%${filters.search}%`;
+      params.push(term, term, term);
+    }
+    if (filters.from) { conditions.push('created_at >= ?'); params.push(filters.from); }
+    if (filters.to) { conditions.push('created_at <= ?'); params.push(filters.to); }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limit = filters.limit ?? 50;
+    const offset = filters.offset ?? 0;
+
+    const totalRow = this.db.prepare(`SELECT COUNT(*) as total FROM request_logs ${where}`).get(...params) as { total: number };
+    const logs = this.db.prepare(`SELECT * FROM request_logs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as RequestLogRecord[];
+
+    return { logs, total: totalRow.total };
+  }
+
+  // ── Stats / Metrics ──────────────────────────────────────────────────
+
+  getStats(): {
+    overview: {
+      totalRequests: number;
+      requestsLast1h: number;
+      requestsLast24h: number;
+      requestsLast7d: number;
+      avgResponseTime: number;
+      errorCount: number;
+      errorRate: string;
+      totalTokens: number;
+      promptTokens: number;
+      completionTokens: number;
+      tokensLast24h: number;
+    };
+    byProvider: { provider: string; count: number; avgResponseTime: number; totalTokens: number }[];
+    byModel: { model: string; count: number; totalTokens: number }[];
+    hourlyData: { hour: string; count: number; totalTokens: number }[];
+    recentErrors: { id: string; provider: string; model: string; statusCode: number | null; error: string | null; createdAt: string }[];
+  } {
+    const total = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs').get() as any).c;
+    const oneHourAgo = new Date(Date.now() - 3600_000).toISOString().slice(0, 19).replace('T', ' ');
+    const oneDayAgo = new Date(Date.now() - 86400_000).toISOString().slice(0, 19).replace('T', ' ');
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 19).replace('T', ' ');
+
+    const r1h = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE created_at > ?').get(oneHourAgo) as any).c;
+    const r24h = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE created_at > ?').get(oneDayAgo) as any).c;
+    const r7d = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE created_at > ?').get(sevenDaysAgo) as any).c;
+    const avgRt = (this.db.prepare('SELECT AVG(response_time_ms) as a FROM request_logs WHERE response_time_ms IS NOT NULL').get() as any).a ?? 0;
+    const errCount = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE status_code >= 400 OR error IS NOT NULL').get() as any).c;
+    const tokenTotals = this.db.prepare(
+      'SELECT COALESCE(SUM(prompt_tokens), 0) as prompt, COALESCE(SUM(completion_tokens), 0) as completion, COALESCE(SUM(total_tokens), 0) as total FROM request_logs'
+    ).get() as { prompt: number; completion: number; total: number };
+    const tokens24h = (this.db.prepare('SELECT COALESCE(SUM(total_tokens), 0) as total FROM request_logs WHERE created_at > ?').get(oneDayAgo) as any).total ?? 0;
+
+    const byProvider = this.db.prepare('SELECT provider, COUNT(*) as count, AVG(response_time_ms) as avgResponseTime, COALESCE(SUM(total_tokens), 0) as totalTokens FROM request_logs GROUP BY provider ORDER BY count DESC').all() as any[];
+    const byModel = this.db.prepare('SELECT model, COUNT(*) as count, COALESCE(SUM(total_tokens), 0) as totalTokens FROM request_logs GROUP BY model ORDER BY count DESC LIMIT 20').all() as any[];
+    const hourlyData = this.db.prepare(
+      `SELECT strftime('%Y-%m-%d %H:00', created_at) as hour, COUNT(*) as count, COALESCE(SUM(total_tokens), 0) as totalTokens FROM request_logs WHERE created_at > ? GROUP BY hour ORDER BY hour`
+    ).all(sevenDaysAgo) as any[];
+    const recentErrors = this.db.prepare(
+      `SELECT id, provider, model, status_code as statusCode, error, created_at as createdAt
+       FROM request_logs
+       WHERE status_code >= 400 OR error IS NOT NULL
+       ORDER BY created_at DESC
+       LIMIT 8`
+    ).all() as any[];
+
+    return {
+      overview: {
+        totalRequests: total,
+        requestsLast1h: r1h,
+        requestsLast24h: r24h,
+        requestsLast7d: r7d,
+        avgResponseTime: Math.round(avgRt),
+        errorCount: errCount,
+        errorRate: total > 0 ? ((errCount / total) * 100).toFixed(1) + '%' : '0%',
+        totalTokens: tokenTotals.total,
+        promptTokens: tokenTotals.prompt,
+        completionTokens: tokenTotals.completion,
+        tokensLast24h: tokens24h,
+      },
+      byProvider,
+      byModel,
+      hourlyData,
+      recentErrors,
+    };
+  }
+
+  getUsageSummary(): {
+    keys: { id: string; name: string; dailyLimit: number; requestsToday: number; tokensToday: number; totalTokens: number; requestsTodayReset: string; active: boolean; usagePercent: number }[];
+    summary: { totalUsage: number; totalLimit: number; usagePercent: number; activeKeys: number; tokensToday: number; totalTokens: number };
+  } {
+    const today = new Date().toISOString().slice(0, 10);
+    const keys = this.db.prepare('SELECT * FROM api_keys ORDER BY created_at DESC').all() as ApiKeyRecord[];
+
+    const keyUsages = keys.map(k => {
+      const usage = this.getDailyUsage(k.id, today);
+      const tokenRow = this.db.prepare(
+        `SELECT COALESCE(SUM(CASE WHEN date(created_at) = date('now') THEN total_tokens ELSE 0 END), 0) as tokensToday,
+                COALESCE(SUM(total_tokens), 0) as totalTokens
+         FROM request_logs
+         WHERE api_key_id = ?`
+      ).get(k.id) as { tokensToday: number; totalTokens: number };
+      return {
+        id: k.id,
+        name: k.name,
+        dailyLimit: k.daily_limit,
+        requestsToday: usage,
+        tokensToday: tokenRow.tokensToday,
+        totalTokens: tokenRow.totalTokens,
+        requestsTodayReset: new Date(Date.now() + (24 - new Date().getHours()) * 3600_000).toISOString(),
+        active: k.active === 1,
+        usagePercent: k.daily_limit > 0 ? Math.round((usage / k.daily_limit) * 100) : 0,
+      };
+    });
+
+    const totalUsage = keyUsages.reduce((s, k) => s + k.requestsToday, 0);
+    const totalLimit = keyUsages.reduce((s, k) => s + k.dailyLimit, 0);
+    const tokensToday = keyUsages.reduce((s, k) => s + k.tokensToday, 0);
+    const totalTokens = keyUsages.reduce((s, k) => s + k.totalTokens, 0);
+    const activeKeys = keyUsages.filter(k => k.active).length;
+
+    return {
+      keys: keyUsages,
+      summary: { totalUsage, totalLimit, usagePercent: totalLimit > 0 ? Math.round((totalUsage / totalLimit) * 100) : 0, activeKeys, tokensToday, totalTokens },
+    };
+  }
+
+  getModelUsage(): Record<string, { requests: number; totalTokens: number; avgResponseTime: number; errorCount: number; lastUsed: string | null }> {
+    const rows = this.db.prepare(
+      `SELECT model,
+              COUNT(*) as requests,
+              COALESCE(SUM(total_tokens), 0) as totalTokens,
+              COALESCE(AVG(response_time_ms), 0) as avgResponseTime,
+              SUM(CASE WHEN status_code >= 400 OR error IS NOT NULL THEN 1 ELSE 0 END) as errorCount,
+              MAX(created_at) as lastUsed
+       FROM request_logs
+       GROUP BY model`
+    ).all() as Array<{ model: string; requests: number; totalTokens: number; avgResponseTime: number; errorCount: number; lastUsed: string | null }>;
+
+    return Object.fromEntries(rows.map(row => [row.model, {
+      requests: row.requests,
+      totalTokens: row.totalTokens,
+      avgResponseTime: Math.round(row.avgResponseTime),
+      errorCount: row.errorCount,
+      lastUsed: row.lastUsed,
+    }]));
+  }
+
+  pruneLogs(olderThanDays: number = 90): number {
+    const cutoff = new Date(Date.now() - olderThanDays * 86400_000).toISOString().slice(0, 19).replace('T', ' ');
+    const result = this.db.prepare('DELETE FROM request_logs WHERE created_at < ?').run(cutoff);
+    return result.changes;
+  }
+
+  // ── Admin Audit Logs ─────────────────────────────────────────────────
+
+  logAuditEvent(event: Omit<AuditLogRecord, 'id' | 'created_at'>): void {
+    const id = randomUUID();
+    this.db.prepare(
+      `INSERT INTO audit_logs (id, admin_id, admin_username, action, entity_type, entity_id, ip_address, user_agent, metadata, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+    ).run(
+      id,
+      event.admin_id,
+      event.admin_username,
+      event.action,
+      event.entity_type,
+      event.entity_id,
+      event.ip_address,
+      event.user_agent,
+      event.metadata,
+    );
+  }
+
+  getAuditLogs(filters: { limit?: number; offset?: number; search?: string; admin_id?: string }): { logs: AuditLogRecord[]; total: number } {
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (filters.admin_id) { conditions.push('admin_id = ?'); params.push(filters.admin_id); }
+    if (filters.search) {
+      conditions.push('(admin_username LIKE ? OR action LIKE ? OR entity_type LIKE ? OR metadata LIKE ?)');
+      const term = `%${filters.search}%`;
+      params.push(term, term, term, term);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limit = filters.limit ?? 50;
+    const offset = filters.offset ?? 0;
+    const totalRow = this.db.prepare(`SELECT COUNT(*) as total FROM audit_logs ${where}`).get(...params) as { total: number };
+    const logs = this.db.prepare(`SELECT * FROM audit_logs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as AuditLogRecord[];
+
+    return { logs, total: totalRow.total };
+  }
+}

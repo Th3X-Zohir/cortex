@@ -14,18 +14,6 @@ services:
       - ./logs:/app/logs
       - cortex-profiles:/root/.cortex
     restart: unless-stopped
-    depends_on:
-      - admin
-
-  admin:
-    build: ./admin
-    image: cortex-admin
-    container_name: cortex-admin
-    ports:
-      - "31337:31337"
-    volumes:
-      - ./admin/data:/app/data
-    restart: unless-stopped
 
 volumes:
   cortex-profiles:
