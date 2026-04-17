@@ -130,35 +130,44 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-white lg:block">
-        <div className="flex h-full flex-col">
-          <div className="border-b border-border px-6 py-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <ShieldCheck size={22} />
-              </div>
-              <div>
-                <p className="text-lg font-bold">Cortex Admin</p>
-                <p className="text-xs text-muted-foreground">Operational control center</p>
-              </div>
-            </div>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[280px] flex-col border-r border-border bg-background-secondary lg:flex">
+        <div className="flex h-16 items-center gap-3 border-b border-border px-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/20 border border-primary/20">
+            <ShieldCheck size={20} className="text-primary" />
           </div>
-          <nav className="flex-1 space-y-1 px-3 py-4">
-            {visibleSections.map(section => (
-              <NavButton
-                key={section.id}
-                active={active === section.id}
-                icon={section.icon}
-                label={section.label}
-                onClick={() => setActive(section.id)}
-              />
-            ))}
-          </nav>
-          <UserPanel admin={admin} onLogout={() => logout(setAdmin)} />
+          <div>
+            <p className="font-bold text-base gradient-text">Cortex</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Admin</p>
+          </div>
+        </div>
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+          {visibleSections.map(section => (
+            <NavButton
+              key={section.id}
+              active={active === section.id}
+              icon={section.icon}
+              label={section.label}
+              onClick={() => setActive(section.id)}
+            />
+          ))}
+        </nav>
+        <div className="border-t border-border p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 border border-primary/20 text-primary font-semibold text-sm shrink-0">
+              {admin.username.slice(0, 2).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{admin.username}</p>
+              <p className="text-xs text-muted-foreground capitalize">{admin.role.replace('_', ' ')}</p>
+            </div>
+            <button className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors" onClick={() => logout(setAdmin)}>
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
       </aside>
 
-      <main className="lg:pl-72">
+      <main className="lg:pl-[280px]">
         <header className="sticky top-0 z-20 border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:px-8 lg:hidden">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -1765,20 +1774,6 @@ function NavButton({ active, icon: Icon, label, onClick }: { active: boolean; ic
       <Icon size={18} />
       {label}
     </button>
-  )
-}
-
-function UserPanel({ admin, onLogout }: { admin: Admin; onLogout: () => void }) {
-  return (
-    <div className="border-t border-border p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="font-semibold">{admin.username}</p>
-          <p className="text-xs capitalize text-muted-foreground">{admin.role.replace('_', ' ')}</p>
-        </div>
-        <button className="btn-secondary min-h-9 px-3" onClick={onLogout}><LogOut size={16} /></button>
-      </div>
-    </div>
   )
 }
 
