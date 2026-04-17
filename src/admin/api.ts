@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { BridgeConfig, ChatMessage, ProviderName } from '../types.js';
+import type { BridgeConfig, ChatMessage, ProviderAdapter, ProviderName } from '../types.js';
 import { loadConfig, saveConfig } from '../config.js';
 import type { ProviderRegistry } from '../registry.js';
 import {
@@ -462,17 +462,18 @@ export class AdminApi {
     const temperature = body.temperature === undefined ? undefined : Number(body.temperature);
     const maxTokens = body.max_tokens === undefined ? undefined : asPositiveInteger(body.max_tokens, 'max_tokens');
     const newConversation = body.newConversation === undefined ? true : Boolean(body.newConversation);
+    const stream = Boolean(body.stream);
     const provider = this.registry.providerForModel(model);
     const providerName = provider?.name ?? 'unknown';
 
     if (!provider) {
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, 404, startedAt, `Unknown model: ${model}`, { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 404, startedAt, `Unknown model: ${model}`, { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
       json(res, 404, { error: `Unknown model: ${model}`, code: 'UNKNOWN_MODEL' });
       return;
     }
 
     if (temperature !== undefined && (!Number.isFinite(temperature) || temperature < 0 || temperature > 2)) {
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, 400, startedAt, 'temperature must be between 0 and 2', this.estimateTokenUsage(messages, ''));
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 400, startedAt, 'temperature must be between 0 and 2', this.estimateTokenUsage(messages, ''));
       json(res, 400, { error: 'temperature must be between 0 and 2', code: 'INVALID_TEMPERATURE' });
       return;
     }
@@ -480,8 +481,13 @@ export class AdminApi {
     const connected = await provider.ensureConnected();
     if (!connected) {
       const error = `${provider.name} is not connected`;
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, 503, startedAt, error, this.estimateTokenUsage(messages, ''));
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 503, startedAt, error, this.estimateTokenUsage(messages, ''));
       json(res, 503, { error, code: 'PROVIDER_UNAVAILABLE' });
+      return;
+    }
+
+    if (stream) {
+      await this.playgroundStream(req, res, ctx, provider, providerName, model, messages, temperature, maxTokens, newConversation, startedAt);
       return;
     }
 
@@ -494,8 +500,8 @@ export class AdminApi {
         newConversation,
       });
       const usage = this.tokenUsage(provider, messages, content);
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, 200, startedAt, null, usage);
-      this.audit(req, ctx, 'playground_chat', 'provider', providerName, { model, usage });
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, false, 200, startedAt, null, usage);
+      this.audit(req, ctx, 'playground_chat', 'provider', providerName, { model, stream: false, usage });
       json(res, 200, {
         id: `admin-playground-${Date.now()}`,
         object: 'chat.completion',
@@ -513,9 +519,72 @@ export class AdminApi {
       });
     } catch (err) {
       const message = (err as Error).message;
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, 503, startedAt, message, this.estimateTokenUsage(messages, ''));
-      this.audit(req, ctx, 'playground_chat_failed', 'provider', providerName, { model, error: message });
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, false, 503, startedAt, message, this.estimateTokenUsage(messages, ''));
+      this.audit(req, ctx, 'playground_chat_failed', 'provider', providerName, { model, stream: false, error: message });
       json(res, 503, { error: message, code: 'PROVIDER_ERROR' });
+    }
+  }
+
+  private async playgroundStream(
+    req: IncomingMessage,
+    res: ServerResponse,
+    ctx: AdminContext,
+    provider: ProviderAdapter,
+    providerName: string,
+    model: string,
+    messages: ChatMessage[],
+    temperature: number | undefined,
+    maxTokens: number | undefined,
+    newConversation: boolean,
+    startedAt: number,
+  ): Promise<void> {
+    const id = `admin-playground-${Date.now()}`;
+    const chunks: string[] = [];
+    let streamError: string | null = null;
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    try {
+      for await (const chunk of provider.chatStream({ model, messages, temperature, max_tokens: maxTokens, newConversation })) {
+        chunks.push(chunk);
+        res.write(`data: ${JSON.stringify({
+          id,
+          object: 'chat.completion.chunk',
+          model,
+          provider: providerName,
+          choices: [{ index: 0, delta: { content: chunk }, finish_reason: null }],
+        })}\n\n`);
+        if ((res as any).flush) (res as any).flush();
+      }
+
+      const usage = this.tokenUsage(provider, messages, chunks.join(''));
+      res.write(`data: ${JSON.stringify({
+        id,
+        object: 'chat.completion.chunk',
+        model,
+        provider: providerName,
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        usage,
+        loggedAs: `Admin Playground (${ctx.admin.username})`,
+        masterApi: true,
+        limited: false,
+      })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, true, 200, startedAt, null, usage);
+      this.audit(req, ctx, 'playground_chat', 'provider', providerName, { model, stream: true, usage });
+    } catch (err) {
+      streamError = (err as Error).message;
+      const usage = this.estimateTokenUsage(messages, chunks.join(''));
+      res.write(`data: ${JSON.stringify({ error: streamError, code: 'PROVIDER_ERROR' })}\n\n`);
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, true, 200, startedAt, streamError, usage);
+      this.audit(req, ctx, 'playground_chat_failed', 'provider', providerName, { model, stream: true, error: streamError });
+    } finally {
+      res.end();
     }
   }
 
@@ -525,6 +594,7 @@ export class AdminApi {
     provider: string,
     model: string,
     messagesCount: number,
+    stream: boolean,
     statusCode: number,
     startedAt: number,
     error: string | null,
@@ -536,7 +606,7 @@ export class AdminApi {
       provider,
       model,
       messages_count: messagesCount,
-      stream: 0,
+      stream: stream ? 1 : 0,
       status_code: statusCode,
       response_time_ms: Date.now() - startedAt,
       prompt_tokens: usage.prompt_tokens,

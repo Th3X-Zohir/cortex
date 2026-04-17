@@ -16,6 +16,10 @@ import type {
 
 const API_BASE = '/api'
 
+function adminToken() {
+  return sessionStorage.getItem('cortex_admin_token') || localStorage.getItem('cortex_admin_token')
+}
+
 class ApiError extends Error {
   constructor(
     message: string,
@@ -31,7 +35,7 @@ async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = sessionStorage.getItem('cortex_admin_token') || localStorage.getItem('cortex_admin_token')
+  const token = adminToken()
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -180,6 +184,62 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    stream: async (
+      data: PlaygroundRequest,
+      handlers: {
+        onChunk: (chunk: string) => void
+        onDone: (payload: Partial<PlaygroundResponse> & { usage?: PlaygroundResponse['usage'] }) => void
+        onError: (message: string) => void
+        signal?: AbortSignal
+      }
+    ) => {
+      const token = adminToken()
+      const response = await fetch(`${API_BASE}/playground/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ ...data, stream: true }),
+        signal: handlers.signal,
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        const message = typeof payload.error === 'string' ? payload.error : payload.error?.message
+        throw new ApiError(message || 'Playground stream failed', payload.code || payload.error?.type || 'STREAM_FAILED', response.status)
+      }
+      if (!response.body) throw new ApiError('Streaming is not supported by this browser', 'STREAM_UNSUPPORTED', 0)
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const events = buffer.split('\n\n')
+        buffer = events.pop() || ''
+
+        for (const event of events) {
+          const lines = event.split('\n').filter(line => line.startsWith('data: '))
+          for (const line of lines) {
+            const raw = line.slice(6).trim()
+            if (!raw) continue
+            if (raw === '[DONE]') return
+            const payload = JSON.parse(raw)
+            if (payload.error) {
+              handlers.onError(String(payload.error))
+              continue
+            }
+            const chunk = payload.choices?.[0]?.delta?.content
+            if (chunk) handlers.onChunk(String(chunk))
+            if (payload.usage) handlers.onDone(payload)
+          }
+        }
+      }
+    },
   },
 
   providers: {

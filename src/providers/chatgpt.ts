@@ -339,9 +339,18 @@ export class ChatGPTProvider extends BaseProvider {
     ).first();
 
     if (await newChatBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await newChatBtn.click();
-      await new Promise(r => setTimeout(r, 1500));
-      logger.info('[chatgpt] new conversation started');
+      try {
+        await newChatBtn.evaluate((element: any) => {
+          if (typeof element.click === 'function') element.click();
+          else element.dispatchEvent(new (globalThis as any).MouseEvent('click', { bubbles: true, cancelable: true }));
+        });
+        await new Promise(r => setTimeout(r, 1500));
+        logger.info('[chatgpt] new conversation started');
+      } catch (err) {
+        logger.warn(`[chatgpt] new chat button click failed, using direct navigation: ${(err as Error).message}`);
+        await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
+        await new Promise(r => setTimeout(r, 2000));
+      }
     } else {
       logger.info('[chatgpt] new chat button not found — trying direct navigation');
       await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
@@ -447,7 +456,6 @@ private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
                             continue;
                           }
                           if (/^(true|false|null|undefined)$/i.test(patchVal)) continue;
-                          if (/^[a-z_]+$/.test(patchVal) && patchVal.length < 20) continue;
 
                           const prevLen = window.__cortexChatGPT.text.length;
                           window.__cortexChatGPT.text += patchVal;
@@ -458,7 +466,7 @@ private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
                       }
 
                       // Full message replacement (e.g. resume_conversation_token)
-                      if (d.v?.message?.content?.parts) {
+                      if (d.v?.message?.author?.role === 'assistant' && d.v?.message?.content?.parts) {
                         const joined = d.v.message.content.parts.join('');
                         if (joined && joined.length > window.__cortexChatGPT.text.length) {
                           window.__cortexChatGPT.text = joined;

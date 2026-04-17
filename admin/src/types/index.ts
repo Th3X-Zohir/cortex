@@ -242,6 +242,7 @@ export interface PlaygroundMessage {
 export interface PlaygroundRequest {
   model: string
   messages: PlaygroundMessage[]
+  stream?: boolean
   temperature?: number
   max_tokens?: number
   newConversation?: boolean

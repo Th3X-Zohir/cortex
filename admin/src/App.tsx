@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -15,10 +15,14 @@ import {
   Loader2,
   Lock,
   LogOut,
+  Maximize2,
+  Minimize2,
   Monitor,
   PlugZap,
+  Radio,
   RefreshCcw,
   Search,
+  Send,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
@@ -639,6 +643,8 @@ function Logs() {
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [filters, setFilters] = useState({ search: '', provider: '', statusCode: '', apiKeyId: '' })
   const [loading, setLoading] = useState(true)
+  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null)
+  const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -696,39 +702,67 @@ function Logs() {
 
       {tab === 'requests' ? (
         <Panel title="API request logs" description="Provider calls and rejected access attempts." className="mt-5">
-          <DataTable headers={['Time', 'Key', 'Provider', 'Model', 'Status', 'Latency', 'Tokens', 'Details']}>
+          <DataTable headers={['Time', 'Key', 'Provider', 'Model', 'Status', 'Latency', 'Tokens', 'Summary', 'Details']}>
             {logs.map(log => (
-              <tr key={log.id} className="border-b border-border last:border-0">
-                <td className="py-3 pr-4 text-muted-foreground">{formatDate(log.createdAt)}</td>
-                <td className="py-3 pr-4">{log.apiKeyName ?? 'Unknown'}</td>
-                <td className="py-3 pr-4">{log.provider}</td>
-                <td className="py-3 pr-4 font-mono text-xs">{log.model}</td>
-                <td className="py-3 pr-4"><StatusCode code={log.statusCode} /></td>
-                <td className="py-3 pr-4">{log.responseTimeMs ?? 0} ms</td>
-                <td className="py-3 pr-4">
-                  <div className="text-xs">
-                    <p className="font-semibold">{formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)}</p>
-                    <p className="text-muted-foreground">in {formatNumber(log.promptTokens ?? 0)} / out {formatNumber(log.completionTokens ?? 0)}</p>
-                  </div>
-                </td>
-                <td className="py-3 pr-4 text-sm text-muted-foreground">{log.error || `${log.messagesCount} messages${log.stream ? ' · stream' : ''}`}</td>
-              </tr>
+              <Fragment key={log.id}>
+                <tr className="border-b border-border last:border-0">
+                  <td className="py-3 pr-4 text-muted-foreground">{formatDate(log.createdAt)}</td>
+                  <td className="py-3 pr-4">{log.apiKeyName ?? 'Unknown'}</td>
+                  <td className="py-3 pr-4">{log.provider}</td>
+                  <td className="py-3 pr-4 font-mono text-xs">{log.model}</td>
+                  <td className="py-3 pr-4"><StatusCode code={log.statusCode} /></td>
+                  <td className="py-3 pr-4">{log.responseTimeMs ?? 0} ms</td>
+                  <td className="py-3 pr-4">
+                    <div className="text-xs">
+                      <p className="font-semibold">{formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)}</p>
+                      <p className="text-muted-foreground">in {formatNumber(log.promptTokens ?? 0)} / out {formatNumber(log.completionTokens ?? 0)}</p>
+                    </div>
+                  </td>
+                  <td className="py-3 pr-4 text-sm text-muted-foreground">{log.error || `${log.messagesCount} messages${log.stream ? ' · stream' : ''}`}</td>
+                  <td className="py-3 pr-4">
+                    <button className="btn-secondary min-h-8 px-3 py-1 text-xs" onClick={() => setExpandedRequestId(expandedRequestId === log.id ? null : log.id)}>
+                      {expandedRequestId === log.id ? 'Hide' : 'View'}
+                    </button>
+                  </td>
+                </tr>
+                {expandedRequestId === log.id && (
+                  <tr className="border-b border-border bg-muted/40">
+                    <td colSpan={9} className="p-4">
+                      <RequestLogDetails log={log} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </DataTable>
           {logs.length === 0 && <EmptyState icon={Activity} message="No matching request logs." />}
         </Panel>
       ) : (
         <Panel title="Admin audit trail" description="Authentication, key, provider, and settings actions." className="mt-5">
-          <DataTable headers={['Time', 'Admin', 'Action', 'Entity', 'IP address', 'Metadata']}>
+          <DataTable headers={['Time', 'Admin', 'Action', 'Entity', 'IP address', 'Metadata', 'Details']}>
             {auditLogs.map(log => (
-              <tr key={log.id} className="border-b border-border last:border-0">
-                <td className="py-3 pr-4 text-muted-foreground">{formatDate(log.createdAt)}</td>
-                <td className="py-3 pr-4">{log.adminUsername ?? 'System'}</td>
-                <td className="py-3 pr-4 font-semibold">{log.action.replace(/_/g, ' ')}</td>
-                <td className="py-3 pr-4">{log.entityType}{log.entityId ? ` · ${log.entityId.slice(0, 8)}` : ''}</td>
-                <td className="py-3 pr-4">{log.ipAddress ?? 'Unknown'}</td>
-                <td className="py-3 pr-4 text-xs text-muted-foreground">{log.metadata ? JSON.stringify(log.metadata) : ''}</td>
-              </tr>
+              <Fragment key={log.id}>
+                <tr className="border-b border-border last:border-0">
+                  <td className="py-3 pr-4 text-muted-foreground">{formatDate(log.createdAt)}</td>
+                  <td className="py-3 pr-4">{log.adminUsername ?? 'System'}</td>
+                  <td className="py-3 pr-4 font-semibold">{log.action.replace(/_/g, ' ')}</td>
+                  <td className="py-3 pr-4">{log.entityType}{log.entityId ? ` · ${log.entityId.slice(0, 8)}` : ''}</td>
+                  <td className="py-3 pr-4">{log.ipAddress ?? 'Unknown'}</td>
+                  <td className="max-w-sm truncate py-3 pr-4 text-xs text-muted-foreground">{log.metadata ? JSON.stringify(log.metadata) : ''}</td>
+                  <td className="py-3 pr-4">
+                    <button className="btn-secondary min-h-8 px-3 py-1 text-xs" onClick={() => setExpandedAuditId(expandedAuditId === log.id ? null : log.id)}>
+                      {expandedAuditId === log.id ? 'Hide' : 'View'}
+                    </button>
+                  </td>
+                </tr>
+                {expandedAuditId === log.id && (
+                  <tr className="border-b border-border bg-muted/40">
+                    <td colSpan={7} className="p-4">
+                      <AuditLogDetails log={log} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </DataTable>
           {auditLogs.length === 0 && <EmptyState icon={ShieldCheck} message="No matching audit events." />}
@@ -738,18 +772,91 @@ function Logs() {
   )
 }
 
+function RequestLogDetails({ log }: { log: RequestLog }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-3">
+        <DetailItem label="Log ID" value={log.id} mono />
+        <DetailItem label="Created" value={formatDate(log.createdAt)} />
+        <DetailItem label="Status code" value={log.statusCode ?? 'Pending'} />
+        <DetailItem label="API key name" value={log.apiKeyName ?? 'Unknown'} />
+        <DetailItem label="API key ID" value={log.apiKeyId ?? 'None'} mono />
+        <DetailItem label="Stream" value={log.stream ? 'Yes' : 'No'} />
+        <DetailItem label="Provider" value={log.provider} />
+        <DetailItem label="Model" value={log.model} mono />
+        <DetailItem label="Messages" value={formatNumber(log.messagesCount)} />
+        <DetailItem label="Latency" value={`${log.responseTimeMs ?? 0} ms`} />
+        <DetailItem label="Input tokens" value={formatNumber(log.promptTokens ?? 0)} />
+        <DetailItem label="Output tokens" value={formatNumber(log.completionTokens ?? 0)} />
+        <DetailItem label="Total tokens" value={formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)} />
+        <DetailItem label="IP address" value={log.ipAddress ?? 'Unknown'} mono />
+        <DetailItem label="User agent" value={log.userAgent ?? 'Unknown'} wide />
+      </div>
+      {log.error && (
+        <div>
+          <p className="label">Error detail</p>
+          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-white p-3 text-xs text-destructive">{log.error}</pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AuditLogDetails({ log }: { log: AuditLog }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-3">
+        <DetailItem label="Audit ID" value={log.id} mono />
+        <DetailItem label="Created" value={formatDate(log.createdAt)} />
+        <DetailItem label="Action" value={log.action.replace(/_/g, ' ')} />
+        <DetailItem label="Admin" value={log.adminUsername ?? 'System'} />
+        <DetailItem label="Admin ID" value={log.adminId ?? 'None'} mono />
+        <DetailItem label="Entity type" value={log.entityType} />
+        <DetailItem label="Entity ID" value={log.entityId ?? 'None'} mono />
+        <DetailItem label="IP address" value={log.ipAddress ?? 'Unknown'} mono />
+        <DetailItem label="User agent" value={log.userAgent ?? 'Unknown'} wide />
+      </div>
+      <div>
+        <p className="label">Metadata</p>
+        <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-white p-3 text-xs">
+          {log.metadata ? JSON.stringify(log.metadata, null, 2) : 'No metadata'}
+        </pre>
+      </div>
+    </div>
+  )
+}
+
+function DetailItem({ label, value, mono = false, wide = false }: { label: string; value: React.ReactNode; mono?: boolean; wide?: boolean }) {
+  return (
+    <div className={wide ? 'md:col-span-3' : ''}>
+      <p className="label">{label}</p>
+      <p className={`mt-1 break-words text-sm ${mono ? 'font-mono text-xs' : ''}`}>{value}</p>
+    </div>
+  )
+}
+
 function ApiPlayground() {
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
   const [model, setModel] = useState('')
   const [systemPrompt, setSystemPrompt] = useState('You are a precise assistant for operational testing.')
   const [prompt, setPrompt] = useState('')
+  const [mode, setMode] = useState<'standard' | 'stream'>('standard')
   const [temperature, setTemperature] = useState(0.7)
   const [maxTokens, setMaxTokens] = useState(800)
   const [newConversation, setNewConversation] = useState(true)
+  const [showVnc, setShowVnc] = useState(true)
+  const [fullscreen, setFullscreen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [responseText, setResponseText] = useState('')
+  const [usage, setUsage] = useState<PlaygroundResponse['usage'] | null>(null)
+  const [rawRequest, setRawRequest] = useState('')
+  const [rawResponse, setRawResponse] = useState('')
+  const [elapsedMs, setElapsedMs] = useState<number | null>(null)
+  const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [result, setResult] = useState<PlaygroundResponse | null>(null)
+  const [history, setHistory] = useState<Array<{ id: string; at: string; model: string; provider: string; mode: string; latency: number; tokens: number; status: string }>>([])
 
   async function load() {
     setLoading(true)
@@ -764,10 +871,18 @@ function ApiPlayground() {
 
   useEffect(() => { load() }, [])
 
+  const selectedModel = catalog?.models.find(item => item.id === model)
+  const selectedProvider = catalog?.providers.find(provider => provider.name === selectedModel?.provider)
+  const vncUrl = catalog?.vnc.url
+
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     setError(null)
     setResult(null)
+    setResponseText('')
+    setUsage(null)
+    setRawResponse('')
+    setElapsedMs(null)
 
     const trimmedPrompt = prompt.trim()
     if (!model) {
@@ -780,32 +895,124 @@ function ApiPlayground() {
     }
 
     setSubmitting(true)
+    const startedAt = performance.now()
     try {
       const messages = [
         ...(systemPrompt.trim() ? [{ role: 'system' as const, content: systemPrompt.trim() }] : []),
         { role: 'user' as const, content: trimmedPrompt },
       ]
-      setResult(await api.playground.chat({
+      const payload = {
         model,
         messages,
+        stream: mode === 'stream',
         temperature,
         max_tokens: maxTokens,
         newConversation,
-      }))
+      }
+      setRawRequest(JSON.stringify(payload, null, 2))
+
+      if (mode === 'stream') {
+        const controller = new AbortController()
+        setAbortController(controller)
+        let streamed = ''
+        let finalPayload: Partial<PlaygroundResponse> & { usage?: PlaygroundResponse['usage'] } = {}
+
+        await api.playground.stream(payload, {
+          signal: controller.signal,
+          onChunk: chunk => {
+            streamed += chunk
+            setResponseText(streamed)
+          },
+          onDone: payload => {
+            finalPayload = payload
+            if (payload.usage) setUsage(payload.usage)
+          },
+          onError: message => setError(message),
+        })
+
+        const elapsed = Math.round(performance.now() - startedAt)
+        const finalUsage = finalPayload.usage ?? {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0,
+        }
+        const responsePayload = {
+          ...finalPayload,
+          model,
+          provider: selectedModel?.provider ?? 'unknown',
+          choices: [{ index: 0, message: { role: 'assistant', content: streamed }, finish_reason: 'stop' }],
+          usage: finalUsage,
+        }
+        setElapsedMs(elapsed)
+        setUsage(finalUsage)
+        setRawResponse(JSON.stringify(responsePayload, null, 2))
+        setHistory(items => [{
+          id: `${Date.now()}`,
+          at: new Date().toISOString(),
+          model,
+          provider: selectedModel?.provider ?? 'unknown',
+          mode: 'stream',
+          latency: elapsed,
+          tokens: finalUsage.total_tokens,
+          status: streamed ? 'ok' : 'empty',
+        }, ...items].slice(0, 8))
+      } else {
+        const next = await api.playground.chat(payload)
+        const elapsed = Math.round(performance.now() - startedAt)
+        setResult(next)
+        setResponseText(next.choices[0]?.message.content ?? '')
+        setUsage(next.usage)
+        setElapsedMs(elapsed)
+        setRawResponse(JSON.stringify(next, null, 2))
+        setHistory(items => [{
+          id: next.id,
+          at: new Date().toISOString(),
+          model: next.model,
+          provider: next.provider,
+          mode: 'standard',
+          latency: elapsed,
+          tokens: next.usage.total_tokens,
+          status: 'ok',
+        }, ...items].slice(0, 8))
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Playground request failed')
+      if ((err as Error).name === 'AbortError') setError('Streaming request stopped.')
+      else setError(err instanceof Error ? err.message : 'Playground request failed')
     } finally {
       setSubmitting(false)
+      setAbortController(null)
     }
   }
 
-  const selectedModel = catalog?.models.find(item => item.id === model)
+  async function providerAction(operation: 'login' | 'logout') {
+    if (!selectedModel) return
+    setError(null)
+    try {
+      if (operation === 'login') await api.providers.login(selectedModel.provider)
+      else await api.providers.logout(selectedModel.provider)
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Provider action failed')
+    }
+  }
 
-  return (
-    <Page title="API Playground" description="Super-admin master API testing with no daily or per-minute key limits. Every request is written to Logs as Admin Playground.">
+  const workspace = (
+    <>
       {error && <Alert tone="bad">{error}</Alert>}
-      <div className="grid gap-5 xl:grid-cols-[minmax(360px,0.85fr)_minmax(0,1.15fr)]">
-        <Panel title="Request" description="Send a privileged operational request through the selected provider.">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          <button className={mode === 'standard' ? 'btn-primary' : 'btn-secondary'} onClick={() => setMode('standard')} disabled={submitting}>Non-streaming</button>
+          <button className={mode === 'stream' ? 'btn-primary' : 'btn-secondary'} onClick={() => setMode('stream')} disabled={submitting}><Radio size={16} /> Streaming</button>
+          <button className={showVnc ? 'btn-primary' : 'btn-secondary'} onClick={() => setShowVnc(!showVnc)}><Monitor size={16} /> VNC</button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-secondary" onClick={load} disabled={loading}><RefreshCcw className={loading ? 'animate-spin' : ''} size={16} /> Refresh</button>
+          <button className="btn-secondary" onClick={() => setFullscreen(!fullscreen)}>{fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}{fullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button>
+        </div>
+      </div>
+
+      <div className={`grid gap-5 ${fullscreen ? 'xl:grid-cols-[380px_minmax(0,1fr)_430px]' : 'xl:grid-cols-[380px_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)_430px]'}`}>
+        <Panel title="Request cockpit" description="Choose execution mode, model, parameters, and provider session state.">
           <form className="space-y-4" onSubmit={submit}>
             <Field label="Model">
               <select className="input" value={model} onChange={event => setModel(event.target.value)} disabled={loading}>
@@ -814,6 +1021,10 @@ function ApiPlayground() {
                 ))}
               </select>
             </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <InlineStat label="Provider" value={selectedModel?.provider ?? 'None'} helper={selectedProvider?.sessionValid ? 'Connected' : selectedProvider?.hasProfile ? 'Profile found' : 'Disconnected'} icon={PlugZap} />
+              <InlineStat label="Limit mode" value="Unlimited" helper="Super-admin master path" icon={Gauge} />
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Temperature">
                 <input className="input" type="number" min="0" max="2" step="0.1" value={temperature} onChange={event => setTemperature(Number(event.target.value))} />
@@ -832,43 +1043,100 @@ function ApiPlayground() {
               <input type="checkbox" checked={newConversation} onChange={event => setNewConversation(event.target.checked)} />
               Start a fresh provider conversation
             </label>
-            <button className="btn-primary w-full" type="submit" disabled={submitting || loading || !model}>
-              {submitting && <Loader2 className="animate-spin" size={16} />}
-              Send master request
-            </button>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button className="btn-primary w-full" type="submit" disabled={submitting || loading || !model}>
+                {submitting ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+                {mode === 'stream' ? 'Start stream' : 'Send request'}
+              </button>
+              <button className="btn-secondary w-full" type="button" disabled={!submitting || !abortController} onClick={() => abortController?.abort()}>
+                Stop stream
+              </button>
+            </div>
           </form>
+
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="label">Provider controls</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button className="btn-secondary" onClick={() => providerAction('login')} disabled={!selectedModel || selectedModel.provider.endsWith('-api')}>Login</button>
+              <button className="btn-secondary" onClick={() => providerAction('logout')} disabled={!selectedModel}>Logout</button>
+              {vncUrl && <a className="btn-secondary" href={vncUrl} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Open VNC</a>}
+            </div>
+          </div>
         </Panel>
 
         <div className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Metric label="Selected provider" value={selectedModel?.provider ?? 'None'} helper={selectedModel?.status?.sessionValid ? 'Connected' : 'Check status'} icon={PlugZap} tone={selectedModel?.status?.sessionValid ? 'good' : 'warn'} />
-            <Metric label="Limit mode" value="Unlimited" helper="No API-key quota applied" icon={Gauge} tone="good" />
-            <Metric label="Log label" value="Playground" helper="Visible on Logs page" icon={Activity} />
-          </div>
-
-          <Panel title="Response" description="Returned content and token accounting for the most recent playground request.">
-            {result ? (
-              <div className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <InlineStat label="Input" value={formatNumber(result.usage.prompt_tokens)} helper="prompt tokens" icon={TerminalSquare} />
-                  <InlineStat label="Output" value={formatNumber(result.usage.completion_tokens)} helper="completion tokens" icon={Cpu} />
-                  <InlineStat label="Total" value={formatNumber(result.usage.total_tokens)} helper="logged tokens" icon={Gauge} />
-                </div>
-                <div className="rounded-md bg-muted p-4">
-                  <p className="whitespace-pre-wrap text-sm leading-6">{result.choices[0]?.message.content}</p>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <span className="status-pill bg-primary/10 text-primary">{result.provider}</span>
-                  <span className="status-pill bg-muted text-muted-foreground">{result.loggedAs}</span>
-                  <span className="status-pill bg-muted text-muted-foreground">No request limit</span>
-                </div>
+          <Panel title="Live response" description="Streaming output updates as chunks arrive. Non-streaming output appears when the request completes.">
+            <div className="mb-4 grid gap-3 sm:grid-cols-4">
+              <InlineStat label="Mode" value={mode === 'stream' ? 'Stream' : 'Standard'} helper={submitting ? 'Running' : 'Ready'} icon={mode === 'stream' ? Radio : TerminalSquare} />
+              <InlineStat label="Latency" value={elapsedMs === null ? '-' : `${formatNumber(elapsedMs)} ms`} helper="Last request" icon={Clock3} />
+              <InlineStat label="Input" value={formatNumber(usage?.prompt_tokens ?? 0)} helper="tokens" icon={TerminalSquare} />
+              <InlineStat label="Output" value={formatNumber(usage?.completion_tokens ?? 0)} helper={`${formatNumber(usage?.total_tokens ?? 0)} total`} icon={Cpu} />
+            </div>
+            {responseText || submitting ? (
+              <div className={`${fullscreen ? 'min-h-[48vh]' : 'min-h-80'} rounded-md bg-muted p-4`}>
+                <p className="whitespace-pre-wrap text-sm leading-6">{responseText}{submitting && <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-primary align-middle" />}</p>
               </div>
             ) : (
               <EmptyState icon={TerminalSquare} message="Send a request to see the provider response." />
             )}
           </Panel>
+
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Panel title="Request JSON" description="Exact payload sent through the master playground endpoint.">
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-xs">{rawRequest || 'No request sent yet.'}</pre>
+            </Panel>
+            <Panel title="Response JSON" description="Final response envelope, usage, and logging metadata.">
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-xs">{rawResponse || (result ? JSON.stringify(result, null, 2) : 'No response yet.')}</pre>
+            </Panel>
+          </div>
+        </div>
+
+        <div className={`space-y-5 ${showVnc ? '' : 'hidden 2xl:block'}`}>
+          {showVnc && (
+            <Panel title="Live VNC" description="Watch and control the provider browser while the playground runs.">
+              {vncUrl ? (
+                <iframe title="Playground VNC" src={vncUrl} className={`${fullscreen ? 'h-[calc(100vh-235px)] min-h-[520px]' : 'h-[520px]'} w-full rounded-md border border-border bg-[#101411]`} />
+              ) : (
+                <EmptyState icon={Monitor} message="VNC endpoint is unavailable." />
+              )}
+            </Panel>
+          )}
+          <Panel title="Run history" description="Recent playground requests in this admin session.">
+            <div className="space-y-3">
+              {history.map(item => (
+                <div key={item.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-mono text-xs">{item.model}</p>
+                    <span className="status-pill bg-primary/10 text-primary">{item.status}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{item.provider} · {item.mode} · {formatNumber(item.latency)} ms · {formatNumber(item.tokens)} tokens · {formatDate(item.at)}</p>
+                </div>
+              ))}
+              {history.length === 0 && <EmptyState icon={Activity} message="No playground runs yet." />}
+            </div>
+          </Panel>
         </div>
       </div>
+    </>
+  )
+
+  if (fullscreen) {
+    return (
+      <div className="fixed inset-0 z-50 overflow-auto bg-background p-4 text-foreground md:p-6">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">API Playground</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Fullscreen cockpit for master API requests, provider control, streaming output, and live VNC.</p>
+          </div>
+        </div>
+        {workspace}
+      </div>
+    )
+  }
+
+  return (
+    <Page title="API Playground" description="Super-admin master API testing with streaming, non-streaming, live VNC, request JSON, response JSON, and full audit logging.">
+      {workspace}
     </Page>
   )
 }
