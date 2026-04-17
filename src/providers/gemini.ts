@@ -1,5 +1,6 @@
-/* global document */
+/* global document window */
 declare const document: any;
+declare const window: any;
 import type { BridgeConfig, ChatRequest, ModelDefinition } from '../types.js';
 import type { BrowserContext } from 'playwright';
 import { BaseProvider } from './base.js';
@@ -46,29 +47,73 @@ export class GeminiProvider extends BaseProvider {
 
     const userMsg = buildUserMessage(req.messages);
 
-    // Log ALL network requests to find where the response comes from
-    const allRequests: string[] = [];
+    // === SET UP NETWORK INTERCEPTION FOR STREAMING ===
+    // Target ONLY the StreamGenerate endpoint using page.route()
+    let streamGenerateUrl = '';
+    let streamGeneratePostData = '';
+    const streamChunks: string[] = [];
+    let streamDone = false;
+    let networkStreamActive = false;
+
+    // Intercept ALL requests to log them and capture StreamGenerate details
     const onRequest = (req: import('playwright').Request) => {
       const url = req.url();
-      allRequests.push(`REQ ${req.method()} ${url.slice(0, 200)}`);
-      if (allRequests.length <= 50) {
-        logger.info(`[gemini-NET] ${req.method()} ${url.slice(0, 200)}`);
+      if (url.includes('StreamGenerate') || url.includes('batchexecute')) {
+        logger.info(`[gemini-NET-API] ${req.method()} ${url.slice(0, 200)}`);
+        if (url.includes('StreamGenerate') && req.method() === 'POST') {
+          streamGenerateUrl = url;
+        }
       }
     };
     const onResponse = (res: import('playwright').Response) => {
       const url = res.url();
-      allRequests.push(`RES ${res.status()} ${url.slice(0, 200)}`);
-      if (allRequests.length <= 50) {
-        logger.info(`[gemini-NET-RES] ${res.status()} ${url.slice(0, 200)}`);
+      if (url.includes('StreamGenerate')) {
+        const headers = res.headers();
+        logger.info(`[gemini-NET-STREAM-RES] status=${res.status()} ct="${headers['content-type'] || ''}" url=${url.slice(0, 100)}`);
+      }
+    };
+    const onRequestFinished = async (req: import('playwright').Request) => {
+      const url = req.url();
+      if (url.includes('StreamGenerate')) {
+        try {
+          const timing = req.timing();
+          const response = await req.response();
+          if (response) {
+            const headers = response.headers();
+            logger.info(`[gemini-NET-FINISHED] url=${url.slice(0, 80)} ct="${headers['content-type'] || ''}" timing=${JSON.stringify(timing?.requestStart)}`);
+          }
+        } catch {}
+      }
+    };
+    const onConsole = (msg: import('playwright').ConsoleMessage) => {
+      const text = msg.text();
+      if (text.includes('GEMINI') || text.includes('STREAM') || text.includes('CORTEX')) {
+        logger.info(`[gemini-BROWSER] ${text.slice(0, 200)}`);
       }
     };
     page.on('request', onRequest);
     page.on('response', onResponse);
+    page.on('requestfinished', onRequestFinished);
+    page.on('console', onConsole);
+
+    // Use page.route() to intercept StreamGenerate and try to read streaming response
+    await page.route('**/StreamGenerate**', async (route) => {
+      const req = route.request();
+      logger.info(`[gemini-ROUTE] intercepting StreamGenerate: ${req.method()} ${req.url().slice(0, 100)}`);
+      networkStreamActive = true;
+
+      // Continue the request and try to intercept the response
+      await route.continue();
+    });
+
+    // Small delay to ensure route is registered
+    await new Promise(r => setTimeout(r, 100));
 
     const inputEl = await this._findInputElement(page);
     if (!inputEl) {
       page.off('request', onRequest);
       page.off('response', onResponse);
+      page.off('console', onConsole);
       throw new Error('[gemini] could not find input element');
     }
 
@@ -96,25 +141,23 @@ export class GeminiProvider extends BaseProvider {
 
     await new Promise(r => setTimeout(r, 200));
     await page.keyboard.press('Enter');
-    logger.info(`[gemini] message sent, waiting for response...`);
+    logger.info(`[gemini] message sent, waiting for StreamGenerate response...`);
 
-    // === POLL FOR RESPONSE USING DOM ===
-    // The response appears in STRUCTURED-CONTENT-CONTAINER or .model-response-text
-    // Track by NEW content appearing (not pre-existing messages)
+    // === POLL FOR RESPONSE ===
     const start = Date.now();
-    const pollInterval = 250;
+    const pollInterval = 200;
     const timeout = 30000;
     let lastKnownText = '';
     let stableCount = 0;
 
-    // First, record what messages already exist so we can ignore them
+    // Record initial DOM state
     const initialText = await page.evaluate(() => {
       const containers = document.querySelectorAll('STRUCTURED-CONTENT-CONTAINER, .model-response-text, [class*="model-response"]');
       if (!containers.length) return '';
       const last = containers[containers.length - 1];
       return (last.textContent || '').trim();
     }) as string;
-    logger.info(`[gemini] initial response text: "${initialText.slice(0, 50)}"`);
+    logger.info(`[gemini] initial DOM text: "${initialText.slice(0, 50)}"`);
     lastKnownText = initialText;
 
     while (Date.now() - start < timeout) {
@@ -124,59 +167,35 @@ export class GeminiProvider extends BaseProvider {
 
       // Check DOM for response
       const result = await page.evaluate(() => {
-        // Find ALL potential response containers
         const containers = document.querySelectorAll('STRUCTURED-CONTENT-CONTAINER, .model-response-text, [class*="model-response"]');
-        if (!containers || containers.length === 0) return { text: '', count: 0, texts: [] };
+        if (!containers || containers.length === 0) return { text: '', count: 0 };
 
-        const texts: string[] = [];
-        for (const c of containers) {
-          const t = (c.textContent || '').trim();
-          if (t) texts.push(t);
-        }
-
-        // Get last container text
         const last = containers[containers.length - 1];
         const lastText = (last.textContent || '').trim();
-
-        return { text: lastText, count: containers.length, texts };
-      }) as { text: string; count: number; texts: string[] };
+        return { text: lastText, count: containers.length };
+      }) as { text: string; count: number };
 
       if (elapsed % 1000 < pollInterval) {
         logger.info(`[gemini] DOM poll@${elapsed}ms: ${result.count} containers, last="${result.text.slice(0, 60)}"`);
       }
 
-      // Check for NEW content that wasn't there before
-      if (result.text && result.text !== lastKnownText && result.text.length > 0) {
+      // Ignore label text
+      const labelTexts = ['gemini said', 'you said', 'gemini:', 'user:'];
+      const isLabelOnly = labelTexts.some(l => result.text.toLowerCase().startsWith(l) && result.text.length < 50);
+
+      if (result.text && result.text !== lastKnownText && result.text.length > 0 && !isLabelOnly) {
         const newContent = result.text.slice(lastKnownText.length);
         if (newContent.length > 0) {
-          logger.info(`[gemini] NEW content found: "${newContent.slice(0, 80)}" (total: ${result.text.length})`);
+          logger.info(`[gemini] NEW content: "${newContent.slice(0, 80)}" (total: ${result.text.length})`);
           yield newContent;
           lastKnownText = result.text;
           stableCount = 0;
         }
-      } else if (result.text === lastKnownText && result.text.length > 0) {
+      } else if (result.text === lastKnownText && result.text.length > 0 && !isLabelOnly) {
         stableCount++;
         if (stableCount >= 4) {
-          logger.info(`[gemini] response complete (${result.text.length} chars, stable)`);
+          logger.info(`[gemini] response complete (${result.text.length} chars)`);
           break;
-        }
-      }
-
-      // Check if response shows "thinking" or generating indicator is gone
-      if (result.text && !result.text.includes('Thinking') && !result.text.includes('Generating')) {
-        if (result.text.length > lastKnownText.length || (stableCount >= 3 && result.text.length > 0)) {
-          if (result.text !== lastKnownText) {
-            const newContent = result.text.slice(lastKnownText.length);
-            if (newContent.length > 0) {
-              logger.info(`[gemini] yield: "${newContent.slice(0, 80)}"`);
-              yield newContent;
-              lastKnownText = result.text;
-            }
-          }
-          if (stableCount >= 4) {
-            logger.info(`[gemini] done (${lastKnownText.length} chars)`);
-            break;
-          }
         }
       }
     }
@@ -184,15 +203,9 @@ export class GeminiProvider extends BaseProvider {
     // Cleanup
     page.off('request', onRequest);
     page.off('response', onResponse);
-
-    // Log all network requests at the end for analysis
-    if (allRequests.length > 0) {
-      logger.info(`[gemini] All ${allRequests.length} requests captured (showing first 20):`);
-      for (const r of allRequests.slice(0, 20)) {
-        logger.info(`[gemini-NET-FINAL] ${r}`);
-      }
-    }
-
+    page.off('requestfinished', onRequestFinished);
+    page.off('console', onConsole);
+    await page.unroute('**/StreamGenerate**').catch(() => {});
     logger.info(`[gemini] === DONE ===`);
   }
 
