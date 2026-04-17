@@ -1,95 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 @layer base {
   :root {
-    --background: 160 14% 7%;
-    --background-secondary: 155 16% 11%;
-    --background-tertiary: 150 14% 14%;
-    --foreground: 80 12% 90%;
-    --muted: 155 12% 18%;
-    --muted-foreground: 160 6% 55%;
-    --border: 155 10% 20%;
-    --border-light: 155 8% 25%;
-    --input: 155 10% 20%;
-    --primary: 154 55% 35%;
-    --primary-foreground: 0 0% 100%;
-    --primary-light: 154 45% 40%;
-    --primary-dark: 154 65% 25%;
-    --secondary: 45 90% 50%;
-    --secondary-foreground: 150 12% 8%;
-    --secondary-light: 45 80% 60%;
-    --secondary-dark: 45 95% 40%;
+    --background: 0 0% 4%;
+    --background-secondary: 0 0% 7%;
+    --background-tertiary: 0 0% 10%;
+    --foreground: 0 0% 95%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 55%;
+    --border: 0 0% 14%;
+    --border-light: 0 0% 20%;
+    --input: 0 0% 12%;
+    --primary: 174 100% 50%;
+    --primary-foreground: 0 0% 4%;
+    --primary-light: 174 80% 55%;
+    --primary-dark: 174 100% 40%;
+    --secondary: 270 80% 60%;
+    --secondary-foreground: 0 0% 4%;
+    --secondary-light: 270 70% 70%;
+    --secondary-dark: 270 90% 50%;
     --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 100%;
-    --accent: 176 55% 38%;
-    --accent-foreground: 0 0% 100%;
-    --accent-light: 176 50% 45%;
-    --accent-dark: 176 60% 30%;
-    --success: 142 68% 38%;
+    --accent: 210 100% 65%;
+    --accent-foreground: 0 0% 4%;
+    --accent-light: 210 80% 70%;
+    --accent-dark: 210 100% 55%;
+    --success: 142 68% 45%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
-    --warning-foreground: 150 12% 8%;
-    --info: 210 80% 50%;
+    --warning-foreground: 0 0% 4%;
+    --info: 210 80% 55%;
     --info-foreground: 0 0% 100%;
-    --card: 155 16% 11%;
-    --card-foreground: 80 12% 90%;
-    --popover: 155 16% 11%;
-    --popover-foreground: 80 12% 90%;
-    --ring: 154 55% 35%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 95%;
+    --ring: 174 100% 50%;
     --radius: 0.75rem;
-    --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --shadow-md: 0 4px 6px rgba(0,0,0,0.25);
-    --shadow-lg: 0 10px 15px rgba(0,0,0,0.3);
-    --shadow-xl: 0 20px 25px rgba(0,0,0,0.35);
-    --glow-primary: 0 0 30px rgba(24,121,78,0.2);
-    --glow-accent: 0 0 30px rgba(31,138,128,0.2);
-  }
-
-  .light {
-    --background: 84 20% 97%;
-    --background-secondary: 80 15% 94%;
-    --background-tertiary: 76 12% 90%;
-    --foreground: 150 12% 8%;
-    --muted: 80 13% 88%;
-    --muted-foreground: 160 6% 38%;
-    --border: 90 10% 84%;
-    --border-light: 90 8% 90%;
-    --input: 90 10% 84%;
-    --primary: 154 62% 28%;
-    --primary-foreground: 0 0% 100%;
-    --primary-light: 154 50% 35%;
-    --primary-dark: 154 70% 20%;
-    --secondary: 46 82% 55%;
-    --secondary-foreground: 150 12% 8%;
-    --secondary-light: 46 70% 65%;
-    --secondary-dark: 46 90% 40%;
-    --destructive: 0 70% 42%;
-    --destructive-foreground: 0 0% 100%;
-    --accent: 178 45% 34%;
-    --accent-foreground: 0 0% 100%;
-    --accent-light: 178 40% 45%;
-    --accent-dark: 178 55% 25%;
-    --success: 152 60% 35%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 150 12% 8%;
-    --info: 210 80% 50%;
-    --info-foreground: 0 0% 100%;
-    --card: 0 0% 100%;
-    --card-foreground: 150 12% 8%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 150 12% 8%;
-    --ring: 154 62% 28%;
-    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
-    --shadow-md: 0 4px 6px rgba(0,0,0,0.05);
-    --shadow-lg: 0 10px 15px rgba(0,0,0,0.08);
-    --shadow-xl: 0 20px 25px rgba(0,0,0,0.1);
-    --glow-primary: 0 0 20px rgba(24,121,78,0.15);
-    --glow-accent: 0 0 20px rgba(31,138,128,0.15);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.5);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
+    --shadow-lg: 0 10px 15px rgba(0,0,0,0.5);
+    --shadow-xl: 0 20px 25px rgba(0,0,0,0.6);
+    --glow-primary: 0 0 30px rgba(0,255,213,0.15);
+    --glow-accent: 0 0 30px rgba(96,165,250,0.15);
   }
 
   * {
@@ -106,7 +63,7 @@
   }
 
   ::selection {
-    background-color: hsl(var(--primary) / 0.3);
+    background-color: hsl(var(--primary) / 0.2);
   }
 
   ::-webkit-scrollbar {
@@ -130,30 +87,19 @@
 
 @layer components {
   .glass {
-    background: rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  .light .glass {
-    background: rgba(255, 255, 255, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.5);
   }
 
   .glass-card {
-    background: rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.05);
-  }
-
-  .light .glass-card {
-    background: rgba(255, 255, 255, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    box-shadow: var(--shadow-lg);
   }
 
   .btn {
@@ -171,11 +117,11 @@
   }
 
   .btn-ghost {
-    @apply btn border-border/60 bg-transparent text-foreground active:scale-[0.98];
+    @apply btn border-white/10 bg-white/5 text-foreground/90 hover:bg-white/10 active:scale-[0.98];
   }
 
   .btn-ghost:hover {
-    @apply bg-white/5;
+    @apply bg-white/10;
   }
 
   .btn-danger {
@@ -183,11 +129,7 @@
   }
 
   .input {
-    @apply min-h-11 w-full rounded-lg border border-border bg-background-secondary px-4 py-2.5 text-sm text-foreground shadow-sm transition-all duration-200 placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/10 focus:shadow-md focus:outline-none;
-  }
-
-  .light .input {
-    @apply bg-white shadow-sm;
+    @apply min-h-11 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-foreground shadow-sm transition-all duration-200 placeholder:text-muted-foreground focus:border-primary/40 focus:ring-2 focus:ring-primary/10 focus:shadow-md focus:outline-none;
   }
 
   .label {
@@ -195,12 +137,8 @@
   }
 
   .panel {
-    @apply rounded-xl border border-border bg-card text-card-foreground;
+    @apply rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl;
     box-shadow: var(--shadow-md);
-  }
-
-  .light .panel {
-    box-shadow: var(--shadow-sm);
   }
 
   .status-pill {
@@ -238,7 +176,7 @@
   }
 
   .skeleton {
-    background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground) / 0.15) 50%, hsl(var(--muted)) 75%);
+    background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground) / 0.1) 50%, hsl(var(--muted)) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
     border-radius: 4px;
@@ -371,6 +309,37 @@
 
   .glow-accent {
     box-shadow: var(--glow-accent);
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200;
+    @apply text-muted-foreground hover:text-foreground hover:bg-white/5;
+  }
+
+  .nav-item-active {
+    @apply bg-primary/10 text-primary border border-primary/20;
+    @apply hover:bg-primary/15 hover:text-primary;
+  }
+
+  .metric-card {
+    @apply rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5;
+    box-shadow: var(--shadow-md);
+  }
+
+  .page-header {
+    @apply mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start;
+  }
+
+  .table-header {
+    @apply border-b border-white/10 text-xs uppercase tracking-wide text-muted-foreground;
+  }
+
+  .table-row {
+    @apply border-b border-white/5 last:border-0;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
 }
 

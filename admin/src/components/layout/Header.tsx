@@ -25,34 +25,34 @@ export function Header({ onMenuClick, theme, onThemeToggle }: HeaderProps) {
   const page = routeTitles[location.pathname] || { title: "Dashboard", description: "" }
 
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-4 h-16 px-4 md:px-6 border-b border-border bg-background/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 flex items-center gap-4 h-16 px-4 md:px-6 border-b border-white/5 bg-[#080808]/80 backdrop-blur-xl">
       {/* Mobile menu button */}
       <button
         onClick={onMenuClick}
-        className="lg:hidden p-2.5 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        className="lg:hidden p-2.5 rounded-xl text-white/60 hover:bg-white/5 hover:text-white transition-all"
       >
         <Menu size={20} />
       </button>
 
       {/* Page title */}
       <div className="flex-1 min-w-0">
-        <h1 className="text-base font-semibold leading-tight truncate">{page.title}</h1>
-        <p className="text-xs text-muted-foreground hidden sm:block">{page.description}</p>
+        <h1 className="text-base font-semibold text-white leading-tight truncate">{page.title}</h1>
+        <p className="text-xs text-white/40 hidden sm:block">{page.description}</p>
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-2">
         {/* Search hint */}
-        <button className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-background-secondary border border-border text-muted-foreground text-sm hover:bg-muted transition-colors">
+        <button className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white/40 text-sm hover:bg-white/10 hover:text-white/80 transition-all">
           <Search size={16} />
           <span className="text-xs">Search</span>
-          <kbd className="hidden lg:inline text-[10px] px-1.5 py-0.5 rounded bg-muted/50 border border-border">/</kbd>
+          <kbd className="hidden lg:inline text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10">/</kbd>
         </button>
 
         {/* Theme toggle */}
         <button
           onClick={onThemeToggle}
-          className="p-2.5 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="p-2.5 rounded-xl text-white/60 hover:bg-white/5 hover:text-white transition-all"
           title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
         >
           {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}

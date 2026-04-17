@@ -76,7 +76,7 @@ const sections: Array<{ id: SectionId; label: string; icon: typeof Activity; per
   { id: 'settings', label: 'Settings', icon: Settings, permission: 'config:manage' },
 ]
 
-const providerColors = ['#18794e', '#b58400', '#1f7a7a', '#b42318', '#4f7f1f', '#7a4f12']
+const providerColors = ['hsl(174, 100%, 50%)', 'hsl(270, 80%, 60%)', 'hsl(210, 100%, 65%)', 'hsl(0, 72%, 50%)', 'hsl(142, 68%, 45%)', 'hsl(38, 92%, 50%)']
 
 const emptyStats: Stats = {
   overview: {
@@ -129,17 +129,21 @@ function App() {
   if (!admin) return <LoginScreen onLogin={setAdmin} />
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[280px] flex-col border-r border-border bg-background-secondary lg:flex">
-        <div className="flex h-16 items-center gap-3 border-b border-border px-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/20 border border-primary/20">
+    <div className="min-h-screen bg-[#080808] text-[#f2f2f2]">
+      {/* Sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[280px] flex-col border-r border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl lg:flex">
+        {/* Logo */}
+        <div className="flex h-16 items-center gap-3 border-b border-white/5 px-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
             <ShieldCheck size={20} className="text-primary" />
           </div>
           <div>
-            <p className="font-bold text-base gradient-text">Cortex</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Admin</p>
+            <p className="font-bold text-base bg-gradient-to-r from-primary to-[hsl(270,80%,60%)] bg-clip-text text-transparent">Cortex</p>
+            <p className="text-[10px] text-white/40 uppercase tracking-wider">Admin</p>
           </div>
         </div>
+
+        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
           {visibleSections.map(section => (
             <NavButton
@@ -151,30 +155,39 @@ function App() {
             />
           ))}
         </nav>
-        <div className="border-t border-border p-4">
+
+        {/* User Panel */}
+        <div className="border-t border-white/5 p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 border border-primary/20 text-primary font-semibold text-sm shrink-0">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary font-semibold text-sm shrink-0">
               {admin.username.slice(0, 2).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{admin.username}</p>
-              <p className="text-xs text-muted-foreground capitalize">{admin.role.replace('_', ' ')}</p>
+              <p className="text-xs text-white/40 capitalize">{admin.role.replace('_', ' ')}</p>
             </div>
-            <button className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors" onClick={() => logout(setAdmin)}>
+            <button className="p-2 rounded-lg text-white/40 hover:text-destructive hover:bg-white/5 transition-all" onClick={() => logout(setAdmin)}>
               <LogOut size={16} />
             </button>
           </div>
         </div>
       </aside>
 
+      {/* Main Content */}
       <main className="lg:pl-[280px]">
-        <header className="sticky top-0 z-20 border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:px-8 lg:hidden">
+        {/* Mobile Header */}
+        <header className="sticky top-0 z-20 border-b border-white/5 bg-[#080808]/80 backdrop-blur-xl px-4 py-3 lg:hidden">
           <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-bold">Cortex Admin</p>
-              <p className="text-xs text-muted-foreground">{admin.username}</p>
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
+                <ShieldCheck size={18} className="text-primary" />
+              </div>
+              <div>
+                <p className="font-bold text-sm bg-gradient-to-r from-primary to-[hsl(270,80%,60%)] bg-clip-text text-transparent">Cortex</p>
+                <p className="text-[10px] text-white/40">{admin.username}</p>
+              </div>
             </div>
-            <button className="btn-secondary px-3" onClick={() => logout(setAdmin)}>
+            <button className="p-2 rounded-lg text-white/40 hover:text-foreground hover:bg-white/5 transition-all" onClick={() => logout(setAdmin)}>
               <LogOut size={16} />
             </button>
           </div>
@@ -182,7 +195,7 @@ function App() {
             {visibleSections.map(section => (
               <button
                 key={section.id}
-                className={`rounded-md px-3 py-2 text-sm font-semibold ${active === section.id ? 'bg-primary text-primary-foreground' : 'bg-white text-foreground'}`}
+                className={`rounded-lg px-3 py-2 text-xs font-medium whitespace-nowrap transition-all ${active === section.id ? 'bg-primary/15 text-primary border border-primary/20' : 'text-white/60 bg-white/5 border border-transparent hover:bg-white/10'}`}
                 onClick={() => setActive(section.id)}
               >
                 {section.label}
@@ -191,9 +204,10 @@ function App() {
           </div>
         </header>
 
+        {/* Page Content */}
         <div className="mx-auto w-full max-w-[1500px] px-4 py-6 md:px-8 md:py-8">
           {admin.mustChangePassword && (
-            <div className="mb-5 rounded-md border border-secondary/60 bg-secondary/15 p-4 text-sm">
+            <div className="mb-5 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning backdrop-blur-xl">
               Default credentials are active. Change the admin password before exposing this service.
             </div>
           )}
@@ -238,62 +252,64 @@ function LoginScreen({ onLogin }: { onLogin: (admin: Admin) => void }) {
   }
 
   return (
-    <div className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,1fr)_520px]">
-      <section className="hidden border-r border-border bg-[#101411] text-white lg:flex lg:flex-col lg:justify-between">
+    <div className="grid min-h-screen bg-[#080808] lg:grid-cols-[minmax(0,1fr)_520px]">
+      {/* Left Panel - Dark Glassmorphism */}
+      <section className="hidden border-r border-white/5 bg-[#0a0a0a]/50 lg:flex lg:flex-col lg:justify-between backdrop-blur-xl">
         <div className="p-12">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary">
-              <ShieldCheck size={24} />
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
+              <ShieldCheck size={24} className="text-primary" />
             </div>
-            <p className="text-xl font-bold">Cortex Admin</p>
+            <p className="text-xl font-bold bg-gradient-to-r from-primary to-[hsl(270,80%,60%)] bg-clip-text text-transparent">Cortex Admin</p>
           </div>
           <div className="mt-24 max-w-xl">
-            <p className="text-sm font-semibold uppercase text-[#f2c14e]">Secure operations</p>
-            <h1 className="mt-4 text-5xl font-bold leading-tight">
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary">Secure operations</p>
+            <h1 className="mt-4 text-5xl font-bold leading-tight bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">
               Control API access, usage limits, provider sessions, and production logs.
             </h1>
-            <p className="mt-5 text-lg text-white/70">
+            <p className="mt-5 text-lg text-white/50">
               Token-gated administration for daily service operations.
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-3 border-t border-white/15">
+        <div className="grid grid-cols-3 border-t border-white/5">
           {['API keys', 'Rate controls', 'Audit trail'].map(item => (
-            <div key={item} className="border-r border-white/15 p-6 text-sm text-white/75 last:border-r-0">
+            <div key={item} className="border-r border-white/5 p-6 text-sm text-white/40 last:border-r-0">
               {item}
             </div>
           ))}
         </div>
       </section>
 
+      {/* Right Panel - Login Form */}
       <section className="flex items-center justify-center px-5 py-10">
         <form className="w-full max-w-sm" onSubmit={submit}>
           <div className="mb-8 lg:hidden">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <ShieldCheck size={22} />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
+                <ShieldCheck size={22} className="text-primary" />
               </div>
-              <p className="text-lg font-bold">Cortex Admin</p>
+              <p className="text-lg font-bold bg-gradient-to-r from-primary to-[hsl(270,80%,60%)] bg-clip-text text-transparent">Cortex Admin</p>
             </div>
           </div>
-          <h2 className="text-3xl font-bold">Admin sign in</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <h2 className="text-3xl font-bold text-white">Admin sign in</h2>
+          <p className="mt-2 text-sm text-white/50">
             Use an admin account to manage keys, limits, logs, and providers.
           </p>
           <div className="mt-8 space-y-4">
             <div>
-              <label className="label" htmlFor="username">Username</label>
+              <label className="label text-white/60">Username</label>
               <input id="username" className="input mt-2" value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" />
             </div>
             <div>
-              <label className="label" htmlFor="password">Password</label>
+              <label className="label text-white/60">Password</label>
               <input id="password" className="input mt-2" type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" />
             </div>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input type="checkbox" checked={persist} onChange={event => setPersist(event.target.checked)} />
+            <label className="flex items-center gap-2 text-sm text-white/50">
+              <input type="checkbox" checked={persist} onChange={event => setPersist(event.target.checked)} className="accent-primary" />
               Keep me signed in on this device
             </label>
-            {error && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+            {error && <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive backdrop-blur-xl">{error}</div>}
             <button className="btn-primary w-full" disabled={loading}>
               {loading ? <Loader2 className="animate-spin" size={18} /> : <Lock size={18} />}
               Sign in
@@ -351,16 +367,16 @@ function Overview() {
               <AreaChart data={stats.hourlyData}>
                 <defs>
                   <linearGradient id="requestFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#18794e" stopOpacity={0.28} />
-                    <stop offset="95%" stopColor="#18794e" stopOpacity={0.02} />
+                    <stop offset="5%" stopColor="hsl(174, 100%, 50%)" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="hsl(174, 100%, 50%)" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#e3e5df" vertical={false} />
-                <XAxis dataKey="hour" tick={{ fontSize: 11 }} minTickGap={28} />
-                <YAxis tick={{ fontSize: 11 }} width={42} />
-                <Tooltip />
-                <Area type="monotone" dataKey="count" stroke="#18794e" fill="url(#requestFill)" strokeWidth={2} />
-                <Area type="monotone" dataKey="totalTokens" stroke="#b58400" fill="transparent" strokeWidth={2} />
+                <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="hour" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.4)' }} minTickGap={28} />
+                <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.4)' }} width={42} />
+                <Tooltip contentStyle={{ backgroundColor: 'rgba(10,10,10,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
+                <Area type="monotone" dataKey="count" stroke="hsl(174, 100%, 50%)" fill="url(#requestFill)" strokeWidth={2} />
+                <Area type="monotone" dataKey="totalTokens" stroke="hsl(270, 80%, 60%)" fill="transparent" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -369,10 +385,10 @@ function Overview() {
         <Panel title="Provider health" description="Browser sessions and API-backed providers.">
           <div className="space-y-3">
             {(status?.providers ?? []).map(provider => (
-              <div key={provider.name} className="flex items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0">
+              <div key={provider.name} className="flex items-center justify-between gap-3 border-b border-white/5 pb-3 last:border-0 last:pb-0">
                 <div>
                   <p className="font-semibold">{provider.name}</p>
-                  <p className="text-xs text-muted-foreground">{provider.models.length} models</p>
+                  <p className="text-xs text-white/40">{provider.models.length} models</p>
                 </div>
                 <StatusPill ok={provider.sessionValid} trueLabel="Connected" falseLabel={provider.hasProfile ? 'Profile found' : 'Disconnected'} />
               </div>
@@ -392,12 +408,12 @@ function Overview() {
         <Panel title="Recent failures" description="Latest rejected or failed requests.">
           <div className="space-y-3">
             {stats.recentErrors.map(item => (
-              <div key={item.id} className="flex items-start justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0">
+              <div key={item.id} className="flex items-start justify-between gap-3 border-b border-white/5 pb-3 last:border-0 last:pb-0">
                 <div>
-                  <p className="font-mono text-xs">{item.model}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{item.error || 'Request failed'}</p>
+                  <p className="font-mono text-xs text-primary">{item.model}</p>
+                  <p className="mt-1 text-sm text-white/60">{item.error || 'Request failed'}</p>
                 </div>
-                <div className="text-right text-xs text-muted-foreground">
+                <div className="text-right text-xs text-white/40">
                   <StatusCode code={item.statusCode} />
                   <p className="mt-1">{formatDate(item.createdAt)}</p>
                 </div>
@@ -418,7 +434,7 @@ function Overview() {
                     <Cell key={index} fill={providerColors[index % providerColors.length]} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip contentStyle={{ backgroundColor: 'rgba(10,10,10,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -427,11 +443,11 @@ function Overview() {
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.byModel.slice(0, 10)} layout="vertical" margin={{ left: 30 }}>
-                <CartesianGrid stroke="#e3e5df" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="model" tick={{ fontSize: 11 }} width={140} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#b58400" radius={[0, 4, 4, 0]} />
+                <CartesianGrid stroke="rgba(255,255,255,0.05)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.4)' }} />
+                <YAxis type="category" dataKey="model" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.4)' }} width={140} />
+                <Tooltip contentStyle={{ backgroundColor: 'rgba(10,10,10,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
+                <Bar dataKey="count" fill="hsl(270, 80%, 60%)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -503,10 +519,10 @@ function AccessManagement() {
             <button className="btn-primary w-full">Create key</button>
           </form>
           {createdKey && (
-            <div className="mt-5 rounded-md border border-secondary/50 bg-secondary/10 p-4">
-              <p className="text-sm font-semibold">New API key</p>
-              <code className="mt-2 block break-all rounded-md bg-white p-3 text-sm">{createdKey}</code>
-              <p className="mt-2 text-xs text-muted-foreground">This value cannot be shown again.</p>
+            <div className="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-4 backdrop-blur-xl">
+              <p className="text-sm font-semibold text-primary">New API key</p>
+              <code className="mt-2 block break-all rounded-lg bg-black/40 p-3 text-sm font-mono text-primary">{createdKey}</code>
+              <p className="mt-2 text-xs text-white/40">This value cannot be shown again.</p>
             </div>
           )}
         </Panel>
@@ -514,7 +530,7 @@ function AccessManagement() {
         <Panel title="Managed keys" description="Operational access tokens and their current limit state.">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[880px] text-left text-sm">
-              <thead className="border-b border-border text-xs uppercase text-muted-foreground">
+              <thead className="border-b border-white/5 text-xs uppercase text-white/40">
                 <tr>
                   <th className="py-3 pr-4">Name</th>
                   <th className="py-3 pr-4">Prefix</th>
@@ -551,16 +567,16 @@ function ApiKeyRow({ item, onUpdate, onDelete }: { item: ApiKey; onUpdate: (id: 
   }
 
   return (
-    <tr className="border-b border-border last:border-0">
+    <tr className="border-b border-white/5 last:border-0">
       <td className="py-3 pr-4">
         {editing ? <input className="input" value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} /> : <span className="font-semibold">{item.name}</span>}
       </td>
-      <td className="py-3 pr-4 font-mono text-xs">{item.keyPrefix}...</td>
+      <td className="py-3 pr-4 font-mono text-xs text-primary/60">{item.keyPrefix}...</td>
       <td className="py-3 pr-4">
-        <div className="h-2 w-28 rounded-full bg-muted">
-          <div className={`h-2 rounded-full ${usagePercent > 90 ? 'bg-destructive' : usagePercent > 75 ? 'bg-secondary' : 'bg-primary'}`} style={{ width: `${usagePercent}%` }} />
+        <div className="h-2 w-28 rounded-full bg-white/5">
+          <div className={`h-2 rounded-full transition-all ${usagePercent > 90 ? 'bg-destructive' : usagePercent > 75 ? 'bg-warning' : 'bg-primary'}`} style={{ width: `${usagePercent}%` }} />
         </div>
-        <span className="mt-1 block text-xs text-muted-foreground">{formatNumber(item.requestsToday)}</span>
+        <span className="mt-1 block text-xs text-white/40">{formatNumber(item.requestsToday)}</span>
       </td>
       <td className="py-3 pr-4">
         {editing ? <input className="input w-28" type="number" min={1} value={draft.dailyLimit} onChange={event => setDraft({ ...draft, dailyLimit: Number(event.target.value) })} /> : formatNumber(item.dailyLimit)}
@@ -569,16 +585,16 @@ function ApiKeyRow({ item, onUpdate, onDelete }: { item: ApiKey; onUpdate: (id: 
         {editing ? <input className="input w-24" type="number" min={1} value={draft.rateLimitPerMin} onChange={event => setDraft({ ...draft, rateLimitPerMin: Number(event.target.value) })} /> : `${item.rateLimitPerMin}/min`}
       </td>
       <td className="py-3 pr-4"><StatusPill ok={item.active} trueLabel="Active" falseLabel="Disabled" /></td>
-      <td className="py-3 pr-4 text-muted-foreground">{item.lastUsed ? formatDate(item.lastUsed) : 'Never'}</td>
+      <td className="py-3 pr-4 text-white/40">{item.lastUsed ? formatDate(item.lastUsed) : 'Never'}</td>
       <td className="py-3 pr-0">
         <div className="flex justify-end gap-2">
           {editing ? (
             <button className="btn-primary min-h-9 px-3" onClick={save}>Save</button>
           ) : (
-            <button className="btn-secondary min-h-9 px-3" onClick={() => setEditing(true)}>Edit</button>
+            <button className="btn-ghost min-h-9 px-3" onClick={() => setEditing(true)}>Edit</button>
           )}
-          <button className="btn-secondary min-h-9 px-3" onClick={() => onUpdate(item.id, { active: !item.active })}>{item.active ? 'Disable' : 'Enable'}</button>
-          <button className="btn-danger min-h-9 px-3" onClick={() => onDelete(item.id)}><Trash2 size={15} /></button>
+          <button className="btn-ghost min-h-9 px-3" onClick={() => onUpdate(item.id, { active: !item.active })}>{item.active ? 'Disable' : 'Enable'}</button>
+          <button className="btn-ghost min-h-9 px-3 text-destructive hover:bg-destructive/10" onClick={() => onDelete(item.id)}><Trash2 size={15} /></button>
         </div>
       </td>
     </tr>
@@ -621,20 +637,20 @@ function DailyLimits() {
           {(usage?.keys ?? []).map(item => {
             const key = keys.find(candidate => candidate.id === item.id)
             return (
-              <div key={item.id} className="grid gap-3 border-b border-border pb-4 last:border-0 last:pb-0 lg:grid-cols-[minmax(180px,1fr)_minmax(240px,2fr)_180px_150px_140px] lg:items-center">
+              <div key={item.id} className="grid gap-3 border-b border-white/5 pb-4 last:border-0 last:pb-0 lg:grid-cols-[minmax(180px,1fr)_minmax(240px,2fr)_180px_150px_140px] lg:items-center">
                 <div>
                   <p className="font-semibold">{item.name}</p>
-                  <p className="text-xs text-muted-foreground">{item.active ? 'Active' : 'Disabled'} · resets {formatDate(item.requestsTodayReset)}</p>
+                  <p className="text-xs text-white/40">{item.active ? 'Active' : 'Disabled'} · resets {formatDate(item.requestsTodayReset)}</p>
                 </div>
                 <div>
-                  <div className="h-3 rounded-full bg-muted">
-                    <div className={`h-3 rounded-full ${item.usagePercent > 90 ? 'bg-destructive' : item.usagePercent > 75 ? 'bg-secondary' : 'bg-primary'}`} style={{ width: `${Math.min(100, item.usagePercent)}%` }} />
+                  <div className="h-3 rounded-full bg-white/5">
+                    <div className={`h-3 rounded-full transition-all ${item.usagePercent > 90 ? 'bg-destructive' : item.usagePercent > 75 ? 'bg-warning' : 'bg-primary'}`} style={{ width: `${Math.min(100, item.usagePercent)}%` }} />
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{formatNumber(item.requestsToday)} of {formatNumber(item.dailyLimit)} requests</p>
+                  <p className="mt-1 text-xs text-white/40">{formatNumber(item.requestsToday)} of {formatNumber(item.dailyLimit)} requests</p>
                 </div>
                 <input className="input" type="number" min={1} defaultValue={item.dailyLimit} onBlur={event => updateLimit(item.id, Number(event.target.value))} />
-                <p className="text-sm text-muted-foreground">{formatNumber(item.tokensToday)} tokens today</p>
-                <p className="text-sm text-muted-foreground">{key?.rateLimitPerMin ?? 0}/min</p>
+                <p className="text-sm text-white/60">{formatNumber(item.tokensToday)} tokens today</p>
+                <p className="text-sm text-white/60">{key?.rateLimitPerMin ?? 0}/min</p>
               </div>
             )
           })}
@@ -687,11 +703,11 @@ function Logs() {
   }
 
   return (
-    <Page title="Logs" description="Search request logs, failures, access events, and admin changes." action={<div className="flex gap-2"><button className="btn-secondary" onClick={prune}>Prune</button><RefreshButton onClick={load} loading={loading} /></div>}>
+    <Page title="Logs" description="Search request logs, failures, access events, and admin changes." action={<div className="flex gap-2"><button className="btn-ghost" onClick={prune}>Prune</button><RefreshButton onClick={load} loading={loading} /></div>}>
       <Panel title="Filters" description="Filter by client key, provider, status, or free text.">
         <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_160px_160px_220px_auto]">
           <div className="relative">
-            <Search className="absolute left-3 top-3 text-muted-foreground" size={16} />
+            <Search className="absolute left-3 top-3 text-white/40" size={16} />
             <input className="input pl-9" placeholder="Search model, key, error, action" value={filters.search} onChange={event => setFilters({ ...filters, search: event.target.value })} />
           </div>
           <input className="input" placeholder="Provider" value={filters.provider} onChange={event => setFilters({ ...filters, provider: event.target.value })} />
@@ -705,8 +721,8 @@ function Logs() {
       </Panel>
 
       <div className="mt-5 flex gap-2">
-        <button className={tab === 'requests' ? 'btn-primary' : 'btn-secondary'} onClick={() => setTab('requests')}>Request logs</button>
-        <button className={tab === 'audit' ? 'btn-primary' : 'btn-secondary'} onClick={() => setTab('audit')}>Audit trail</button>
+        <button className={tab === 'requests' ? 'btn-primary' : 'btn-ghost'} onClick={() => setTab('requests')}>Request logs</button>
+        <button className={tab === 'audit' ? 'btn-primary' : 'btn-ghost'} onClick={() => setTab('audit')}>Audit trail</button>
       </div>
 
       {tab === 'requests' ? (
@@ -714,28 +730,28 @@ function Logs() {
           <DataTable headers={['Time', 'Key', 'Provider', 'Model', 'Status', 'Latency', 'Tokens', 'Summary', 'Details']}>
             {logs.map(log => (
               <Fragment key={log.id}>
-                <tr className="border-b border-border last:border-0">
-                  <td className="py-3 pr-4 text-muted-foreground">{formatDate(log.createdAt)}</td>
+                <tr className="border-b border-white/5 last:border-0">
+                  <td className="py-3 pr-4 text-white/40">{formatDate(log.createdAt)}</td>
                   <td className="py-3 pr-4">{log.apiKeyName ?? 'Unknown'}</td>
                   <td className="py-3 pr-4">{log.provider}</td>
-                  <td className="py-3 pr-4 font-mono text-xs">{log.model}</td>
+                  <td className="py-3 pr-4 font-mono text-xs text-primary/60">{log.model}</td>
                   <td className="py-3 pr-4"><StatusCode code={log.statusCode} /></td>
                   <td className="py-3 pr-4">{log.responseTimeMs ?? 0} ms</td>
                   <td className="py-3 pr-4">
                     <div className="text-xs">
                       <p className="font-semibold">{formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)}</p>
-                      <p className="text-muted-foreground">in {formatNumber(log.promptTokens ?? 0)} / out {formatNumber(log.completionTokens ?? 0)}</p>
+                      <p className="text-white/40">in {formatNumber(log.promptTokens ?? 0)} / out {formatNumber(log.completionTokens ?? 0)}</p>
                     </div>
                   </td>
-                  <td className="py-3 pr-4 text-sm text-muted-foreground">{log.error || `${log.messagesCount} messages${log.stream ? ' · stream' : ''}`}</td>
+                  <td className="py-3 pr-4 text-sm text-white/60">{log.error || `${log.messagesCount} messages${log.stream ? ' · stream' : ''}`}</td>
                   <td className="py-3 pr-4">
-                    <button className="btn-secondary min-h-8 px-3 py-1 text-xs" onClick={() => setExpandedRequestId(expandedRequestId === log.id ? null : log.id)}>
+                    <button className="btn-ghost min-h-8 px-3 py-1 text-xs" onClick={() => setExpandedRequestId(expandedRequestId === log.id ? null : log.id)}>
                       {expandedRequestId === log.id ? 'Hide' : 'View'}
                     </button>
                   </td>
                 </tr>
                 {expandedRequestId === log.id && (
-                  <tr className="border-b border-border bg-muted/40">
+                  <tr className="border-b border-white/5 bg-white/[0.02]">
                     <td colSpan={9} className="p-4">
                       <RequestLogDetails log={log} />
                     </td>
@@ -751,21 +767,21 @@ function Logs() {
           <DataTable headers={['Time', 'Admin', 'Action', 'Entity', 'IP address', 'Metadata', 'Details']}>
             {auditLogs.map(log => (
               <Fragment key={log.id}>
-                <tr className="border-b border-border last:border-0">
-                  <td className="py-3 pr-4 text-muted-foreground">{formatDate(log.createdAt)}</td>
+                <tr className="border-b border-white/5 last:border-0">
+                  <td className="py-3 pr-4 text-white/40">{formatDate(log.createdAt)}</td>
                   <td className="py-3 pr-4">{log.adminUsername ?? 'System'}</td>
-                  <td className="py-3 pr-4 font-semibold">{log.action.replace(/_/g, ' ')}</td>
+                  <td className="py-3 pr-4 font-semibold text-primary">{log.action.replace(/_/g, ' ')}</td>
                   <td className="py-3 pr-4">{log.entityType}{log.entityId ? ` · ${log.entityId.slice(0, 8)}` : ''}</td>
-                  <td className="py-3 pr-4">{log.ipAddress ?? 'Unknown'}</td>
-                  <td className="max-w-sm truncate py-3 pr-4 text-xs text-muted-foreground">{log.metadata ? JSON.stringify(log.metadata) : ''}</td>
+                  <td className="py-3 pr-4 text-white/60">{log.ipAddress ?? 'Unknown'}</td>
+                  <td className="max-w-sm truncate py-3 pr-4 text-xs text-white/40">{log.metadata ? JSON.stringify(log.metadata) : ''}</td>
                   <td className="py-3 pr-4">
-                    <button className="btn-secondary min-h-8 px-3 py-1 text-xs" onClick={() => setExpandedAuditId(expandedAuditId === log.id ? null : log.id)}>
+                    <button className="btn-ghost min-h-8 px-3 py-1 text-xs" onClick={() => setExpandedAuditId(expandedAuditId === log.id ? null : log.id)}>
                       {expandedAuditId === log.id ? 'Hide' : 'View'}
                     </button>
                   </td>
                 </tr>
                 {expandedAuditId === log.id && (
-                  <tr className="border-b border-border bg-muted/40">
+                  <tr className="border-b border-white/5 bg-white/[0.02]">
                     <td colSpan={7} className="p-4">
                       <AuditLogDetails log={log} />
                     </td>
@@ -803,8 +819,8 @@ function RequestLogDetails({ log }: { log: RequestLog }) {
       </div>
       {log.error && (
         <div>
-          <p className="label">Error detail</p>
-          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-white p-3 text-xs text-destructive">{log.error}</pre>
+          <p className="label text-white/60">Error detail</p>
+          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">{log.error}</pre>
         </div>
       )}
     </div>
@@ -826,8 +842,8 @@ function AuditLogDetails({ log }: { log: AuditLog }) {
         <DetailItem label="User agent" value={log.userAgent ?? 'Unknown'} wide />
       </div>
       <div>
-        <p className="label">Metadata</p>
-        <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-white p-3 text-xs">
+        <p className="label text-white/60">Metadata</p>
+        <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-white/5 border border-white/10 p-3 text-xs">
           {log.metadata ? JSON.stringify(log.metadata, null, 2) : 'No metadata'}
         </pre>
       </div>
@@ -838,8 +854,8 @@ function AuditLogDetails({ log }: { log: AuditLog }) {
 function DetailItem({ label, value, mono = false, wide = false }: { label: string; value: React.ReactNode; mono?: boolean; wide?: boolean }) {
   return (
     <div className={wide ? 'md:col-span-3' : ''}>
-      <p className="label">{label}</p>
-      <p className={`mt-1 break-words text-sm ${mono ? 'font-mono text-xs' : ''}`}>{value}</p>
+      <p className="label text-white/60">{label}</p>
+      <p className={`mt-1 break-words text-sm ${mono ? 'font-mono text-xs text-primary/60' : ''}`}>{value}</p>
     </div>
   )
 }
@@ -1010,13 +1026,13 @@ function ApiPlayground() {
       {error && <Alert tone="bad">{error}</Alert>}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          <button className={mode === 'standard' ? 'btn-primary' : 'btn-secondary'} onClick={() => setMode('standard')} disabled={submitting}>Non-streaming</button>
-          <button className={mode === 'stream' ? 'btn-primary' : 'btn-secondary'} onClick={() => setMode('stream')} disabled={submitting}><Radio size={16} /> Streaming</button>
-          <button className={showVnc ? 'btn-primary' : 'btn-secondary'} onClick={() => setShowVnc(!showVnc)}><Monitor size={16} /> VNC</button>
+          <button className={mode === 'standard' ? 'btn-primary' : 'btn-ghost'} onClick={() => setMode('standard')} disabled={submitting}>Non-streaming</button>
+          <button className={mode === 'stream' ? 'btn-primary' : 'btn-ghost'} onClick={() => setMode('stream')} disabled={submitting}><Radio size={16} /> Streaming</button>
+          <button className={showVnc ? 'btn-primary' : 'btn-ghost'} onClick={() => setShowVnc(!showVnc)}><Monitor size={16} /> VNC</button>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="btn-secondary" onClick={load} disabled={loading}><RefreshCcw className={loading ? 'animate-spin' : ''} size={16} /> Refresh</button>
-          <button className="btn-secondary" onClick={() => setFullscreen(!fullscreen)}>{fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}{fullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button>
+          <button className="btn-ghost" onClick={load} disabled={loading}><RefreshCcw className={loading ? 'animate-spin' : ''} size={16} /> Refresh</button>
+          <button className="btn-ghost" onClick={() => setFullscreen(!fullscreen)}>{fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}{fullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button>
         </div>
       </div>
 
@@ -1048,8 +1064,8 @@ function ApiPlayground() {
             <Field label="User prompt">
               <textarea className="input min-h-40 resize-y" value={prompt} onChange={event => setPrompt(event.target.value)} placeholder="Write the request to test..." />
             </Field>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input type="checkbox" checked={newConversation} onChange={event => setNewConversation(event.target.checked)} />
+            <label className="flex items-center gap-2 text-sm text-white/60">
+              <input type="checkbox" checked={newConversation} onChange={event => setNewConversation(event.target.checked)} className="accent-primary" />
               Start a fresh provider conversation
             </label>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -1057,18 +1073,18 @@ function ApiPlayground() {
                 {submitting ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
                 {mode === 'stream' ? 'Start stream' : 'Send request'}
               </button>
-              <button className="btn-secondary w-full" type="button" disabled={!submitting || !abortController} onClick={() => abortController?.abort()}>
+              <button className="btn-ghost w-full" type="button" disabled={!submitting || !abortController} onClick={() => abortController?.abort()}>
                 Stop stream
               </button>
             </div>
           </form>
 
-          <div className="mt-5 border-t border-border pt-4">
-            <p className="label">Provider controls</p>
+          <div className="mt-5 border-t border-white/5 pt-4">
+            <p className="label text-white/60">Provider controls</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button className="btn-secondary" onClick={() => providerAction('login')} disabled={!selectedModel || selectedModel.provider.endsWith('-api')}>Login</button>
-              <button className="btn-secondary" onClick={() => providerAction('logout')} disabled={!selectedModel}>Logout</button>
-              {vncUrl && <a className="btn-secondary" href={vncUrl} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Open VNC</a>}
+              <button className="btn-ghost" onClick={() => providerAction('login')} disabled={!selectedModel || selectedModel.provider.endsWith('-api')}>Login</button>
+              <button className="btn-ghost" onClick={() => providerAction('logout')} disabled={!selectedModel}>Logout</button>
+              {vncUrl && <a className="btn-ghost" href={vncUrl} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Open VNC</a>}
             </div>
           </div>
         </Panel>
@@ -1082,7 +1098,7 @@ function ApiPlayground() {
               <InlineStat label="Output" value={formatNumber(usage?.completion_tokens ?? 0)} helper={`${formatNumber(usage?.total_tokens ?? 0)} total`} icon={Cpu} />
             </div>
             {responseText || submitting ? (
-              <div className={`${fullscreen ? 'min-h-[48vh]' : 'min-h-80'} rounded-md bg-muted p-4`}>
+              <div className={`${fullscreen ? 'min-h-[48vh]' : 'min-h-80'} rounded-xl bg-white/[0.03] border border-white/5 p-4 backdrop-blur-xl`}>
                 <p className="whitespace-pre-wrap text-sm leading-6">{responseText}{submitting && <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-primary align-middle" />}</p>
               </div>
             ) : (
@@ -1092,10 +1108,10 @@ function ApiPlayground() {
 
           <div className="grid gap-5 xl:grid-cols-2">
             <Panel title="Request JSON" description="Exact payload sent through the master playground endpoint.">
-              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-xs">{rawRequest || 'No request sent yet.'}</pre>
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-white/[0.03] border border-white/5 p-3 text-xs backdrop-blur-xl">{rawRequest || 'No request sent yet.'}</pre>
             </Panel>
             <Panel title="Response JSON" description="Final response envelope, usage, and logging metadata.">
-              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-xs">{rawResponse || (result ? JSON.stringify(result, null, 2) : 'No response yet.')}</pre>
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-white/[0.03] border border-white/5 p-3 text-xs backdrop-blur-xl">{rawResponse || (result ? JSON.stringify(result, null, 2) : 'No response yet.')}</pre>
             </Panel>
           </div>
         </div>
@@ -1104,7 +1120,7 @@ function ApiPlayground() {
           {showVnc && (
             <Panel title="Live VNC" description="Watch and control the provider browser while the playground runs.">
               {vncUrl ? (
-                <iframe title="Playground VNC" src={vncUrl} className={`${fullscreen ? 'h-[calc(100vh-235px)] min-h-[520px]' : 'h-[520px]'} w-full rounded-md border border-border bg-[#101411]`} />
+                <iframe title="Playground VNC" src={vncUrl} className={`${fullscreen ? 'h-[calc(100vh-235px)] min-h-[520px]' : 'h-[520px]'} w-full rounded-xl border border-white/5 bg-[#080808]`} />
               ) : (
                 <EmptyState icon={Monitor} message="VNC endpoint is unavailable." />
               )}
@@ -1113,12 +1129,12 @@ function ApiPlayground() {
           <Panel title="Run history" description="Recent playground requests in this admin session.">
             <div className="space-y-3">
               {history.map(item => (
-                <div key={item.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                <div key={item.id} className="border-b border-white/5 pb-3 last:border-0 last:pb-0">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-mono text-xs">{item.model}</p>
-                    <span className="status-pill bg-primary/10 text-primary">{item.status}</span>
+                    <p className="font-mono text-xs text-primary/60">{item.model}</p>
+                    <span className="status-primary">{item.status}</span>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.provider} · {item.mode} · {formatNumber(item.latency)} ms · {formatNumber(item.tokens)} tokens · {formatDate(item.at)}</p>
+                  <p className="mt-1 text-xs text-white/40">{item.provider} · {item.mode} · {formatNumber(item.latency)} ms · {formatNumber(item.tokens)} tokens · {formatDate(item.at)}</p>
                 </div>
               ))}
               {history.length === 0 && <EmptyState icon={Activity} message="No playground runs yet." />}
@@ -1131,11 +1147,11 @@ function ApiPlayground() {
 
   if (fullscreen) {
     return (
-      <div className="fixed inset-0 z-50 overflow-auto bg-background p-4 text-foreground md:p-6">
+      <div className="fixed inset-0 z-50 overflow-auto bg-[#080808] p-4 md:p-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">API Playground</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Fullscreen cockpit for master API requests, provider control, streaming output, and live VNC.</p>
+            <p className="mt-1 text-sm text-white/60">Fullscreen cockpit for master API requests, provider control, streaming output, and live VNC.</p>
           </div>
         </div>
         {workspace}
@@ -1220,15 +1236,15 @@ function Providers() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-2">
                 <StatusPill ok={provider.sessionValid} trueLabel="Connected" falseLabel={provider.hasProfile ? 'Profile exists' : 'Disconnected'} />
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-white/60">
                   {provider.name.endsWith('-api') ? 'Uses configured server API credentials.' : 'Uses a managed browser session profile.'}
                 </p>
               </div>
               <div className="flex gap-2">
                 {!provider.name.endsWith('-api') && <button className="btn-primary" onClick={() => action(provider.name, 'login')}>Login</button>}
-                <button className="btn-secondary" onClick={() => action(provider.name, 'logout')}>Logout</button>
+                <button className="btn-ghost" onClick={() => action(provider.name, 'logout')}>Logout</button>
                 {!provider.name.endsWith('-api') && catalog?.vnc.url && (
-                  <a className="btn-secondary" href={catalog.vnc.url} target="_blank" rel="noreferrer"><ExternalLink size={15} />VNC</a>
+                  <a className="btn-ghost" href={catalog.vnc.url} target="_blank" rel="noreferrer"><ExternalLink size={15} />VNC</a>
                 )}
               </div>
             </div>
@@ -1246,20 +1262,20 @@ function Providers() {
             )}
             <div className="mt-4 flex flex-wrap gap-2">
               {(grouped.get(provider.name) ?? []).map(model => (
-                <div className="min-w-56 flex-1 rounded-md border border-border p-3" key={model.id}>
+                <div className="min-w-56 flex-1 rounded-xl border border-white/10 bg-white/[0.02] p-3 backdrop-blur-xl" key={model.id}>
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-semibold">{model.displayName}</p>
-                      <p className="mt-1 font-mono text-xs text-muted-foreground">{model.id}</p>
+                      <p className="mt-1 font-mono text-xs text-white/40">{model.id}</p>
                     </div>
-                    <span className="status-pill bg-muted text-muted-foreground">{model.owned_by}</span>
+                    <span className="status-primary">{model.owned_by}</span>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                    <div><p className="label">Requests</p><p className="font-semibold">{formatNumber(model.usage.requests)}</p></div>
-                    <div><p className="label">Tokens</p><p className="font-semibold">{formatNumber(model.usage.totalTokens)}</p></div>
-                    <div><p className="label">Errors</p><p className="font-semibold">{formatNumber(model.usage.errorCount)}</p></div>
+                    <div><p className="label text-white/60">Requests</p><p className="font-semibold">{formatNumber(model.usage.requests)}</p></div>
+                    <div><p className="label text-white/60">Tokens</p><p className="font-semibold">{formatNumber(model.usage.totalTokens)}</p></div>
+                    <div><p className="label text-white/60">Errors</p><p className="font-semibold">{formatNumber(model.usage.errorCount)}</p></div>
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">Last used {model.usage.lastUsed ? formatDate(model.usage.lastUsed) : 'never'}</p>
+                  <p className="mt-2 text-xs text-white/40">Last used {model.usage.lastUsed ? formatDate(model.usage.lastUsed) : 'never'}</p>
                 </div>
               ))}
             </div>
@@ -1290,19 +1306,19 @@ function VncViewer() {
   return (
     <Page title="VNC Viewer" description="Use this browser view for provider login flows and visual session recovery." action={<RefreshButton onClick={load} loading={loading} />}>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <section className="overflow-hidden rounded-md border border-border bg-[#101411]">
+        <section className="overflow-hidden rounded-xl border border-white/5 bg-[#080808]">
           {url ? (
-            <iframe title="Cortex noVNC" src={url} className="h-[72vh] w-full border-0 bg-[#101411]" />
+            <iframe title="Cortex noVNC" src={url} className="h-[72vh] w-full border-0 bg-[#080808]" />
           ) : (
-            <div className="flex h-[72vh] items-center justify-center text-white/70">VNC endpoint is not available.</div>
+            <div className="flex h-[72vh] items-center justify-center text-white/40">VNC endpoint is not available.</div>
           )}
         </section>
         <div className="space-y-5">
           <Panel title="Access details" description="The container exposes noVNC for browser-based provider logins.">
             <div className="space-y-3 text-sm">
               <div>
-                <p className="label">Viewer URL</p>
-                <code className="mt-1 block break-all rounded-md bg-muted p-2 text-xs">{url ?? 'Unavailable'}</code>
+                <p className="label text-white/60">Viewer URL</p>
+                <code className="mt-1 block break-all rounded-lg bg-white/5 border border-white/10 p-2 text-xs text-primary/60">{url ?? 'Unavailable'}</code>
               </div>
               <a className="btn-primary w-full" href={url ?? '#'} target="_blank" rel="noreferrer">
                 <ExternalLink size={16} /> Open in new tab
@@ -1310,7 +1326,7 @@ function VncViewer() {
             </div>
           </Panel>
           <Panel title="Login workflow" description="Start a provider login, then complete it inside the VNC browser.">
-            <div className="space-y-2 text-sm text-muted-foreground">
+            <div className="space-y-2 text-sm text-white/60">
               <p>1. Open Model Control and press Login for a web provider.</p>
               <p>2. Use this VNC view to complete the provider login.</p>
               <p>3. Return to Model Control and refresh provider status.</p>
@@ -1389,7 +1405,7 @@ function AdminUsers({ currentAdmin }: { currentAdmin: Admin }) {
         <Panel title="Administrators" description="Current admin accounts and their privileges.">
           <DataTable headers={['Username', 'Role', 'Last login', 'Created', 'Actions']}>
             {admins.map(item => (
-              <tr key={item.id} className="border-b border-border last:border-0">
+              <tr key={item.id} className="border-b border-white/5 last:border-0">
                 <td className="py-3 pr-4 font-semibold">{item.username}{item.id === currentAdmin.id ? ' (you)' : ''}</td>
                 <td className="py-3 pr-4">
                   <select className="input w-36" value={item.role} onChange={event => updateRole(item.id, event.target.value as Admin['role'])} disabled={item.id === currentAdmin.id}>
@@ -1397,12 +1413,12 @@ function AdminUsers({ currentAdmin }: { currentAdmin: Admin }) {
                     <option value="super_admin">Super admin</option>
                   </select>
                 </td>
-                <td className="py-3 pr-4 text-muted-foreground">{item.lastLogin ? formatDate(item.lastLogin) : 'Never'}</td>
-                <td className="py-3 pr-4 text-muted-foreground">{formatDate(item.createdAt)}</td>
+                <td className="py-3 pr-4 text-white/40">{item.lastLogin ? formatDate(item.lastLogin) : 'Never'}</td>
+                <td className="py-3 pr-4 text-white/40">{formatDate(item.createdAt)}</td>
                 <td className="py-3 pr-0">
                   <div className="flex justify-end gap-2">
-                    <button className="btn-secondary min-h-9 px-3" onClick={() => resetPassword(item.id)}>Password</button>
-                    <button className="btn-danger min-h-9 px-3" onClick={() => remove(item.id)} disabled={item.id === currentAdmin.id}><Trash2 size={15} /></button>
+                    <button className="btn-ghost min-h-9 px-3" onClick={() => resetPassword(item.id)}>Password</button>
+                    <button className="btn-ghost min-h-9 px-3 text-destructive hover:bg-destructive/10" onClick={() => remove(item.id)} disabled={item.id === currentAdmin.id}><Trash2 size={15} /></button>
                   </div>
                 </td>
               </tr>
@@ -1463,8 +1479,8 @@ function SettingsPanel() {
                 <option value="debug">Debug</option>
               </select>
             </Field>
-            <label className="flex items-center gap-3 rounded-md border border-border p-3 text-sm">
-              <input type="checkbox" checked={config.headless} onChange={event => setConfig({ ...config, headless: event.target.checked })} />
+            <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-sm backdrop-blur-xl cursor-pointer">
+              <input type="checkbox" checked={config.headless} onChange={event => setConfig({ ...config, headless: event.target.checked })} className="accent-primary" />
               Headless provider browsers
             </label>
           </div>
@@ -1475,15 +1491,15 @@ function SettingsPanel() {
             <Field label="Admin token TTL seconds"><input className="input" type="number" min={300} value={config.admin.tokenTtlSeconds} onChange={event => setConfig({ ...config, admin: { ...config.admin, tokenTtlSeconds: Number(event.target.value) } })} /></Field>
             <Field label="Log retention days"><input className="input" type="number" min={1} value={config.admin.logRetentionDays} onChange={event => setConfig({ ...config, admin: { ...config.admin, logRetentionDays: Number(event.target.value) } })} /></Field>
             <Field label="CORS origin"><input className="input" value={config.admin.corsOrigin} onChange={event => setConfig({ ...config, admin: { ...config.admin, corsOrigin: event.target.value } })} /></Field>
-            <label className="flex items-center gap-3 rounded-md border border-border p-3 text-sm">
-              <input type="checkbox" checked={config.admin.requireApiKey} onChange={event => setConfig({ ...config, admin: { ...config.admin, requireApiKey: event.target.checked } })} />
+            <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-sm backdrop-blur-xl cursor-pointer">
+              <input type="checkbox" checked={config.admin.requireApiKey} onChange={event => setConfig({ ...config, admin: { ...config.admin, requireApiKey: event.target.checked } })} className="accent-primary" />
               Require API keys for `/v1`
             </label>
           </div>
-          <div className="mt-4 space-y-2 rounded-md bg-muted p-3 text-sm text-muted-foreground">
-            <p>Admin database: <span className="font-mono">{config.admin.dbPath}</span></p>
+          <div className="mt-4 space-y-2 rounded-xl bg-white/[0.02] border border-white/10 p-3 text-sm text-white/40 backdrop-blur-xl">
+            <p>Admin database: <span className="font-mono text-primary/60">{config.admin.dbPath}</span></p>
             <p>JWT secret configured: {config.admin.jwtSecretConfigured ? 'yes' : 'generated local secret file'}</p>
-            <p>noVNC public port: <span className="font-mono">{config.vnc.externalPort}</span></p>
+            <p>noVNC public port: <span className="font-mono text-primary/60">{config.vnc.externalPort}</span></p>
           </div>
         </Panel>
       </div>
@@ -1508,108 +1524,36 @@ function ApiDocs() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-5">
           <Panel title="Authentication">
-            <p className="text-sm text-muted-foreground">All <code className="rounded bg-muted px-1.5 py-0.5 text-xs">/v1/*</code> endpoints require an API key passed via the <code className="rounded bg-muted px-1.5 py-0.5 text-xs">Authorization</code> header or <code className="rounded bg-muted px-1.5 py-0.5 text-xs">X-API-Key</code> header.</p>
+            <p className="text-sm text-white/60">All <code className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-primary/60">/v1/*</code> endpoints require an API key passed via the <code className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-primary/60">Authorization</code> header or <code className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-primary/60">X-API-Key</code> header.</p>
             <CodeBlock label="Header format" id="auth" onCopy={copy} copied={copied}>{`Authorization: Bearer ctx_your_api_key_here\n\n# Alternative:\nX-API-Key: ctx_your_api_key_here`}</CodeBlock>
           </Panel>
 
           <Panel title="POST /v1/chat/completions" description="Send a chat message and receive a completion. Supports streaming.">
-            <CodeBlock label="curl" id="curl-chat" onCopy={copy} copied={copied}>{`curl ${baseUrl}/v1/chat/completions \\
-  -H "Authorization: Bearer ctx_your_api_key_here" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "model": "web-grok/grok-3",
-    "messages": [
-      {"role": "system", "content": "You are a helpful assistant."},
-      {"role": "user", "content": "Hello!"}
-    ],
-    "stream": false
-  }'`}</CodeBlock>
-            <CodeBlock label="Response" id="resp-chat" onCopy={copy} copied={copied}>{`{
-  "id": "chatcmpl-1710000000000",
-  "object": "chat.completion",
-  "model": "web-grok/grok-3",
-  "choices": [{
-    "index": 0,
-    "message": {"role": "assistant", "content": "Hello! How can I help?"},
-    "finish_reason": "stop"
-  }],
-  "usage": {"prompt_tokens": 18, "completion_tokens": 9, "total_tokens": 27}
-}`}</CodeBlock>
+            <CodeBlock label="curl" id="curl-chat" onCopy={copy} copied={copied}>{`curl ${baseUrl}/v1/chat/completions \\\n  -H "Authorization: Bearer ctx_your_api_key_here" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "model": "web-grok/grok-3",\n    "messages": [\n      {"role": "system", "content": "You are a helpful assistant."},\n      {"role": "user", "content": "Hello!"}\n    ],\n    "stream": false,\n    "newConversation": true\n  }'`}</CodeBlock>
+            <CodeBlock label="Response" id="resp-chat" onCopy={copy} copied={copied}>{`{\n  "id": "chatcmpl-1710000000000",\n  "object": "chat.completion",\n  "model": "web-grok/grok-3",\n  "choices": [{\n    "index": 0,\n    "message": {"role": "assistant", "content": "Hello! How can I help?"},\n    "finish_reason": "stop"\n  }],\n  "usage": {"prompt_tokens": 18, "completion_tokens": 9, "total_tokens": 27}\n}`}</CodeBlock>
           </Panel>
 
           <Panel title="Streaming" description="Set stream: true to receive Server-Sent Events.">
-            <CodeBlock label="Request body" id="stream-req" onCopy={copy} copied={copied}>{`{
-  "model": "web-claude/claude-opus",
-  "messages": [{"role": "user", "content": "Explain quantum computing"}],
-  "stream": true
-}`}</CodeBlock>
-            <CodeBlock label="SSE output" id="stream-resp" onCopy={copy} copied={copied}>{`data: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{"content":"Quantum"},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{"content":" computing"},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{},"finish_reason":"stop"}]}
-
-data: [DONE]`}</CodeBlock>
+            <CodeBlock label="Request body" id="stream-req" onCopy={copy} copied={copied}>{`{\n  "model": "web-claude/claude-opus",\n  "messages": [{"role": "user", "content": "Explain quantum computing"}],\n  "stream": true,\n  "newConversation": true\n}`}</CodeBlock>
+            <CodeBlock label="SSE output" id="stream-resp" onCopy={copy} copied={copied}>{`data: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{"content":"Quantum"},"finish_reason":null}]}\n\ndata: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{"content":" computing"},"finish_reason":null}]}\n\ndata: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]`}</CodeBlock>
           </Panel>
 
           <Panel title="GET /v1/models" description="List all available models.">
-            <CodeBlock label="curl" id="curl-models" onCopy={copy} copied={copied}>{`curl ${baseUrl}/v1/models \\
-  -H "Authorization: Bearer ctx_your_api_key_here"`}</CodeBlock>
+            <CodeBlock label="curl" id="curl-models" onCopy={copy} copied={copied}>{`curl ${baseUrl}/v1/models \\\n  -H "Authorization: Bearer ctx_your_api_key_here"`}</CodeBlock>
           </Panel>
 
           <Panel title="Python SDK" description="Use the official OpenAI Python library.">
-            <CodeBlock label="example.py" id="python" onCopy={copy} copied={copied}>{`from openai import OpenAI
-
-client = OpenAI(
-    base_url="${baseUrl}/v1",
-    api_key="ctx_your_api_key_here"
-)
-
-response = client.chat.completions.create(
-    model="web-grok/grok-3",
-    messages=[{"role": "user", "content": "Hello!"}],
-    stream=False
-)
-print(response.choices[0].message.content)
-
-# Streaming:
-for chunk in client.chat.completions.create(
-    model="web-claude/claude-sonnet",
-    messages=[{"role": "user", "content": "Explain AI"}],
-    stream=True
-):
-    print(chunk.choices[0].delta.content or "", end="")`}</CodeBlock>
+            <CodeBlock label="example.py" id="python" onCopy={copy} copied={copied}>{`from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${baseUrl}/v1",\n    api_key="ctx_your_api_key_here"\n)\n\nresponse = client.chat.completions.create(\n    model="web-grok/grok-3",\n    messages=[{"role": "user", "content": "Hello!"}],\n    stream=False\n)\nprint(response.choices[0].message.content)\n\n# Streaming:\nfor chunk in client.chat.completions.create(\n    model="web-claude/claude-sonnet",\n    messages=[{"role": "user", "content": "Explain AI"}],\n    stream=True\n):\n    print(chunk.choices[0].delta.content or "", end="")`}</CodeBlock>
           </Panel>
 
           <Panel title="JavaScript / TypeScript" description="Use the OpenAI Node.js library.">
-            <CodeBlock label="example.ts" id="js" onCopy={copy} copied={copied}>{`import OpenAI from "openai";
-
-const client = new OpenAI({
-  baseURL: "${baseUrl}/v1",
-  apiKey: "ctx_your_api_key_here",
-});
-
-const response = await client.chat.completions.create({
-  model: "web-gemini/gemini-2.5-pro",
-  messages: [{ role: "user", content: "Hello!" }],
-});
-console.log(response.choices[0].message.content);
-
-// Streaming:
-const stream = await client.chat.completions.create({
-  model: "web-chatgpt/gpt-4o",
-  messages: [{ role: "user", content: "Hello!" }],
-  stream: true,
-});
-for await (const chunk of stream) {
-  process.stdout.write(chunk.choices[0]?.delta?.content ?? "");
-}`}</CodeBlock>
+            <CodeBlock label="example.ts" id="js" onCopy={copy} copied={copied}>{`import OpenAI from "openai";\n\nconst client = new OpenAI({\n  baseURL: "${baseUrl}/v1",\n  apiKey: "ctx_your_api_key_here",\n});\n\nconst response = await client.chat.completions.create({\n  model: "web-gemini/gemini-2.5-pro",\n  messages: [{ role: "user", content: "Hello!" }],\n});\nconsole.log(response.choices[0].message.content);\n\n// Streaming:\nconst stream = await client.chat.completions.create({\n  model: "web-chatgpt/gpt-4o",\n  messages: [{ role: "user", content: "Hello!" }],\n  stream: true,\n});\nfor await (const chunk of stream) {\n  process.stdout.write(chunk.choices[0]?.delta?.content ?? "");\n}`}</CodeBlock>
           </Panel>
 
           <Panel title="Error codes" description="Standard error response format.">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="border-b border-border text-xs uppercase text-muted-foreground">
+                <thead className="border-b border-white/5 text-xs uppercase text-white/40">
                   <tr>
                     <th className="py-2 pr-4 text-left">Code</th>
                     <th className="py-2 pr-4 text-left">Meaning</th>
@@ -1624,9 +1568,9 @@ for await (const chunk of stream) {
                     ['500', 'Internal server error'],
                     ['503', 'Provider not connected — contact admin'],
                   ].map(([code, desc]) => (
-                    <tr key={code} className="border-b border-border last:border-0">
-                      <td className="py-2 pr-4 font-mono">{code}</td>
-                      <td className="py-2 pr-4 text-muted-foreground">{desc}</td>
+                    <tr key={code} className="border-b border-white/5 last:border-0">
+                      <td className="py-2 pr-4 font-mono text-primary/60">{code}</td>
+                      <td className="py-2 pr-4 text-white/60">{desc}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1639,28 +1583,28 @@ for await (const chunk of stream) {
           <Panel title="Quick reference">
             <div className="space-y-3 text-sm">
               <div>
-                <p className="label">Base URL</p>
-                <code className="mt-1 block break-all rounded-md bg-muted p-2 text-xs">{baseUrl}/v1</code>
+                <p className="label text-white/60">Base URL</p>
+                <code className="mt-1 block break-all rounded-lg bg-white/5 border border-white/10 p-2 text-xs text-primary/60">{baseUrl}/v1</code>
               </div>
               <div>
-                <p className="label">Chat endpoint</p>
-                <code className="mt-1 block rounded-md bg-muted p-2 text-xs">POST /v1/chat/completions</code>
+                <p className="label text-white/60">Chat endpoint</p>
+                <code className="mt-1 block rounded-lg bg-white/5 border border-white/10 p-2 text-xs">POST /v1/chat/completions</code>
               </div>
               <div>
-                <p className="label">Models endpoint</p>
-                <code className="mt-1 block rounded-md bg-muted p-2 text-xs">GET /v1/models</code>
+                <p className="label text-white/60">Models endpoint</p>
+                <code className="mt-1 block rounded-lg bg-white/5 border border-white/10 p-2 text-xs">GET /v1/models</code>
               </div>
               <div>
-                <p className="label">Compatibility</p>
-                <p className="text-muted-foreground">OpenAI API (chat completions)</p>
+                <p className="label text-white/60">Compatibility</p>
+                <p className="text-white/60">OpenAI API (chat completions)</p>
               </div>
               <div>
-                <p className="label">Auth method</p>
-                <p className="text-muted-foreground">Bearer token / X-API-Key</p>
+                <p className="label text-white/60">Auth method</p>
+                <p className="text-white/60">Bearer token / X-API-Key</p>
               </div>
               <div>
-                <p className="label">Streaming</p>
-                <p className="text-muted-foreground">text/event-stream (SSE)</p>
+                <p className="label text-white/60">Streaming</p>
+                <p className="text-white/60">text/event-stream (SSE)</p>
               </div>
             </div>
           </Panel>
@@ -1671,19 +1615,20 @@ for await (const chunk of stream) {
                 ['model', 'string', 'Required. Model ID (e.g. web-grok/grok-3)'],
                 ['messages', 'array', 'Required. Array of {role, content} objects'],
                 ['stream', 'boolean', 'Optional. Enable SSE streaming (default: false)'],
+                ['newConversation', 'boolean', 'Optional. Start fresh conversation (default: true)'],
                 ['temperature', 'number', 'Optional. Sampling temperature'],
                 ['max_tokens', 'number', 'Optional. Max tokens to generate'],
               ].map(([name, type, desc]) => (
                 <div key={name}>
-                  <p className="font-mono text-xs font-semibold">{name} <span className="text-muted-foreground">({type})</span></p>
-                  <p className="text-xs text-muted-foreground">{desc}</p>
+                  <p className="font-mono text-xs font-semibold text-primary/80">{name} <span className="text-white/40">({type})</span></p>
+                  <p className="text-xs text-white/60">{desc}</p>
                 </div>
               ))}
             </div>
           </Panel>
 
           <Panel title="Rate limits">
-            <p className="text-sm text-muted-foreground">Each API key has per-minute and daily request limits configured by your administrator. Exceeding limits returns a <code className="rounded bg-muted px-1 py-0.5 text-xs">429</code> status code.</p>
+            <p className="text-sm text-white/60">Each API key has per-minute and daily request limits configured by your administrator. Exceeding limits returns a <code className="rounded bg-white/5 px-1 py-0.5 text-xs text-primary/60">429</code> status code.</p>
           </Panel>
         </div>
       </div>
@@ -1693,10 +1638,10 @@ for await (const chunk of stream) {
 
 function CodeBlock({ children, label, id, onCopy, copied }: { children: string; label: string; id: string; onCopy: (text: string, id: string) => void; copied: string | null }) {
   return (
-    <div className="mt-3 rounded-md border border-border bg-[#101411] text-[#e0e5dc]">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
-        <span className="text-xs font-semibold text-white/60">{label}</span>
-        <button className="text-xs text-white/50 hover:text-white" onClick={() => onCopy(children, id)}>
+    <div className="mt-3 rounded-xl border border-white/10 bg-[#080808] text-white/80">
+      <div className="flex items-center justify-between border-b border-white/5 px-4 py-2">
+        <span className="text-xs font-semibold text-white/40">{label}</span>
+        <button className="text-xs text-white/40 hover:text-primary transition-colors" onClick={() => onCopy(children, id)}>
           {copied === id ? 'Copied!' : <><Copy size={12} className="mr-1 inline" />Copy</>}
         </button>
       </div>
@@ -1710,8 +1655,8 @@ function Page({ title, description, action, children }: { title: string; descrip
     <>
       <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
-          <h1 className="text-3xl font-bold">{title}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{description}</p>
+          <h1 className="text-3xl font-bold text-white">{title}</h1>
+          <p className="mt-2 max-w-3xl text-sm text-white/50">{description}</p>
         </div>
         {action}
       </div>
@@ -1722,10 +1667,10 @@ function Page({ title, description, action, children }: { title: string; descrip
 
 function Panel({ title, description, children, className = '' }: { title: string; description?: string; children: React.ReactNode; className?: string }) {
   return (
-    <section className={`panel p-5 ${className}`}>
+    <section className={`rounded-xl border border-white/10 bg-white/[0.02] backdrop-blur-xl p-5 ${className}`}>
       <div className="mb-4">
-        <h2 className="text-lg font-bold">{title}</h2>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+        <h2 className="text-lg font-semibold text-white">{title}</h2>
+        {description && <p className="mt-1 text-sm text-white/50">{description}</p>}
       </div>
       {children}
     </section>
@@ -1733,16 +1678,16 @@ function Panel({ title, description, children, className = '' }: { title: string
 }
 
 function Metric({ label, value, helper, icon: Icon, tone = 'neutral' }: { label: string; value: string; helper: string; icon: typeof Activity; tone?: 'neutral' | 'good' | 'warn' | 'bad' }) {
-  const toneClass = tone === 'good' ? 'text-primary' : tone === 'warn' ? 'text-secondary-foreground bg-secondary/25' : tone === 'bad' ? 'text-destructive' : 'text-accent'
+  const toneClass = tone === 'good' ? 'text-primary' : tone === 'warn' ? 'text-warning' : tone === 'bad' ? 'text-destructive' : 'text-[hsl(210,100%,65%)]'
   return (
-    <div className="panel p-5">
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] backdrop-blur-xl p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="label">{label}</p>
-          <p className="mt-3 text-3xl font-bold">{value}</p>
-          <p className="mt-2 text-sm text-muted-foreground">{helper}</p>
+          <p className="label text-white/50">{label}</p>
+          <p className="mt-3 text-3xl font-bold text-white">{value}</p>
+          <p className="mt-2 text-sm text-white/40">{helper}</p>
         </div>
-        <div className={`rounded-md bg-muted p-2 ${toneClass}`}>
+        <div className={`rounded-xl bg-white/5 p-2 ${toneClass}`}>
           <Icon size={20} />
         </div>
       </div>
@@ -1753,13 +1698,13 @@ function Metric({ label, value, helper, icon: Icon, tone = 'neutral' }: { label:
 function InlineStat({ label, value, helper, icon: Icon }: { label: string; value: string; helper: string; icon: typeof Activity }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="rounded-md bg-muted p-2 text-accent">
+      <div className="rounded-xl bg-white/5 p-2 text-primary">
         <Icon size={18} />
       </div>
       <div>
-        <p className="label">{label}</p>
-        <p className="mt-2 text-2xl font-bold">{value}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{helper}</p>
+        <p className="label text-white/50">{label}</p>
+        <p className="mt-2 text-2xl font-bold text-white">{value}</p>
+        <p className="mt-1 text-sm text-white/40">{helper}</p>
       </div>
     </div>
   )
@@ -1768,7 +1713,7 @@ function InlineStat({ label, value, helper, icon: Icon }: { label: string; value
 function NavButton({ active, icon: Icon, label, onClick }: { active: boolean; icon: typeof Activity; label: string; onClick: () => void }) {
   return (
     <button
-      className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition ${active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all ${active ? 'bg-primary/10 text-primary border border-primary/20' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
       onClick={onClick}
     >
       <Icon size={18} />
@@ -1779,7 +1724,7 @@ function NavButton({ active, icon: Icon, label, onClick }: { active: boolean; ic
 
 function RefreshButton({ onClick, loading }: { onClick: () => void; loading: boolean }) {
   return (
-    <button className="btn-secondary" onClick={onClick} disabled={loading}>
+    <button className="btn-ghost" onClick={onClick} disabled={loading}>
       <RefreshCcw className={loading ? 'animate-spin' : ''} size={16} />
       Refresh
     </button>
@@ -1788,23 +1733,23 @@ function RefreshButton({ onClick, loading }: { onClick: () => void; loading: boo
 
 function StatusPill({ ok, trueLabel, falseLabel }: { ok: boolean; trueLabel: string; falseLabel: string }) {
   return ok ? (
-    <span className="status-pill bg-primary/10 text-primary"><CheckCircle2 size={14} className="mr-1" />{trueLabel}</span>
+    <span className="status-success"><CheckCircle2 size={14} className="mr-1" />{trueLabel}</span>
   ) : (
-    <span className="status-pill bg-muted text-muted-foreground"><XCircle size={14} className="mr-1" />{falseLabel}</span>
+    <span className="status-primary"><XCircle size={14} className="mr-1" />{falseLabel}</span>
   )
 }
 
 function StatusCode({ code }: { code: number | null }) {
-  if (!code) return <span className="status-pill bg-muted text-muted-foreground">Pending</span>
-  if (code >= 500) return <span className="status-pill bg-destructive/10 text-destructive">{code}</span>
-  if (code >= 400) return <span className="status-pill bg-secondary/20 text-secondary-foreground">{code}</span>
-  return <span className="status-pill bg-primary/10 text-primary">{code}</span>
+  if (!code) return <span className="status-primary">Pending</span>
+  if (code >= 500) return <span className="status-error">{code}</span>
+  if (code >= 400) return <span className="status-warning">{code}</span>
+  return <span className="status-success">{code}</span>
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="label">{label}</span>
+      <span className="label text-white/60">{label}</span>
       <span className="mt-2 block">{children}</span>
     </label>
   )
@@ -1815,15 +1760,15 @@ function Alert({ children, tone = 'neutral' }: { children: React.ReactNode; tone
     ? 'border-primary/30 bg-primary/10 text-primary'
     : tone === 'bad'
       ? 'border-destructive/30 bg-destructive/10 text-destructive'
-      : 'border-border bg-white text-foreground'
-  return <div className={`mb-4 rounded-md border p-3 text-sm ${className}`}>{children}</div>
+      : 'border-white/10 bg-white/5 text-white/80'
+  return <div className={`mb-4 rounded-xl border p-3 text-sm backdrop-blur-xl ${className}`}>{children}</div>
 }
 
 function DataTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[920px] text-left text-sm">
-        <thead className="border-b border-border text-xs uppercase text-muted-foreground">
+        <thead className="border-b border-white/5 text-xs uppercase text-white/40">
           <tr>{headers.map(header => <th key={header} className="py-3 pr-4 last:pr-0">{header}</th>)}</tr>
         </thead>
         <tbody>{children}</tbody>
@@ -1834,7 +1779,7 @@ function DataTable({ headers, children }: { headers: string[]; children: React.R
 
 function EmptyState({ icon: Icon, message }: { icon: typeof Activity; message: string }) {
   return (
-    <div className="flex min-h-40 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+    <div className="flex min-h-40 flex-col items-center justify-center gap-3 text-center text-white/40">
       <Icon size={28} />
       <p>{message}</p>
     </div>
@@ -1843,7 +1788,7 @@ function EmptyState({ icon: Icon, message }: { icon: typeof Activity; message: s
 
 function FullScreenLoader() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
+    <div className="flex min-h-screen items-center justify-center bg-[#080808]">
       <Loader2 className="animate-spin text-primary" size={32} />
     </div>
   )
@@ -1851,7 +1796,7 @@ function FullScreenLoader() {
 
 function FullWidthLoading() {
   return (
-    <div className="panel flex min-h-64 items-center justify-center">
+    <div className="flex min-h-64 items-center justify-center rounded-xl border border-white/10 bg-white/[0.02] backdrop-blur-xl">
       <Loader2 className="animate-spin text-primary" size={30} />
     </div>
   )

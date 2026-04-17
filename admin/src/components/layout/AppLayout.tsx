@@ -26,7 +26,7 @@ export function AppLayout({ admin, onLogout }: AppLayoutProps) {
   if (!admin) return null
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#080808]">
       {/* Sidebar (desktop) */}
       <Sidebar
         collapsed={sidebarCollapsed}

@@ -2,7 +2,7 @@ import * as React from "react"
 import { NavLink } from "react-router-dom"
 import {
   X, BarChart3, KeyRound, Gauge, Activity, Cpu, TerminalSquare,
-  Monitor, BookOpen, Users, Settings, Shield
+  Monitor, BookOpen, Users, Settings, ShieldCheck, LogOut
 } from "lucide-react"
 import { cn } from "~/lib/utils"
 
@@ -41,7 +41,7 @@ export function MobileDrawer({ open, onClose, admin, onLogout }: MobileDrawerPro
       {/* Backdrop */}
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden animate-fade-in"
+          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden animate-fade-in"
           onClick={onClose}
         />
       )}
@@ -50,25 +50,25 @@ export function MobileDrawer({ open, onClose, admin, onLogout }: MobileDrawerPro
       <div
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-[280px] lg:hidden",
-          "bg-background-secondary border-r border-border",
+          "bg-[#0a0a0a]/95 backdrop-blur-xl border-r border-white/5",
           "transform transition-transform duration-300 ease-in-out",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between h-16 px-5 border-b border-border">
+        <div className="flex items-center justify-between h-16 px-5 border-b border-white/5">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/20 border border-primary/20">
-              <Shield size={20} className="text-primary" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl border border-primary/20 bg-primary/10">
+              <ShieldCheck size={20} className="text-primary" />
             </div>
             <div>
-              <h1 className="font-bold text-base gradient-text">Cortex</h1>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Admin</p>
+              <h1 className="font-bold text-base bg-gradient-to-r from-primary to-[hsl(270,80%,60%)] bg-clip-text text-transparent">Cortex</h1>
+              <p className="text-[10px] text-white/40 uppercase tracking-wider">Admin</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+            className="p-2 rounded-lg text-white/40 hover:bg-white/5 hover:text-white transition-all"
           >
             <X size={20} />
           </button>
@@ -83,10 +83,10 @@ export function MobileDrawer({ open, onClose, admin, onLogout }: MobileDrawerPro
               onClick={onClose}
               className={({ isActive }) => cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                "hover:bg-muted/50",
+                "hover:bg-white/5",
                 isActive
-                  ? "bg-primary/15 text-primary border border-primary/20"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-primary/10 text-primary border border-primary/20"
+                  : "text-white/50 hover:text-white"
               )}
             >
               <Icon size={20} className="shrink-0" />
@@ -96,27 +96,23 @@ export function MobileDrawer({ open, onClose, admin, onLogout }: MobileDrawerPro
         </nav>
 
         {/* User panel */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/5">
           {admin && (
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/20 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
+              <div className="w-9 h-9 rounded-full border border-primary/20 bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
                 {admin.username.slice(0, 2).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{admin.username}</p>
-                <p className="text-xs text-muted-foreground capitalize">{admin.role}</p>
+                <p className="text-xs text-white/40 capitalize">{admin.role.replace('_', ' ')}</p>
               </div>
             </div>
           )}
           <button
             onClick={() => { onLogout(); onClose() }}
-            className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-white/40 hover:text-destructive hover:bg-white/5 transition-all"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
+            <LogOut size={16} />
             Sign out
           </button>
         </div>
