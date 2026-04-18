@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,47 +6,47 @@
 
 @layer base {
   :root {
-    --background: 0 0% 4%;
-    --background-secondary: 0 0% 7%;
-    --background-tertiary: 0 0% 10%;
-    --foreground: 0 0% 95%;
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 55%;
-    --border: 0 0% 14%;
-    --border-light: 0 0% 20%;
-    --input: 0 0% 12%;
-    --primary: 174 100% 50%;
-    --primary-foreground: 0 0% 4%;
-    --primary-light: 174 80% 55%;
-    --primary-dark: 174 100% 40%;
-    --secondary: 270 80% 60%;
-    --secondary-foreground: 0 0% 4%;
-    --secondary-light: 270 70% 70%;
-    --secondary-dark: 270 90% 50%;
-    --destructive: 0 72% 50%;
+    --background: 240 8% 5%;
+    --background-secondary: 240 8% 8%;
+    --background-tertiary: 240 7% 12%;
+    --foreground: 222 45% 95%;
+    --muted: 240 8% 18%;
+    --muted-foreground: 230 17% 66%;
+    --border: 238 12% 22%;
+    --border-light: 235 13% 31%;
+    --input: 238 13% 16%;
+    --primary: 218 96% 63%;
+    --primary-foreground: 224 40% 10%;
+    --primary-light: 220 95% 70%;
+    --primary-dark: 220 88% 55%;
+    --secondary: 262 90% 68%;
+    --secondary-foreground: 224 40% 10%;
+    --secondary-light: 266 86% 74%;
+    --secondary-dark: 262 82% 58%;
+    --destructive: 355 82% 63%;
     --destructive-foreground: 0 0% 100%;
-    --accent: 210 100% 65%;
-    --accent-foreground: 0 0% 4%;
-    --accent-light: 210 80% 70%;
-    --accent-dark: 210 100% 55%;
-    --success: 142 68% 45%;
+    --accent: 188 100% 62%;
+    --accent-foreground: 224 40% 10%;
+    --accent-light: 190 100% 70%;
+    --accent-dark: 190 88% 48%;
+    --success: 163 74% 43%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 4%;
-    --info: 210 80% 55%;
-    --info-foreground: 0 0% 100%;
-    --card: 0 0% 7%;
-    --card-foreground: 0 0% 95%;
-    --popover: 0 0% 5%;
-    --popover-foreground: 0 0% 95%;
-    --ring: 174 100% 50%;
-    --radius: 0.75rem;
-    --shadow-sm: 0 1px 3px rgba(0,0,0,0.5);
-    --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
-    --shadow-lg: 0 10px 15px rgba(0,0,0,0.5);
-    --shadow-xl: 0 20px 25px rgba(0,0,0,0.6);
-    --glow-primary: 0 0 30px rgba(0,255,213,0.15);
-    --glow-accent: 0 0 30px rgba(96,165,250,0.15);
+    --warning: 333 81% 67%;
+    --warning-foreground: 224 40% 10%;
+    --info: 200 100% 63%;
+    --info-foreground: 224 40% 10%;
+    --card: 240 8% 10%;
+    --card-foreground: 222 45% 95%;
+    --popover: 240 9% 9%;
+    --popover-foreground: 222 45% 95%;
+    --ring: 218 96% 63%;
+    --radius: 0.625rem;
+    --shadow-sm: 0 8px 18px rgba(2, 4, 12, 0.38);
+    --shadow-md: 0 14px 28px rgba(2, 4, 12, 0.48);
+    --shadow-lg: 0 22px 44px rgba(2, 4, 12, 0.56);
+    --shadow-xl: 0 34px 62px rgba(2, 4, 12, 0.62);
+    --glow-primary: 0 0 34px rgba(79, 141, 255, 0.2);
+    --glow-accent: 0 0 34px rgba(77, 241, 255, 0.15);
   }
 
   * {
@@ -55,11 +55,22 @@
 
   body {
     background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(circle at 8% -12%, hsl(var(--primary) / 0.24), transparent 40%),
+      radial-gradient(circle at 92% 10%, hsl(var(--secondary) / 0.18), transparent 42%),
+      radial-gradient(circle at 58% 100%, hsl(var(--accent) / 0.13), transparent 46%),
+      linear-gradient(145deg, hsl(var(--background)) 0%, hsl(var(--background-secondary)) 48%, hsl(var(--background-tertiary)) 100%);
     color: hsl(var(--foreground));
     font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100dvh;
+    letter-spacing: 0.01em;
+  }
+
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring) / 0.9);
+    outline-offset: 2px;
   }
 
   ::selection {
@@ -72,7 +83,7 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: hsl(var(--background));
+    background: hsl(var(--background-secondary));
   }
 
   ::-webkit-scrollbar-thumb {
@@ -87,37 +98,39 @@
 
 @layer components {
   .glass {
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
   }
 
   .glass-card {
-    background: rgba(255, 255, 255, 0.04);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02));
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--radius);
-    box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.05);
+    box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.08);
   }
 
   .btn {
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-transparent px-4 py-2 text-sm font-semibold transition-all duration-200;
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-transparent px-4 py-2 text-sm font-semibold transition-all duration-200;
   }
 
   .btn-primary {
-    @apply btn bg-primary text-primary-foreground hover:shadow-md active:scale-[0.98];
+    @apply btn text-primary-foreground hover:brightness-105 active:scale-[0.98];
+    background-image: linear-gradient(120deg, hsl(var(--primary)), hsl(var(--secondary)));
     box-shadow: var(--glow-primary);
-    transition: background 200ms, box-shadow 200ms;
+    transition: filter 200ms, box-shadow 200ms;
   }
 
   .btn-secondary {
-    @apply btn bg-secondary text-secondary-foreground active:scale-[0.98];
+    @apply btn text-secondary-foreground active:scale-[0.98];
+    background-image: linear-gradient(120deg, hsl(var(--secondary)), hsl(var(--accent)));
   }
 
   .btn-ghost {
-    @apply btn border-white/10 bg-white/5 text-foreground/90 hover:bg-white/10 active:scale-[0.98];
+    @apply btn border-white/15 bg-white/[0.04] text-foreground/90 hover:bg-white/[0.09] active:scale-[0.98];
   }
 
   .btn-ghost:hover {
@@ -129,7 +142,7 @@
   }
 
   .input {
-    @apply min-h-11 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-foreground shadow-sm transition-all duration-200 placeholder:text-muted-foreground focus:border-primary/40 focus:ring-2 focus:ring-primary/10 focus:shadow-md focus:outline-none;
+    @apply min-h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-foreground shadow-sm transition-all duration-200 placeholder:text-muted-foreground focus:border-primary/45 focus:ring-2 focus:ring-primary/15 focus:shadow-md focus:outline-none;
   }
 
   .label {
@@ -137,7 +150,7 @@
   }
 
   .panel {
-    @apply rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl;
+    @apply rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl;
     box-shadow: var(--shadow-md);
   }
 
@@ -251,7 +264,7 @@
     border: 1px solid hsl(var(--border));
     border-radius: calc(var(--radius) - 2px);
     padding: 1rem;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 0.8125rem;
     line-height: 1.6;
     overflow-x: auto;
@@ -276,7 +289,7 @@
   }
 
   .gradient-text {
-    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    background: linear-gradient(120deg, hsl(var(--primary)), hsl(var(--secondary)));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -292,7 +305,7 @@
     inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    background: linear-gradient(120deg, hsl(var(--primary)), hsl(var(--secondary)));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
@@ -300,7 +313,7 @@
   }
 
   .gradient-bg {
-    background: linear-gradient(135deg, hsl(var(--background)), hsl(var(--background-secondary)));
+    background: linear-gradient(145deg, hsl(var(--background)), hsl(var(--background-secondary)));
   }
 
   .glow-primary {
