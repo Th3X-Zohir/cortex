@@ -1,14 +1,12 @@
-import * as React from "react"
-import { CheckCircle2, RefreshCcw } from "lucide-react"
-import { api } from "~/lib/api"
-import { PageHeader } from "~/components/shared/PageHeader"
-import { Skeleton } from "~/components/ui/skeleton"
-import type { Config } from "~/types"
+import { useEffect, useState } from 'react'
+import { api } from '@/lib/api'
+import type { Config } from '@/types'
+import { Alert, Field, FullWidthLoading, Page, Panel, RefreshButton } from '@/components/shared/AppPrimitives'
 
 export function SettingsPage() {
-  const [config, setConfig] = React.useState<Config | null>(null)
-  const [loading, setLoading] = React.useState(true)
-  const [saved, setSaved] = React.useState(false)
+  const [config, setConfig] = useState<Config | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saved, setSaved] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -19,7 +17,7 @@ export function SettingsPage() {
     }
   }
 
-  React.useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [])
 
   async function save() {
     if (!config) return
@@ -36,96 +34,53 @@ export function SettingsPage() {
   }
 
   if (!config) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <PageHeader title="Settings" description="Runtime configuration and security controls." />
-        <div className="panel p-5 flex items-center justify-center min-h-64">
-          <Skeleton className="h-8 w-8 rounded-full" />
-        </div>
-      </div>
-    )
+    return <Page title="Settings" description="Runtime configuration and security controls."><FullWidthLoading /></Page>
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <PageHeader
-        title="Settings"
-        description="Runtime configuration, retention, CORS, and authentication enforcement."
-        actions={
-          <button className="btn-ghost flex items-center gap-2" onClick={load} disabled={loading}>
-            <RefreshCcw size={16} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
-        }
-      />
-
-      {saved && (
-        <div className="flex items-center gap-2 p-4 rounded-xl border border-primary/20 bg-primary/5 text-sm">
-          <CheckCircle2 size={16} className="text-success" />
-          Settings saved. Restart the service for host, port, and some runtime changes to take effect.
-        </div>
-      )}
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        {/* Service runtime */}
-        <div className="panel p-5 space-y-4">
-          <h3 className="text-base font-semibold">Service runtime</h3>
-          <p className="text-xs text-muted-foreground">Network and provider process configuration.</p>
+    <Page title="Settings" description="Runtime configuration, retention, CORS, and authentication enforcement." action={<RefreshButton onClick={load} loading={loading} />}>
+      {saved && <Alert tone="good">Settings saved. Restart the service for host, port, and some runtime changes to take effect.</Alert>}
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <Panel title="Service runtime" description="Network and provider process configuration.">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label" htmlFor="host">Host</label>
-              <input id="host" className="input" value={config.host} onChange={e => setConfig({ ...config, host: e.target.value })} />
-            </div>
-            <div>
-              <label className="label" htmlFor="port">Port</label>
-              <input id="port" className="input" type="number" min={1} value={config.port} onChange={e => setConfig({ ...config, port: Number(e.target.value) })} />
-            </div>
-            <div>
-              <label className="label" htmlFor="loglevel">Log level</label>
-              <select id="loglevel" className="input" value={config.logLevel} onChange={e => setConfig({ ...config, logLevel: e.target.value as Config["logLevel"] })}>
+            <Field label="Host"><input className="input" value={config.host} onChange={event => setConfig({ ...config, host: event.target.value })} /></Field>
+            <Field label="Port"><input className="input" type="number" min={1} value={config.port} onChange={event => setConfig({ ...config, port: Number(event.target.value) })} /></Field>
+            <Field label="Log level">
+              <select className="input" value={config.logLevel} onChange={event => setConfig({ ...config, logLevel: event.target.value as Config['logLevel'] })}>
                 <option value="silent">Silent</option>
                 <option value="info">Info</option>
                 <option value="debug">Debug</option>
               </select>
-            </div>
-            <div className="flex items-center gap-3 rounded-lg border border-border p-3">
-              <input type="checkbox" id="headless" checked={config.headless} onChange={e => setConfig({ ...config, headless: e.target.checked })} className="w-4 h-4 rounded border-border bg-background-secondary text-primary focus:ring-primary/20" />
-              <label htmlFor="headless" className="text-sm">Headless provider browsers</label>
-            </div>
+            </Field>
+            <label className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.02] p-3 text-sm backdrop-blur-xl">
+              <span className="flex items-center gap-3">
+                <input type="checkbox" checked={config.headless} onChange={event => setConfig({ ...config, headless: event.target.checked })} className="accent-primary" />
+                Headless provider browsers
+              </span>
+            </label>
           </div>
-        </div>
+        </Panel>
 
-        {/* Security controls */}
-        <div className="panel p-5 space-y-4">
-          <h3 className="text-base font-semibold">Security controls</h3>
-          <p className="text-xs text-muted-foreground">Authentication, retention, and browser API access policy.</p>
+        <Panel title="Security controls" description="Authentication, retention, and browser API access policy.">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label" htmlFor="token-ttl">Admin token TTL seconds</label>
-              <input id="token-ttl" className="input" type="number" min={300} value={config.admin.tokenTtlSeconds} onChange={e => setConfig({ ...config, admin: { ...config.admin, tokenTtlSeconds: Number(e.target.value) } })} />
-            </div>
-            <div>
-              <label className="label" htmlFor="retention">Log retention days</label>
-              <input id="retention" className="input" type="number" min={1} value={config.admin.logRetentionDays} onChange={e => setConfig({ ...config, admin: { ...config.admin, logRetentionDays: Number(e.target.value) } })} />
-            </div>
-            <div>
-              <label className="label" htmlFor="cors">CORS origin</label>
-              <input id="cors" className="input" value={config.admin.corsOrigin} onChange={e => setConfig({ ...config, admin: { ...config.admin, corsOrigin: e.target.value } })} />
-            </div>
-            <div className="flex items-center gap-3 rounded-lg border border-border p-3">
-              <input type="checkbox" id="require-api-key" checked={config.admin.requireApiKey} onChange={e => setConfig({ ...config, admin: { ...config.admin, requireApiKey: e.target.checked } })} className="w-4 h-4 rounded border-border bg-background-secondary text-primary focus:ring-primary/20" />
-              <label htmlFor="require-api-key" className="text-sm">Require API keys for /v1</label>
-            </div>
+            <Field label="Admin token TTL seconds"><input className="input" type="number" min={300} value={config.admin.tokenTtlSeconds} onChange={event => setConfig({ ...config, admin: { ...config.admin, tokenTtlSeconds: Number(event.target.value) } })} /></Field>
+            <Field label="Log retention days"><input className="input" type="number" min={1} value={config.admin.logRetentionDays} onChange={event => setConfig({ ...config, admin: { ...config.admin, logRetentionDays: Number(event.target.value) } })} /></Field>
+            <Field label="CORS origin"><input className="input" value={config.admin.corsOrigin} onChange={event => setConfig({ ...config, admin: { ...config.admin, corsOrigin: event.target.value } })} /></Field>
+            <label className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.02] p-3 text-sm backdrop-blur-xl">
+              <span className="flex items-center gap-3">
+                <input type="checkbox" checked={config.admin.requireApiKey} onChange={event => setConfig({ ...config, admin: { ...config.admin, requireApiKey: event.target.checked } })} className="accent-primary" />
+                Require API keys for /v1
+              </span>
+            </label>
           </div>
-          <div className="rounded-lg bg-muted/50 border border-border p-3 text-sm space-y-1.5">
-            <p>Admin database: <span className="font-mono text-xs">{config.admin.dbPath}</span></p>
-            <p>JWT secret configured: {config.admin.jwtSecretConfigured ? "yes" : "generated local secret file"}</p>
-            <p>noVNC public port: <span className="font-mono text-xs">{config.vnc.externalPort}</span></p>
+          <div className="mt-4 space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-sm text-white/40 backdrop-blur-xl">
+            <p>Admin database: <span className="font-mono text-primary/60">{config.admin.dbPath}</span></p>
+            <p>JWT secret configured: {config.admin.jwtSecretConfigured ? 'yes' : 'generated local secret file'}</p>
+            <p>noVNC public port: <span className="font-mono text-primary/60">{config.vnc.externalPort}</span></p>
           </div>
-        </div>
+        </Panel>
       </div>
-
-      <button className="btn-primary" onClick={save}>Save settings</button>
-    </div>
+      <button className="btn-primary mt-5" onClick={save}>Save settings</button>
+    </Page>
   )
 }

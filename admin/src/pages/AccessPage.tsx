@@ -1,17 +1,16 @@
-import * as React from "react"
-import { KeyRound, Trash2, RefreshCcw, CheckCircle2 } from "lucide-react"
-import { api } from "~/lib/api"
-import { formatDate, formatNumber } from "~/lib/utils"
-import { PageHeader } from "~/components/shared/PageHeader"
-import { Skeleton } from "~/components/ui/skeleton"
-import type { ApiKey } from "~/types"
+import { useEffect, useState } from 'react'
+import { KeyRound, Trash2 } from 'lucide-react'
+import { api } from '@/lib/api'
+import { formatDate, formatNumber } from '@/lib/utils'
+import type { ApiKey } from '@/types'
+import { Alert, EmptyState, Field, Page, Panel, RefreshButton, StatusPill } from '@/components/shared/AppPrimitives'
 
 export function AccessPage() {
-  const [keys, setKeys] = React.useState<ApiKey[]>([])
-  const [loading, setLoading] = React.useState(true)
-  const [createdKey, setCreatedKey] = React.useState<string | null>(null)
-  const [form, setForm] = React.useState({ name: "", dailyLimit: 1000, rateLimitPerMin: 60 })
-  const [error, setError] = React.useState("")
+  const [keys, setKeys] = useState<ApiKey[]>([])
+  const [createdKey, setCreatedKey] = useState<string | null>(null)
+  const [form, setForm] = useState({ name: '', dailyLimit: 1000, rateLimitPerMin: 60 })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -22,18 +21,18 @@ export function AccessPage() {
     }
   }
 
-  React.useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [])
 
-  async function createKey(e: React.FormEvent) {
-    e.preventDefault()
-    setError("")
+  async function createKey(event: React.FormEvent) {
+    event.preventDefault()
+    setError(null)
     try {
-      const res = await api.admin.keys.create(form)
-      setCreatedKey(res.key)
-      setForm({ name: "", dailyLimit: 1000, rateLimitPerMin: 60 })
+      const response = await api.admin.keys.create(form)
+      setCreatedKey(response.key)
+      setForm({ name: '', dailyLimit: 1000, rateLimitPerMin: 60 })
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to create key")
+      setError(err instanceof Error ? err.message : 'Unable to create key')
     }
   }
 
@@ -43,134 +42,71 @@ export function AccessPage() {
   }
 
   async function deleteKey(id: string) {
-    if (!window.confirm("Delete this API key? Existing clients will lose access immediately.")) return
+    if (!window.confirm('Delete this API key? Existing clients will lose access immediately.')) return
     await api.admin.keys.delete(id)
     await load()
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <PageHeader
-        title="API Access"
-        description="Issue, disable, rotate, and tune token-based access for OpenAI-compatible API clients."
-        actions={
-          <button className="btn-ghost flex items-center gap-2" onClick={load} disabled={loading}>
-            <RefreshCcw size={16} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
-        }
-      />
-
+    <Page title="API Access" description="Issue, disable, rotate, and tune token-based access for OpenAI-compatible API clients." action={<RefreshButton onClick={load} loading={loading} />}>
       <div className="grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
-        {/* Create form */}
-        <div className="panel p-5 space-y-5">
-          <div>
-            <h3 className="text-base font-semibold">Create API key</h3>
-            <p className="text-xs text-muted-foreground mt-1">The secret is shown once. Store it securely.</p>
-          </div>
-
+        <Panel title="Create API key" description="The secret is shown once. Store it in the consuming service.">
           <form className="space-y-4" onSubmit={createKey}>
-            <div>
-              <label className="label" htmlFor="key-name">Key name</label>
-              <input
-                id="key-name"
-                className="input"
-                value={form.name}
-                onChange={e => setForm({ ...form, name: e.target.value })}
-                placeholder="Production gateway"
-                required
-              />
-            </div>
+            <Field label="Key name">
+              <input className="input" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder="Production gateway" required />
+            </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="label" htmlFor="daily-limit">Daily limit</label>
-                <input
-                  id="daily-limit"
-                  className="input"
-                  type="number"
-                  min={1}
-                  value={form.dailyLimit}
-                  onChange={e => setForm({ ...form, dailyLimit: Number(e.target.value) })}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="rate-limit">Rate per minute</label>
-                <input
-                  id="rate-limit"
-                  className="input"
-                  type="number"
-                  min={1}
-                  value={form.rateLimitPerMin}
-                  onChange={e => setForm({ ...form, rateLimitPerMin: Number(e.target.value) })}
-                />
-              </div>
+              <Field label="Daily limit">
+                <input className="input" type="number" min={1} value={form.dailyLimit} onChange={event => setForm({ ...form, dailyLimit: Number(event.target.value) })} />
+              </Field>
+              <Field label="Rate per minute">
+                <input className="input" type="number" min={1} value={form.rateLimitPerMin} onChange={event => setForm({ ...form, rateLimitPerMin: Number(event.target.value) })} />
+              </Field>
             </div>
-            {error && (
-              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">{error}</div>
-            )}
-            <button type="submit" className="btn-primary w-full">Create key</button>
+            {error && <Alert tone="bad">{error}</Alert>}
+            <button className="btn-primary w-full">Create key</button>
           </form>
-
           {createdKey && (
-            <div className="rounded-xl border border-secondary/50 bg-secondary/10 p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-secondary" />
-                <p className="text-sm font-semibold">New API key created</p>
-              </div>
-              <code className="block break-all rounded-lg bg-black/20 p-3 text-sm font-mono">{createdKey}</code>
-              <p className="text-xs text-muted-foreground">This value cannot be shown again. Copy it now.</p>
-              <button
-                className="btn-ghost text-xs"
-                onClick={() => { navigator.clipboard.writeText(createdKey) }}
-              >
-                Copy to clipboard
-              </button>
+            <div className="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-4 backdrop-blur-xl">
+              <p className="text-sm font-semibold text-primary">New API key</p>
+              <code className="mt-2 block break-all rounded-lg bg-black/40 p-3 text-sm font-mono text-primary">{createdKey}</code>
+              <p className="mt-2 text-xs text-white/40">This value cannot be shown again.</p>
             </div>
           )}
-        </div>
+        </Panel>
 
-        {/* Keys table */}
-        <div className="panel p-5">
-          <h3 className="text-base font-semibold mb-4">Managed keys</h3>
+        <Panel title="Managed keys" description="Operational access tokens and their current limit state.">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[880px] text-left text-sm">
-              <thead className="border-b border-border">
+              <thead className="border-b border-white/5 text-xs uppercase text-white/40">
                 <tr>
-                  {["Name", "Prefix", "Today", "Limit", "Rate", "Status", "Last used", "Actions"].map(h => (
-                    <th key={h} className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground last:pr-0">{h}</th>
-                  ))}
+                  <th className="py-3 pr-4">Name</th>
+                  <th className="py-3 pr-4">Prefix</th>
+                  <th className="py-3 pr-4">Today</th>
+                  <th className="py-3 pr-4">Limit</th>
+                  <th className="py-3 pr-4">Rate</th>
+                  <th className="py-3 pr-4">Status</th>
+                  <th className="py-3 pr-4">Last used</th>
+                  <th className="py-3 pr-0 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {loading && keys.length === 0
-                  ? Array.from({ length: 3 }).map((_, i) => (
-                      <tr key={i} className="border-b border-border">
-                        {Array.from({ length: 8 }).map((_, j) => (
-                          <td key={j} className="py-3 pr-4 last:pr-0"><Skeleton className="h-4 w-20" /></td>
-                        ))}
-                      </tr>
-                    ))
-                  : keys.map(key => (
-                      <ApiKeyRow key={key.id} item={key} onUpdate={updateKey} onDelete={deleteKey} />
-                    ))}
+                {keys.map(key => (
+                  <ApiKeyRow key={key.id} item={key} onUpdate={updateKey} onDelete={deleteKey} />
+                ))}
               </tbody>
             </table>
           </div>
-          {keys.length === 0 && !loading && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <KeyRound size={28} className="text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground">No API keys have been created yet.</p>
-            </div>
-          )}
-        </div>
+          {keys.length === 0 && <EmptyState icon={KeyRound} message="No API keys have been created." />}
+        </Panel>
       </div>
-    </div>
+    </Page>
   )
 }
 
 function ApiKeyRow({ item, onUpdate, onDelete }: { item: ApiKey; onUpdate: (id: string, data: Partial<ApiKey>) => Promise<void>; onDelete: (id: string) => Promise<void> }) {
-  const [editing, setEditing] = React.useState(false)
-  const [draft, setDraft] = React.useState({ name: item.name, dailyLimit: item.dailyLimit, rateLimitPerMin: item.rateLimitPerMin })
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ name: item.name, dailyLimit: item.dailyLimit, rateLimitPerMin: item.rateLimitPerMin })
   const usagePercent = item.dailyLimit > 0 ? Math.min(100, Math.round((item.requestsToday / item.dailyLimit) * 100)) : 0
 
   async function save() {
@@ -179,62 +115,34 @@ function ApiKeyRow({ item, onUpdate, onDelete }: { item: ApiKey; onUpdate: (id: 
   }
 
   return (
-    <tr className="border-b border-border last:border-0">
+    <tr className="border-b border-white/5 last:border-0">
       <td className="py-3 pr-4">
-        {editing ? (
-          <input className="input w-32" value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} />
-        ) : (
-          <span className="font-medium">{item.name}</span>
-        )}
+        {editing ? <input className="input" value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} /> : <span className="font-semibold">{item.name}</span>}
       </td>
-      <td className="py-3 pr-4 font-mono text-xs">{item.keyPrefix}...</td>
+      <td className="py-3 pr-4 font-mono text-xs text-primary/60">{item.keyPrefix}...</td>
       <td className="py-3 pr-4">
-        <div className="h-2 w-28 rounded-full bg-muted">
-          <div
-            className={`h-2 rounded-full transition-all ${usagePercent > 90 ? "bg-destructive" : usagePercent > 75 ? "bg-warning" : "bg-primary"}`}
-            style={{ width: `${usagePercent}%` }}
-          />
+        <div className="h-2 w-28 rounded-full bg-white/5">
+          <div className={`h-2 rounded-full transition-all ${usagePercent > 90 ? 'bg-destructive' : usagePercent > 75 ? 'bg-warning' : 'bg-primary'}`} style={{ width: `${usagePercent}%` }} />
         </div>
-        <span className="mt-1 block text-xs text-muted-foreground">{formatNumber(item.requestsToday)}</span>
+        <span className="mt-1 block text-xs text-white/40">{formatNumber(item.requestsToday)}</span>
       </td>
       <td className="py-3 pr-4">
-        {editing ? (
-          <input className="input w-24" type="number" min={1} value={draft.dailyLimit} onChange={e => setDraft({ ...draft, dailyLimit: Number(e.target.value) })} />
-        ) : (
-          formatNumber(item.dailyLimit)
-        )}
+        {editing ? <input className="input w-28" type="number" min={1} value={draft.dailyLimit} onChange={event => setDraft({ ...draft, dailyLimit: Number(event.target.value) })} /> : formatNumber(item.dailyLimit)}
       </td>
       <td className="py-3 pr-4">
-        {editing ? (
-          <input className="input w-20" type="number" min={1} value={draft.rateLimitPerMin} onChange={e => setDraft({ ...draft, rateLimitPerMin: Number(e.target.value) })} />
-        ) : (
-          <span className="text-sm text-muted-foreground">{item.rateLimitPerMin}/min</span>
-        )}
+        {editing ? <input className="input w-24" type="number" min={1} value={draft.rateLimitPerMin} onChange={event => setDraft({ ...draft, rateLimitPerMin: Number(event.target.value) })} /> : `${item.rateLimitPerMin}/min`}
       </td>
-      <td className="py-3 pr-4">
-        {item.active ? (
-          <span className="status-success">Active</span>
-        ) : (
-          <span className="status-warning">Disabled</span>
-        )}
-      </td>
-      <td className="py-3 pr-4 text-muted-foreground">{item.lastUsed ? formatDate(item.lastUsed) : "Never"}</td>
+      <td className="py-3 pr-4"><StatusPill ok={item.active} trueLabel="Active" falseLabel="Disabled" /></td>
+      <td className="py-3 pr-4 text-white/40">{item.lastUsed ? formatDate(item.lastUsed) : 'Never'}</td>
       <td className="py-3 pr-0">
         <div className="flex justify-end gap-2">
           {editing ? (
-            <button className="btn-primary min-h-9 px-3 text-xs" onClick={save}>Save</button>
+            <button className="btn-primary min-h-9 px-3" onClick={save}>Save</button>
           ) : (
-            <button className="btn-ghost min-h-9 px-3 text-xs" onClick={() => setEditing(true)}>Edit</button>
+            <button className="btn-ghost min-h-9 px-3" onClick={() => setEditing(true)}>Edit</button>
           )}
-          <button
-            className="btn-ghost min-h-9 px-3 text-xs"
-            onClick={() => onUpdate(item.id, { active: !item.active })}
-          >
-            {item.active ? "Disable" : "Enable"}
-          </button>
-          <button className="btn-ghost min-h-9 px-3 text-xs text-destructive hover:bg-destructive/10" onClick={() => onDelete(item.id)}>
-            <Trash2 size={14} />
-          </button>
+          <button className="btn-ghost min-h-9 px-3" onClick={() => onUpdate(item.id, { active: !item.active })}>{item.active ? 'Disable' : 'Enable'}</button>
+          <button className="btn-ghost min-h-9 px-3 text-destructive hover:bg-destructive/10" onClick={() => onDelete(item.id)}><Trash2 size={15} /></button>
         </div>
       </td>
     </tr>
