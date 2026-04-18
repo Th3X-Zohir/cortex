@@ -1,7 +1,7 @@
 import * as React from "react"
 import {
-  Cpu, ExternalLink, Loader2, Maximize2, Minimize2,
-  Monitor, PlugZap, Radio, RefreshCcw, Send, TerminalSquare,
+  Activity, Check, ChevronDown, Cpu, ExternalLink, Loader2, Maximize2, Minimize2,
+  Monitor, PlugZap, Radio, RefreshCw, RefreshCcw, Search, Send, TerminalSquare,
 } from "lucide-react"
 import { api } from "~/lib/api"
 import { formatDate } from "~/lib/utils"
@@ -19,6 +19,8 @@ export function PlaygroundPage() {
   const [maxTokens, setMaxTokens] = React.useState(800)
   const [newConversation, setNewConversation] = React.useState(true)
   const [showVnc, setShowVnc] = React.useState(true)
+  const [vncSize, setVncSize] = React.useState<"standard" | "large">("standard")
+  const [vncFrameKey, setVncFrameKey] = React.useState(0)
   const [fullscreen, setFullscreen] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
   const [submitting, setSubmitting] = React.useState(false)
@@ -154,11 +156,13 @@ export function PlaygroundPage() {
           <form className="space-y-4" onSubmit={submitReq}>
             <div>
               <label className="label" htmlFor="model-select">Model</label>
-              <select id="model-select" className="input" value={model} onChange={e => setModel(e.target.value)} disabled={loading}>
-                {(catalog?.models ?? []).map(item => (
-                  <option key={item.id} value={item.id}>{item.displayName} - {item.provider}</option>
-                ))}
-              </select>
+              <ModelPicker
+                models={catalog?.models ?? []}
+                providers={catalog?.providers ?? []}
+                value={model}
+                onChange={setModel}
+                disabled={loading || submitting}
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -267,9 +271,25 @@ export function PlaygroundPage() {
         <div className={`space-y-5 ${showVnc ? "" : "hidden 2xl:block"}`}>
           {showVnc && (
             <div className="panel p-5">
-              <h3 className="text-base font-semibold mb-2">Live VNC</h3>
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold">Live VNC</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">Use Large when provider controls are clipped.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={vncSize === "standard" ? "btn-primary min-h-8 px-3 py-1.5 text-xs" : "btn-ghost min-h-8 px-3 py-1.5 text-xs"} onClick={() => setVncSize("standard")}>Standard</button>
+                  <button type="button" className={vncSize === "large" ? "btn-primary min-h-8 px-3 py-1.5 text-xs" : "btn-ghost min-h-8 px-3 py-1.5 text-xs"} onClick={() => setVncSize("large")}>Large</button>
+                  <button type="button" className="btn-ghost min-h-8 px-3 py-1.5 text-xs" onClick={() => setVncFrameKey(key => key + 1)}><RefreshCw size={13} />Reload</button>
+                </div>
+              </div>
               {vncUrl ? (
-                <iframe title="Playground VNC" src={vncUrl} className={`${fullscreen ? "h-[calc(100vh-235px)] min-h-[400px]" : "h-[400px]"} w-full rounded-lg border border-border bg-[#101411]`} />
+                <iframe
+                  key={vncFrameKey}
+                  title="Playground VNC"
+                  src={vncUrl}
+                  className={`${fullscreen ? "h-[calc(100vh-230px)] min-h-[520px]" : vncSize === "large" ? "h-[min(78vh,820px)] min-h-[560px]" : "h-[460px]"} w-full rounded-lg border border-border bg-[#101411]`}
+                  allow="clipboard-read; clipboard-write"
+                />
               ) : (
                 <div className="flex flex-col items-center justify-center h-48 text-center">
                   <Monitor size={24} className="text-muted-foreground mb-2" />
@@ -328,7 +348,134 @@ export function PlaygroundPage() {
   )
 }
 
-function Activity(props: { size: number; className?: string }) {
-  const { Activity } = require("lucide-react")
-  return <Activity {...props} />
+function ModelPicker({
+  models,
+  providers,
+  value,
+  onChange,
+  disabled,
+}: {
+  models: ModelCatalog["models"]
+  providers: ModelCatalog["providers"]
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [query, setQuery] = React.useState("")
+  const buttonRef = React.useRef<HTMLButtonElement | null>(null)
+  const panelRef = React.useRef<HTMLDivElement | null>(null)
+  const selected = models.find(item => item.id === value)
+  const providerStatus = React.useMemo(() => new Map(providers.map(provider => [provider.name, provider])), [providers])
+
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return models
+    return models.filter(item =>
+      item.displayName.toLowerCase().includes(q) ||
+      item.id.toLowerCase().includes(q) ||
+      item.provider.toLowerCase().includes(q) ||
+      item.owned_by.toLowerCase().includes(q),
+    )
+  }, [models, query])
+
+  React.useEffect(() => {
+    if (!open) return
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as Node
+      if (panelRef.current?.contains(target) || buttonRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("mousedown", onPointerDown)
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown)
+      document.removeEventListener("keydown", onKeyDown)
+    }
+  }, [open])
+
+  function pick(id: string) {
+    onChange(id)
+    setOpen(false)
+    setQuery("")
+  }
+
+  return (
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        id="model-select"
+        type="button"
+        className="input flex min-h-[68px] items-center justify-between gap-3 text-left"
+        onClick={() => !disabled && setOpen(item => !item)}
+        disabled={disabled}
+      >
+        {selected ? (
+          <span className="min-w-0">
+            <span className="block truncate font-medium">{selected.displayName}</span>
+            <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-mono">{selected.id}</span>
+              <span className="rounded-md border border-white/10 px-1.5 py-0.5">{selected.provider}</span>
+              {providerStatus.get(selected.provider)?.sessionValid && <span className="status-success rounded-md px-1.5 py-0.5 text-[11px]">Connected</span>}
+            </span>
+          </span>
+        ) : (
+          <span className="text-muted-foreground">Select a model</span>
+        )}
+        <ChevronDown size={18} className={`shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div ref={panelRef} className="absolute z-40 mt-2 w-full overflow-hidden rounded-lg border border-white/10 bg-popover shadow-xl">
+          <div className="border-b border-white/10 p-3">
+            <div className="relative">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                className="input min-h-10 pl-9"
+                autoFocus
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                placeholder="Search by model, provider, or owner"
+              />
+            </div>
+          </div>
+          <div className="max-h-[360px] overflow-auto p-2">
+            {filtered.map(item => {
+              const status = providerStatus.get(item.provider)
+              const active = item.id === value
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`w-full rounded-lg px-3 py-3 text-left transition-colors hover:bg-white/[0.08] ${active ? "bg-primary/10" : ""}`}
+                  onClick={() => pick(item.id)}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold">{item.displayName}</span>
+                      <span className="mt-1 block break-all font-mono text-xs text-muted-foreground">{item.id}</span>
+                      <span className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="rounded-md border border-white/10 px-2 py-0.5 text-muted-foreground">{item.provider}</span>
+                        <span className="rounded-md border border-white/10 px-2 py-0.5 text-muted-foreground">{item.owned_by}</span>
+                        <span className={status?.sessionValid ? "status-success rounded-md px-2 py-0.5" : "status-warning rounded-md px-2 py-0.5"}>
+                          {status?.sessionValid ? "Connected" : status?.hasProfile ? "Profile found" : "Disconnected"}
+                        </span>
+                      </span>
+                    </span>
+                    {active && <Check size={16} className="mt-0.5 shrink-0 text-primary" />}
+                  </span>
+                </button>
+              )
+            })}
+            {filtered.length === 0 && (
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">No models match your search.</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }

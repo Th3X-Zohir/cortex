@@ -25,7 +25,7 @@ const ROLE_PERMISSIONS: Record<AdminRecord['role'], Permission[]> = {
   admin: ['dashboard:read', 'keys:manage', 'logs:read', 'providers:manage'],
 };
 
-const PROVIDERS = new Set(['grok', 'claude', 'gemini', 'chatgpt', 'claude-api', 'gemini-api', 'codex-api']);
+const PROVIDERS = new Set(['grok', 'gemini', 'chatgpt']);
 
 interface AdminContext {
   token: AdminTokenPayload;
@@ -288,18 +288,7 @@ export class AdminApi {
 
       if (url.pathname === '/api/providers/api-keys' && req.method === 'PATCH') {
         if (!this.has(ctx, 'providers:manage')) return forbidden(res);
-        const body = await readJson(req);
-        const provider = String(body.provider ?? '');
-        if (!['claude-api', 'gemini-api', 'codex-api'].includes(provider)) {
-          json(res, 400, { error: 'Unsupported API provider', code: 'UNSUPPORTED_PROVIDER' });
-          return true;
-        }
-        const key = requireString(body.key, 'key');
-        const existing = loadConfig();
-        saveConfig({ apiKeys: { ...existing.apiKeys, [provider]: key } } as Partial<BridgeConfig>);
-        this.cfg = loadConfig();
-        this.audit(req, ctx, 'update_provider_api_key', 'provider', provider, { configured: true });
-        json(res, 200, { provider, configured: true });
+        json(res, 400, { error: 'API providers are disabled', code: 'API_PROVIDERS_DISABLED' });
         return true;
       }
 

@@ -1,12 +1,8 @@
 import type { BridgeConfig, ProviderName, ProviderStatus, BridgeStatus, ModelDefinition, ProviderAdapter } from './types.js';
 import type { BaseProvider } from './providers/base.js';
 import { GrokProvider } from './providers/grok.js';
-import { ClaudeProvider } from './providers/claude.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { ChatGPTProvider } from './providers/chatgpt.js';
-import { ClaudeApiProvider } from './providers/claude-api.js';
-import { GeminiApiProvider } from './providers/gemini-api.js';
-import { CodexApiProvider } from './providers/codex-api.js';
 import { logger } from './logger.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -30,14 +26,8 @@ export class ProviderRegistry {
   constructor(private _cfg: BridgeConfig) {
     // Web-based providers (Playwright)
     this._providers.set('grok',       new GrokProvider(_cfg));
-    this._providers.set('claude',     new ClaudeProvider(_cfg));
     this._providers.set('gemini',     new GeminiProvider(_cfg));
     this._providers.set('chatgpt',    new ChatGPTProvider(_cfg));
-
-    // API/SDK-based providers (no browser needed)
-    this._providers.set('claude-api', new ClaudeApiProvider(_cfg));
-    this._providers.set('gemini-api', new GeminiApiProvider(_cfg));
-    this._providers.set('codex-api',  new CodexApiProvider(_cfg));
   }
 
   get(name: ProviderName): ProviderAdapter {

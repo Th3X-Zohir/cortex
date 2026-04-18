@@ -1,9 +1,11 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
   BarChart3,
   BookOpen,
+  Check,
+  ChevronDown,
   CheckCircle2,
   Clock3,
   Copy,
@@ -21,6 +23,7 @@ import {
   PlugZap,
   Radio,
   RefreshCcw,
+  RotateCw,
   Search,
   Send,
   Settings,
@@ -869,8 +872,10 @@ function ApiPlayground() {
   const [temperature, setTemperature] = useState(0.7)
   const [maxTokens, setMaxTokens] = useState(800)
   const [newConversation, setNewConversation] = useState(true)
-  const [showVnc, setShowVnc] = useState(true)
+  const [vncSize, setVncSize] = useState<'standard' | 'large'>('large')
+  const [vncFrameKey, setVncFrameKey] = useState(0)
   const [fullscreen, setFullscreen] = useState(false)
+  const [activeSurface, setActiveSurface] = useState<'response' | 'vnc' | 'json' | 'history'>('response')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1024,32 +1029,51 @@ function ApiPlayground() {
   const workspace = (
     <>
       {error && <Alert tone="bad">{error}</Alert>}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          <button className={mode === 'standard' ? 'btn-primary' : 'btn-ghost'} onClick={() => setMode('standard')} disabled={submitting}>Non-streaming</button>
-          <button className={mode === 'stream' ? 'btn-primary' : 'btn-ghost'} onClick={() => setMode('stream')} disabled={submitting}><Radio size={16} /> Streaming</button>
-          <button className={showVnc ? 'btn-primary' : 'btn-ghost'} onClick={() => setShowVnc(!showVnc)}><Monitor size={16} /> VNC</button>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-lg border border-white/10 bg-white/[0.03] p-1">
+          <button type="button" className={mode === 'standard' ? 'btn-primary min-h-9 px-4 py-2 text-xs' : 'btn-ghost min-h-9 px-4 py-2 text-xs'} onClick={() => setMode('standard')} disabled={submitting}>Non-streaming</button>
+          <button type="button" className={mode === 'stream' ? 'btn-primary min-h-9 px-4 py-2 text-xs' : 'btn-ghost min-h-9 px-4 py-2 text-xs'} onClick={() => setMode('stream')} disabled={submitting}><Radio size={14} /> Streaming</button>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="btn-ghost" onClick={load} disabled={loading}><RefreshCcw className={loading ? 'animate-spin' : ''} size={16} /> Refresh</button>
-          <button className="btn-ghost" onClick={() => setFullscreen(!fullscreen)}>{fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}{fullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button>
+          <button type="button" className="btn-ghost" onClick={load} disabled={loading}><RefreshCcw className={loading ? 'animate-spin' : ''} size={16} /> Refresh</button>
+          <button type="button" className="btn-ghost" onClick={() => setFullscreen(!fullscreen)}>{fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}{fullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button>
         </div>
       </div>
 
-      <div className={`grid gap-5 ${fullscreen ? 'xl:grid-cols-[380px_minmax(0,1fr)_430px]' : 'xl:grid-cols-[380px_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)_430px]'}`}>
-        <Panel title="Request cockpit" description="Choose execution mode, model, parameters, and provider session state.">
+      <div className="grid gap-5 xl:grid-cols-[400px_minmax(0,1fr)]">
+        <section className="rounded-xl border border-white/10 bg-white/[0.025] p-5 backdrop-blur-xl">
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Request</h2>
+              <p className="mt-1 text-sm text-white/45">Model, prompt, and run controls.</p>
+            </div>
+            <span className={selectedProvider?.sessionValid ? 'status-primary' : 'status-warning'}>
+              {selectedProvider?.sessionValid ? 'Connected' : selectedProvider?.hasProfile ? 'Profile found' : 'Offline'}
+            </span>
+          </div>
+
           <form className="space-y-4" onSubmit={submit}>
             <Field label="Model">
-              <select className="input" value={model} onChange={event => setModel(event.target.value)} disabled={loading}>
-                {(catalog?.models ?? []).map(item => (
-                  <option key={item.id} value={item.id}>{item.displayName} - {item.provider}</option>
-                ))}
-              </select>
+              <ModelPicker
+                models={catalog?.models ?? []}
+                providers={catalog?.providers ?? []}
+                value={model}
+                onChange={setModel}
+                disabled={loading || submitting}
+              />
             </Field>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <InlineStat label="Provider" value={selectedModel?.provider ?? 'None'} helper={selectedProvider?.sessionValid ? 'Connected' : selectedProvider?.hasProfile ? 'Profile found' : 'Disconnected'} icon={PlugZap} />
-              <InlineStat label="Limit mode" value="Unlimited" helper="Super-admin master path" icon={Gauge} />
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3">
+                <p className="label text-white/45">Provider</p>
+                <p className="mt-1 truncate text-lg font-semibold text-white">{selectedModel?.provider ?? 'None'}</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3">
+                <p className="label text-white/45">Limit</p>
+                <p className="mt-1 text-lg font-semibold text-white">Unlimited</p>
+              </div>
             </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Temperature">
                 <input className="input" type="number" min="0" max="2" step="0.1" value={temperature} onChange={event => setTemperature(Number(event.target.value))} />
@@ -1059,10 +1083,10 @@ function ApiPlayground() {
               </Field>
             </div>
             <Field label="System prompt">
-              <textarea className="input min-h-24 resize-y" value={systemPrompt} onChange={event => setSystemPrompt(event.target.value)} />
+              <textarea className="input min-h-20 resize-y" value={systemPrompt} onChange={event => setSystemPrompt(event.target.value)} />
             </Field>
             <Field label="User prompt">
-              <textarea className="input min-h-40 resize-y" value={prompt} onChange={event => setPrompt(event.target.value)} placeholder="Write the request to test..." />
+              <textarea className="input min-h-36 resize-y" value={prompt} onChange={event => setPrompt(event.target.value)} placeholder="Write the request to test..." />
             </Field>
             <label className="flex items-center gap-2 text-sm text-white/60">
               <input type="checkbox" checked={newConversation} onChange={event => setNewConversation(event.target.checked)} className="accent-primary" />
@@ -1080,67 +1104,128 @@ function ApiPlayground() {
           </form>
 
           <div className="mt-5 border-t border-white/5 pt-4">
-            <p className="label text-white/60">Provider controls</p>
+            <p className="label text-white/45">Provider controls</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button className="btn-ghost" onClick={() => providerAction('login')} disabled={!selectedModel || selectedModel.provider.endsWith('-api')}>Login</button>
-              <button className="btn-ghost" onClick={() => providerAction('logout')} disabled={!selectedModel}>Logout</button>
+              <button type="button" className="btn-ghost" onClick={() => providerAction('login')} disabled={!selectedModel || selectedModel.provider.endsWith('-api')}>Login</button>
+              <button type="button" className="btn-ghost" onClick={() => providerAction('logout')} disabled={!selectedModel}>Logout</button>
               {vncUrl && <a className="btn-ghost" href={vncUrl} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Open VNC</a>}
             </div>
           </div>
-        </Panel>
+        </section>
 
-        <div className="space-y-5">
-          <Panel title="Live response" description="Streaming output updates as chunks arrive. Non-streaming output appears when the request completes.">
-            <div className="mb-4 grid gap-3 sm:grid-cols-4">
-              <InlineStat label="Mode" value={mode === 'stream' ? 'Stream' : 'Standard'} helper={submitting ? 'Running' : 'Ready'} icon={mode === 'stream' ? Radio : TerminalSquare} />
-              <InlineStat label="Latency" value={elapsedMs === null ? '-' : `${formatNumber(elapsedMs)} ms`} helper="Last request" icon={Clock3} />
-              <InlineStat label="Input" value={formatNumber(usage?.prompt_tokens ?? 0)} helper="tokens" icon={TerminalSquare} />
-              <InlineStat label="Output" value={formatNumber(usage?.completion_tokens ?? 0)} helper={`${formatNumber(usage?.total_tokens ?? 0)} total`} icon={Cpu} />
-            </div>
-            {responseText || submitting ? (
-              <div className={`${fullscreen ? 'min-h-[48vh]' : 'min-h-80'} rounded-xl bg-white/[0.03] border border-white/5 p-4 backdrop-blur-xl`}>
-                <p className="whitespace-pre-wrap text-sm leading-6">{responseText}{submitting && <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-primary align-middle" />}</p>
+        <section className="min-w-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] backdrop-blur-xl">
+          <div className="border-b border-white/5 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  {activeSurface === 'response' ? 'Response' : activeSurface === 'vnc' ? 'Live VNC' : activeSurface === 'json' ? 'JSON' : 'Run history'}
+                </h2>
+                <p className="mt-1 text-sm text-white/45">
+                  {activeSurface === 'response' ? 'Streaming output and request metrics.' : activeSurface === 'vnc' ? 'Provider browser control without crowding the page.' : activeSurface === 'json' ? 'Exact request and response envelopes.' : 'Recent requests from this session.'}
+                </p>
               </div>
-            ) : (
-              <EmptyState icon={TerminalSquare} message="Send a request to see the provider response." />
-            )}
-          </Panel>
-
-          <div className="grid gap-5 xl:grid-cols-2">
-            <Panel title="Request JSON" description="Exact payload sent through the master playground endpoint.">
-              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-white/[0.03] border border-white/5 p-3 text-xs backdrop-blur-xl">{rawRequest || 'No request sent yet.'}</pre>
-            </Panel>
-            <Panel title="Response JSON" description="Final response envelope, usage, and logging metadata.">
-              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-white/[0.03] border border-white/5 p-3 text-xs backdrop-blur-xl">{rawResponse || (result ? JSON.stringify(result, null, 2) : 'No response yet.')}</pre>
-            </Panel>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ['response', 'Response', TerminalSquare],
+                  ['vnc', 'VNC', Monitor],
+                  ['json', 'JSON', Cpu],
+                  ['history', 'History', Activity],
+                ].map(([value, label, Icon]) => (
+                  <button
+                    key={value as string}
+                    type="button"
+                    className={activeSurface === value ? 'btn-primary min-h-9 px-3 py-2 text-xs' : 'btn-ghost min-h-9 px-3 py-2 text-xs'}
+                    onClick={() => setActiveSurface(value as typeof activeSurface)}
+                  >
+                    <Icon size={14} /> {label as string}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className={`space-y-5 ${showVnc ? '' : 'hidden 2xl:block'}`}>
-          {showVnc && (
-            <Panel title="Live VNC" description="Watch and control the provider browser while the playground runs.">
-              {vncUrl ? (
-                <iframe title="Playground VNC" src={vncUrl} className={`${fullscreen ? 'h-[calc(100vh-235px)] min-h-[520px]' : 'h-[520px]'} w-full rounded-xl border border-white/5 bg-[#080808]`} />
+          {activeSurface === 'response' && (
+            <div className="space-y-5 p-5">
+              <div className="grid gap-3 md:grid-cols-4">
+                {[
+                  { label: 'Mode', value: mode === 'stream' ? 'Stream' : 'Standard', helper: submitting ? 'Running' : 'Ready', icon: mode === 'stream' ? Radio : TerminalSquare },
+                  { label: 'Latency', value: elapsedMs === null ? '-' : `${formatNumber(elapsedMs)} ms`, helper: 'Last request', icon: Clock3 },
+                  { label: 'Input', value: formatNumber(usage?.prompt_tokens ?? 0), helper: 'tokens', icon: TerminalSquare },
+                  { label: 'Output', value: formatNumber(usage?.completion_tokens ?? 0), helper: `${formatNumber(usage?.total_tokens ?? 0)} total`, icon: Cpu },
+                ].map(stat => (
+                  <div key={stat.label} className="rounded-lg border border-white/10 bg-white/[0.025] p-3">
+                    <div className="flex items-center gap-2 text-primary">
+                      <stat.icon size={15} />
+                      <p className="label text-white/45">{stat.label}</p>
+                    </div>
+                    <p className="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
+                    <p className="mt-1 text-xs text-white/40">{stat.helper}</p>
+                  </div>
+                ))}
+              </div>
+              {responseText || submitting ? (
+                <div className={`${fullscreen ? 'min-h-[58vh]' : 'min-h-[460px]'} rounded-xl border border-white/5 bg-[#0b0b0b] p-5`}>
+                  <p className="whitespace-pre-wrap text-sm leading-6 text-white/80">{responseText}{submitting && <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-primary align-middle" />}</p>
+                </div>
               ) : (
-                <EmptyState icon={Monitor} message="VNC endpoint is unavailable." />
+                <div className={`${fullscreen ? 'min-h-[58vh]' : 'min-h-[460px]'} rounded-xl border border-white/5 bg-[#0b0b0b]`}>
+                  <EmptyState icon={TerminalSquare} message="Send a request to see the provider response." />
+                </div>
               )}
-            </Panel>
+            </div>
           )}
-          <Panel title="Run history" description="Recent playground requests in this admin session.">
-            <div className="space-y-3">
+
+          {activeSurface === 'vnc' && (
+            <div className="space-y-4 p-5">
+              <div className="flex flex-wrap justify-end gap-2">
+                <button type="button" className={vncSize === 'standard' ? 'btn-primary min-h-8 px-3 py-1.5 text-xs' : 'btn-ghost min-h-8 px-3 py-1.5 text-xs'} onClick={() => setVncSize('standard')}>Standard</button>
+                <button type="button" className={vncSize === 'large' ? 'btn-primary min-h-8 px-3 py-1.5 text-xs' : 'btn-ghost min-h-8 px-3 py-1.5 text-xs'} onClick={() => setVncSize('large')}>Large</button>
+                <button type="button" className="btn-ghost min-h-8 px-3 py-1.5 text-xs" onClick={() => setVncFrameKey(key => key + 1)} disabled={!vncUrl}><RotateCw size={13} />Reload</button>
+              </div>
+              {vncUrl ? (
+                <iframe
+                  key={vncFrameKey}
+                  title="Playground VNC"
+                  src={vncUrl}
+                  className={`${fullscreen ? 'h-[calc(100vh-245px)] min-h-[620px]' : vncSize === 'large' ? 'h-[min(76vh,820px)] min-h-[640px]' : 'h-[560px]'} w-full rounded-xl border border-white/5 bg-[#080808]`}
+                  allow="clipboard-read; clipboard-write"
+                />
+              ) : (
+                <div className="min-h-[460px] rounded-xl border border-white/5 bg-[#0b0b0b]">
+                  <EmptyState icon={Monitor} message="VNC endpoint is unavailable." />
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeSurface === 'json' && (
+            <div className="grid gap-5 p-5 xl:grid-cols-2">
+              <div>
+                <p className="mb-2 text-sm font-semibold text-white">Request JSON</p>
+                <pre className="max-h-[620px] min-h-[420px] overflow-auto whitespace-pre-wrap break-words rounded-xl border border-white/5 bg-[#0b0b0b] p-4 text-xs text-white/70">{rawRequest || 'No request sent yet.'}</pre>
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-semibold text-white">Response JSON</p>
+                <pre className="max-h-[620px] min-h-[420px] overflow-auto whitespace-pre-wrap break-words rounded-xl border border-white/5 bg-[#0b0b0b] p-4 text-xs text-white/70">{rawResponse || (result ? JSON.stringify(result, null, 2) : 'No response yet.')}</pre>
+              </div>
+            </div>
+          )}
+
+          {activeSurface === 'history' && (
+            <div className="space-y-3 p-5">
               {history.map(item => (
-                <div key={item.id} className="border-b border-white/5 pb-3 last:border-0 last:pb-0">
+                <div key={item.id} className="rounded-lg border border-white/10 bg-white/[0.025] p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-mono text-xs text-primary/60">{item.model}</p>
+                    <p className="break-all font-mono text-xs text-primary/70">{item.model}</p>
                     <span className="status-primary">{item.status}</span>
                   </div>
-                  <p className="mt-1 text-xs text-white/40">{item.provider} · {item.mode} · {formatNumber(item.latency)} ms · {formatNumber(item.tokens)} tokens · {formatDate(item.at)}</p>
+                  <p className="mt-2 text-xs text-white/45">{item.provider} · {item.mode} · {formatNumber(item.latency)} ms · {formatNumber(item.tokens)} tokens · {formatDate(item.at)}</p>
                 </div>
               ))}
               {history.length === 0 && <EmptyState icon={Activity} message="No playground runs yet." />}
             </div>
-          </Panel>
-        </div>
+          )}
+        </section>
       </div>
     </>
   )
@@ -1163,6 +1248,138 @@ function ApiPlayground() {
     <Page title="API Playground" description="Super-admin master API testing with streaming, non-streaming, live VNC, request JSON, response JSON, and full audit logging.">
       {workspace}
     </Page>
+  )
+}
+
+function ModelPicker({
+  models,
+  providers,
+  value,
+  onChange,
+  disabled,
+}: {
+  models: ModelCatalog['models']
+  providers: ModelCatalog['providers']
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const selected = models.find(item => item.id === value)
+  const providerStatus = useMemo(() => new Map(providers.map(provider => [provider.name, provider])), [providers])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return models
+    return models.filter(item =>
+      item.displayName.toLowerCase().includes(q) ||
+      item.id.toLowerCase().includes(q) ||
+      item.provider.toLowerCase().includes(q) ||
+      item.owned_by.toLowerCase().includes(q),
+    )
+  }, [models, query])
+
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as Node
+      if (panelRef.current?.contains(target) || buttonRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  function pick(id: string) {
+    onChange(id)
+    setOpen(false)
+    setQuery('')
+  }
+
+  return (
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        className="input group flex min-h-[76px] w-full items-center justify-between gap-3 border-primary/20 bg-white/[0.035] text-left transition hover:border-primary/50 hover:bg-white/[0.055] disabled:cursor-not-allowed disabled:opacity-60"
+        onClick={() => !disabled && setOpen(item => !item)}
+        disabled={disabled}
+      >
+        {selected ? (
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-white">{selected.displayName}</span>
+            <span className="mt-1 block break-all font-mono text-xs text-primary/70">{selected.id}</span>
+            <span className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-md border border-white/10 px-2 py-0.5 text-white/60">{selected.provider}</span>
+              <span className="rounded-md border border-white/10 px-2 py-0.5 text-white/60">{selected.owned_by}</span>
+              {providerStatus.get(selected.provider)?.sessionValid && <span className="status-primary">Connected</span>}
+            </span>
+          </span>
+        ) : (
+          <span className="text-white/50">Select a model</span>
+        )}
+        <ChevronDown size={18} className={`shrink-0 text-white/50 transition-transform group-hover:text-primary ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div ref={panelRef} className="absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-primary/20 bg-[#101010] shadow-2xl shadow-black/60">
+          <div className="border-b border-white/10 p-3">
+            <div className="relative">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+              <input
+                className="input min-h-10 pl-9"
+                autoFocus
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                placeholder="Search model, provider, owner..."
+              />
+            </div>
+          </div>
+          <div className="max-h-[380px] overflow-auto p-2">
+            {filtered.map(item => {
+              const status = providerStatus.get(item.provider)
+              const active = item.id === value
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`w-full rounded-lg px-3 py-3 text-left transition hover:bg-white/[0.07] ${active ? 'bg-primary/10 ring-1 ring-primary/25' : ''}`}
+                  onClick={() => pick(item.id)}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-white">{item.displayName}</span>
+                      <span className="mt-1 block break-all font-mono text-xs text-primary/60">{item.id}</span>
+                      <span className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="rounded-md border border-white/10 px-2 py-0.5 text-white/60">{item.provider}</span>
+                        <span className="rounded-md border border-white/10 px-2 py-0.5 text-white/60">{item.owned_by}</span>
+                        <span className={status?.sessionValid ? 'status-primary' : 'status-warning'}>
+                          {status?.sessionValid ? 'Connected' : status?.hasProfile ? 'Profile found' : 'Disconnected'}
+                        </span>
+                      </span>
+                    </span>
+                    {active && <Check size={16} className="mt-0.5 shrink-0 text-primary" />}
+                  </span>
+                </button>
+              )
+            })}
+            {filtered.length === 0 && (
+              <div className="px-3 py-8 text-center text-sm text-white/50">No models match your search.</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1289,6 +1506,9 @@ function Providers() {
 function VncViewer() {
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
   const [loading, setLoading] = useState(true)
+  const [viewerSize, setViewerSize] = useState<'fit' | 'large' | 'max'>('large')
+  const [detailsOpen, setDetailsOpen] = useState(true)
+  const [frameKey, setFrameKey] = useState(0)
 
   async function load() {
     setLoading(true)
@@ -1302,19 +1522,59 @@ function VncViewer() {
   useEffect(() => { load() }, [])
 
   const url = catalog?.vnc.url
+  const viewerHeight =
+    viewerSize === 'fit'
+      ? 'h-[62vh] min-h-[460px]'
+      : viewerSize === 'large'
+        ? 'h-[78vh] min-h-[620px]'
+        : 'h-[calc(100vh-190px)] min-h-[720px]'
 
   return (
     <Page title="VNC Viewer" description="Use this browser view for provider login flows and visual session recovery." action={<RefreshButton onClick={load} loading={loading} />}>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['fit', 'Fit'],
+            ['large', 'Large'],
+            ['max', 'Max'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={viewerSize === value ? 'btn-primary' : 'btn-ghost'}
+              onClick={() => setViewerSize(value as typeof viewerSize)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-ghost" onClick={() => setFrameKey(key => key + 1)} disabled={!url}>
+            <RotateCw size={16} /> Reload viewer
+          </button>
+          <button type="button" className="btn-ghost" onClick={() => setDetailsOpen(open => !open)}>
+            {detailsOpen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            {detailsOpen ? 'Hide details' : 'Show details'}
+          </button>
+        </div>
+      </div>
+
+      <div className={`grid gap-5 ${detailsOpen ? 'xl:grid-cols-[minmax(0,1fr)_340px]' : 'grid-cols-1'}`}>
         <section className="overflow-hidden rounded-xl border border-white/5 bg-[#080808]">
           {url ? (
-            <iframe title="Cortex noVNC" src={url} className="h-[72vh] w-full border-0 bg-[#080808]" />
+            <iframe
+              key={frameKey}
+              title="Cortex noVNC"
+              src={url}
+              className={`${viewerHeight} w-full border-0 bg-[#080808]`}
+              allow="clipboard-read; clipboard-write"
+            />
           ) : (
-            <div className="flex h-[72vh] items-center justify-center text-white/40">VNC endpoint is not available.</div>
+            <div className={`flex ${viewerHeight} items-center justify-center text-white/40`}>VNC endpoint is not available.</div>
           )}
         </section>
-        <div className="space-y-5">
-          <Panel title="Access details" description="The container exposes noVNC for browser-based provider logins.">
+        <div className={`space-y-5 ${detailsOpen ? '' : 'hidden'}`}>
+          <Panel title="Access details" description="Use Large or Max when provider pages are clipped inside noVNC.">
             <div className="space-y-3 text-sm">
               <div>
                 <p className="label text-white/60">Viewer URL</p>
@@ -1330,6 +1590,7 @@ function VncViewer() {
               <p>1. Open Model Control and press Login for a web provider.</p>
               <p>2. Use this VNC view to complete the provider login.</p>
               <p>3. Return to Model Control and refresh provider status.</p>
+              <p>4. If controls are off-screen, switch to Max and reload the viewer.</p>
             </div>
           </Panel>
         </div>

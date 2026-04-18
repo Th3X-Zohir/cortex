@@ -96,10 +96,9 @@ switch (cmd) {
   }
 
   case 'login': {
-    const provider = args[1] as 'grok' | 'claude' | 'gemini' | 'chatgpt' | undefined;
+    const provider = args[1] as 'grok' | 'gemini' | 'chatgpt' | undefined;
     if (!provider) {
-      console.error('Usage: cortex login <grok|claude|gemini|chatgpt>');
-      console.error('  (API providers use keys, not login: cortex config apiKeys.claude-api <key>)');
+      console.error('Usage: cortex login <grok|gemini|chatgpt>');
       process.exit(1);
     }
     const http = await import('node:http');
@@ -151,16 +150,14 @@ switch (cmd) {
 Usage:
   cortex start [--port=31338] [--host=127.0.0.1] [--log-level=info]
   cortex status [--api-key <ctx_...>]
-  cortex login <grok|claude|gemini|chatgpt>   # use Admin Panel in production
+  cortex login <grok|gemini|chatgpt>   # use Admin Panel in production
   cortex config [key] [value]
 
 Admin Panel:
   http://localhost:31338/admin/
   Default: admin / admin (change immediately)
 
-API providers (no browser needed):
-  cortex config apiKeys.claude-api <ANTHROPIC_API_KEY>
-  cortex config apiKeys.gemini-api <GOOGLE_AI_API_KEY>
-  cortex config apiKeys.codex-api  <OPENAI_API_KEY>
+Disabled providers:
+  claude, claude-api, gemini-api, codex-api
 `);
 }

@@ -140,13 +140,13 @@ export class BridgeServer {
       return;
     }
 
-    const loginMatch = url.match(/^\/v1\/login\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api)$/);
+    const loginMatch = url.match(/^\/v1\/login\/(grok|gemini|chatgpt)$/);
     if (loginMatch && method === 'POST') {
       json(res, 403, { error: { message: 'Provider login is managed from the authenticated admin panel', type: 'forbidden' } });
       return;
     }
 
-    const logoutMatch = url.match(/^\/v1\/logout\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api)$/);
+    const logoutMatch = url.match(/^\/v1\/logout\/(grok|gemini|chatgpt)$/);
     if (logoutMatch && method === 'POST') {
       json(res, 403, { error: { message: 'Provider logout is managed from the authenticated admin panel', type: 'forbidden' } });
       return;
