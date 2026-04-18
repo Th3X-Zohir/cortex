@@ -2,7 +2,7 @@ import type { BridgeConfig, ChatRequest, ModelDefinition } from '../types.js';
 import type { BrowserContext } from 'playwright';
 import { BaseProvider } from './base.js';
 import { logger } from '../logger.js';
-import { buildUserMessage } from './grok.js';
+import { buildUserMessage, logPromptComposition } from './grok.js';
 
 /** Metadata captured from Claude's SSE stream */
 export interface StreamMeta {
@@ -69,6 +69,7 @@ export class ClaudeProvider extends BaseProvider {
     `);
 
     const userMsg = buildUserMessage(req.messages);
+    logPromptComposition('claude', req.messages, userMsg);
 
     // Type into ProseMirror editor
     const editor = page.locator('.ProseMirror').first();

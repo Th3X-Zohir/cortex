@@ -2,7 +2,7 @@ import type { BridgeConfig, ChatRequest, ModelDefinition } from '../types.js';
 import type { BrowserContext } from 'playwright';
 import { BaseProvider } from './base.js';
 import { logger } from '../logger.js';
-import { buildUserMessage } from './grok.js';
+import { buildUserMessage, logPromptComposition } from './grok.js';
 
 export class ChatGPTProvider extends BaseProvider {
   readonly name = 'chatgpt' as const;
@@ -36,6 +36,7 @@ export class ChatGPTProvider extends BaseProvider {
     }
 
     const userMsg = buildUserMessage(req.messages);
+    logPromptComposition('chatgpt', req.messages, userMsg);
 
     const textarea = page.locator('#prompt-textarea, [contenteditable="true"]').first();
     await textarea.waitFor({ timeout: 15000 });
@@ -177,6 +178,7 @@ export class ChatGPTProvider extends BaseProvider {
     await this._injectInterceptor(page);
 
     const userMsg = buildUserMessage(req.messages);
+    logPromptComposition('chatgpt', req.messages, userMsg);
 
     await page.evaluate(`
       window.__cortexChatGPT = { text:'', done:false, startTime:Date.now(), fetchHits:0 };

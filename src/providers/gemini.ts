@@ -5,7 +5,7 @@ import type { BridgeConfig, ChatRequest, ModelDefinition } from '../types.js';
 import type { BrowserContext } from 'playwright';
 import { BaseProvider } from './base.js';
 import { logger } from '../logger.js';
-import { buildUserMessage } from './grok.js';
+import { buildUserMessage, logPromptComposition } from './grok.js';
 
 export class GeminiProvider extends BaseProvider {
   readonly name = 'gemini' as const;
@@ -46,6 +46,7 @@ export class GeminiProvider extends BaseProvider {
     }
 
     const userMsg = buildUserMessage(req.messages);
+    logPromptComposition('gemini', req.messages, userMsg);
 
     // === SET UP NETWORK INTERCEPTION FOR STREAMING ===
     // Target ONLY the StreamGenerate endpoint using page.route()
