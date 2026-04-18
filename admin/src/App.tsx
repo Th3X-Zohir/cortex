@@ -37,8 +37,6 @@ import {
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   Pie,
@@ -352,109 +350,262 @@ function Overview() {
     return () => window.clearInterval(timer)
   }, [])
 
+  const providers = status?.providers ?? []
+  const connectedProviders = providers.filter(provider => provider.sessionValid).length
+  const totalProviders = providers.length
+  const providerHealthPercent = totalProviders ? Math.round((connectedProviders / totalProviders) * 100) : 0
+  const usagePercent = usage?.summary.usagePercent ?? 0
+  const errorRateValue = Number.parseFloat(stats.overview.errorRate) || 0
+  const healthState = errorRateValue > 5 || usagePercent > 90 || (totalProviders > 0 && connectedProviders === 0)
+    ? 'Needs attention'
+    : errorRateValue > 1 || usagePercent > 75 || providerHealthPercent < 100
+      ? 'Watch'
+      : 'Healthy'
+  const healthTone = healthState === 'Healthy' ? 'text-primary' : healthState === 'Watch' ? 'text-warning' : 'text-destructive'
+  const maxModelCount = Math.max(1, ...stats.byModel.slice(0, 8).map(item => item.count))
+
+  const kpis = [
+    {
+      label: 'Requests 24h',
+      value: formatNumber(stats.overview.requestsLast24h),
+      helper: `${formatNumber(stats.overview.requestsLast1h)} last hour`,
+      icon: Activity,
+      tone: 'text-primary',
+    },
+    {
+      label: 'Error rate',
+      value: stats.overview.errorRate,
+      helper: `${formatNumber(stats.overview.errorCount)} failures`,
+      icon: AlertTriangle,
+      tone: errorRateValue > 5 ? 'text-destructive' : errorRateValue > 1 ? 'text-warning' : 'text-primary',
+    },
+    {
+      label: 'Latency',
+      value: `${formatNumber(stats.overview.avgResponseTime)} ms`,
+      helper: 'Average response',
+      icon: Clock3,
+      tone: 'text-[hsl(210,100%,65%)]',
+    },
+    {
+      label: 'Daily limits',
+      value: `${usagePercent}%`,
+      helper: `${formatNumber(usage?.summary.totalUsage ?? 0)} / ${formatNumber(usage?.summary.totalLimit ?? 0)}`,
+      icon: Gauge,
+      tone: usagePercent > 85 ? 'text-warning' : 'text-primary',
+    },
+  ]
+
   return (
-    <Page title="Overview" description="Live request volume, provider readiness, errors, and limit pressure." action={<RefreshButton onClick={load} loading={loading} />}>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-        <Metric label="Requests 24h" value={formatNumber(stats.overview.requestsLast24h)} helper={`${formatNumber(stats.overview.requestsLast1h)} in the last hour`} icon={Activity} />
-        <Metric label="Error rate" value={stats.overview.errorRate} helper={`${formatNumber(stats.overview.errorCount)} failed requests`} icon={AlertTriangle} tone={Number.parseFloat(stats.overview.errorRate) > 5 ? 'bad' : 'good'} />
-        <Metric label="Average latency" value={`${formatNumber(stats.overview.avgResponseTime)} ms`} helper="All logged provider calls" icon={Clock3} />
-        <Metric label="Daily usage" value={`${usage?.summary.usagePercent ?? 0}%`} helper={`${formatNumber(usage?.summary.totalUsage ?? 0)} of ${formatNumber(usage?.summary.totalLimit ?? 0)}`} icon={Gauge} tone={(usage?.summary.usagePercent ?? 0) > 85 ? 'warn' : 'good'} />
-        <Metric label="Tokens 24h" value={formatNumber(stats.overview.tokensLast24h)} helper={`${formatNumber(stats.overview.totalTokens)} lifetime`} icon={Cpu} />
-        <Metric label="Providers" value={`${status?.providers.filter(p => p.sessionValid).length ?? 0}/${status?.providers.length ?? 0}`} helper="Connected provider sessions" icon={PlugZap} tone={(status?.providers.some(p => p.sessionValid) ?? false) ? 'good' : 'warn'} />
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(360px,0.8fr)]">
-        <Panel title="Request trend" description="Hourly request volume across the retained log window.">
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={stats.hourlyData}>
-                <defs>
-                  <linearGradient id="requestFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(174, 100%, 50%)" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="hsl(174, 100%, 50%)" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="hour" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.4)' }} minTickGap={28} />
-                <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.4)' }} width={42} />
-                <Tooltip contentStyle={{ backgroundColor: 'rgba(10,10,10,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
-                <Area type="monotone" dataKey="count" stroke="hsl(174, 100%, 50%)" fill="url(#requestFill)" strokeWidth={2} />
-                <Area type="monotone" dataKey="totalTokens" stroke="hsl(270, 80%, 60%)" fill="transparent" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Panel>
-
-        <Panel title="Provider health" description="Browser sessions and API-backed providers.">
-          <div className="space-y-3">
-            {(status?.providers ?? []).map(provider => (
-              <div key={provider.name} className="flex items-center justify-between gap-3 border-b border-white/5 pb-3 last:border-0 last:pb-0">
-                <div>
-                  <p className="font-semibold">{provider.name}</p>
-                  <p className="text-xs text-white/40">{provider.models.length} models</p>
-                </div>
-                <StatusPill ok={provider.sessionValid} trueLabel="Connected" falseLabel={provider.hasProfile ? 'Profile found' : 'Disconnected'} />
+    <Page title="Overview" description="Production traffic, provider readiness, error pressure, and quota usage." action={<RefreshButton onClick={load} loading={loading} />}>
+      <div className="space-y-5">
+        <section className="animate-fade-in overflow-hidden rounded-lg border border-white/10 bg-[#0b0b0b]">
+          <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="p-6 md:p-8">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`status-pill border-white/10 bg-white/[0.04] ${healthTone}`}>
+                  <Activity size={14} /> {healthState}
+                </span>
+                <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/45">
+                  Refreshes every 30s
+                </span>
               </div>
-            ))}
-          </div>
-        </Panel>
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <Panel title="Token accounting" description="Prompt and completion token totals from provider metadata when available, otherwise estimated from text.">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <InlineStat label="Input tokens" value={formatNumber(stats.overview.promptTokens)} helper="Prompt side" icon={TerminalSquare} />
-            <InlineStat label="Output tokens" value={formatNumber(stats.overview.completionTokens)} helper="Completion side" icon={Cpu} />
-            <InlineStat label="Total tokens" value={formatNumber(stats.overview.totalTokens)} helper="All logged traffic" icon={Gauge} />
-          </div>
-        </Panel>
-        <Panel title="Recent failures" description="Latest rejected or failed requests.">
-          <div className="space-y-3">
-            {stats.recentErrors.map(item => (
-              <div key={item.id} className="flex items-start justify-between gap-3 border-b border-white/5 pb-3 last:border-0 last:pb-0">
-                <div>
-                  <p className="font-mono text-xs text-primary">{item.model}</p>
-                  <p className="mt-1 text-sm text-white/60">{item.error || 'Request failed'}</p>
+              <div className="mt-8 max-w-3xl">
+                <p className="label text-primary">Operations overview</p>
+                <h2 className="mt-3 text-3xl font-semibold leading-tight text-white md:text-5xl">
+                  {formatNumber(stats.overview.requestsLast24h)} requests moved through Cortex today.
+                </h2>
+                <p className="mt-4 max-w-2xl text-sm leading-6 text-white/55">
+                  Provider sessions, quota pressure, and request failures are tracked from live admin telemetry.
+                </p>
+              </div>
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-white/10 bg-white/[0.025] p-4 transition duration-300 hover:border-primary/30 hover:bg-white/[0.04]">
+                  <p className="label text-white/40">Connected</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{connectedProviders}/{totalProviders}</p>
+                  <p className="mt-1 text-xs text-white/40">Provider sessions</p>
                 </div>
-                <div className="text-right text-xs text-white/40">
-                  <StatusCode code={item.statusCode} />
-                  <p className="mt-1">{formatDate(item.createdAt)}</p>
+                <div className="rounded-lg border border-white/10 bg-white/[0.025] p-4 transition duration-300 hover:border-primary/30 hover:bg-white/[0.04]">
+                  <p className="label text-white/40">Daily usage</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{usagePercent}%</p>
+                  <p className="mt-1 text-xs text-white/40">{formatNumber(usage?.summary.activeKeys ?? 0)} active keys</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.025] p-4 transition duration-300 hover:border-primary/30 hover:bg-white/[0.04]">
+                  <p className="label text-white/40">Tokens 24h</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{formatNumber(stats.overview.tokensLast24h)}</p>
+                  <p className="mt-1 text-xs text-white/40">{formatNumber(stats.overview.totalTokens)} lifetime</p>
                 </div>
               </div>
-            ))}
-            {stats.recentErrors.length === 0 && <EmptyState icon={CheckCircle2} message="No recent failures." />}
+            </div>
+            <div className="border-t border-white/10 bg-white/[0.018] p-6 xl:border-l xl:border-t-0">
+              <p className="label text-white/40">Readiness</p>
+              <div className="mt-5 flex items-end gap-3">
+                <p className="text-6xl font-semibold tracking-tight text-white">{providerHealthPercent}</p>
+                <p className="pb-2 text-lg text-white/45">%</p>
+              </div>
+              <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-700"
+                  style={{ width: `${providerHealthPercent}%` }}
+                />
+              </div>
+              <div className="mt-6 space-y-3">
+                {providers.slice(0, 4).map(provider => (
+                  <div key={provider.name} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-white">{provider.name}</p>
+                      <p className="text-xs text-white/35">{provider.models.length} models</p>
+                    </div>
+                    <span className={provider.sessionValid ? 'status-success' : provider.hasProfile ? 'status-warning' : 'status-primary'}>
+                      {provider.sessionValid ? 'Ready' : provider.hasProfile ? 'Profile' : 'Offline'}
+                    </span>
+                  </div>
+                ))}
+                {providers.length === 0 && <p className="text-sm text-white/45">No provider status yet.</p>}
+              </div>
+            </div>
           </div>
-        </Panel>
-      </div>
+        </section>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <Panel title="Provider distribution" description="Request share by provider.">
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={stats.providerDistribution} dataKey="value" nameKey="name" outerRadius={100}>
-                  {stats.providerDistribution.map((_, index) => (
-                    <Cell key={index} fill={providerColors[index % providerColors.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: 'rgba(10,10,10,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
-              </PieChart>
-            </ResponsiveContainer>
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {kpis.map((item, index) => (
+            <div
+              key={item.label}
+              className={`animate-fade-in stagger-${Math.min(index + 1, 8)} rounded-lg border border-white/10 bg-white/[0.025] p-4 transition duration-300 hover:-translate-y-0.5 hover:border-primary/25 hover:bg-white/[0.045]`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="label text-white/40">{item.label}</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">{item.value}</p>
+                  <p className="mt-1 text-sm text-white/40">{item.helper}</p>
+                </div>
+                <div className={`rounded-lg border border-white/10 bg-white/[0.04] p-2 ${item.tone}`}>
+                  <item.icon size={18} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_390px]">
+          <div className="animate-fade-in rounded-lg border border-white/10 bg-white/[0.025] p-5">
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Traffic trend</h2>
+                <p className="mt-1 text-sm text-white/45">Requests and token volume by hour.</p>
+              </div>
+              <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/45">
+                {formatNumber(stats.overview.requestsLast7d)} requests / 7d
+              </span>
+            </div>
+            <div className="h-[340px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={stats.hourlyData} margin={{ top: 10, right: 14, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="overviewRequestFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(174, 100%, 50%)" stopOpacity={0.28} />
+                      <stop offset="100%" stopColor="hsl(174, 100%, 50%)" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="overviewTokenFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(142, 68%, 45%)" stopOpacity={0.18} />
+                      <stop offset="100%" stopColor="hsl(142, 68%, 45%)" stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="hour" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.4)' }} minTickGap={30} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.4)' }} width={42} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={{ backgroundColor: 'rgba(11,11,11,0.96)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px' }} />
+                  <Area type="monotone" dataKey="count" stroke="hsl(174, 100%, 50%)" fill="url(#overviewRequestFill)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                  <Area type="monotone" dataKey="totalTokens" stroke="hsl(142, 68%, 45%)" fill="url(#overviewTokenFill)" strokeWidth={2} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        </Panel>
-        <Panel title="Top models" description="Most frequently requested model IDs.">
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.byModel.slice(0, 10)} layout="vertical" margin={{ left: 30 }}>
-                <CartesianGrid stroke="rgba(255,255,255,0.05)" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.4)' }} />
-                <YAxis type="category" dataKey="model" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.4)' }} width={140} />
-                <Tooltip contentStyle={{ backgroundColor: 'rgba(10,10,10,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
-                <Bar dataKey="count" fill="hsl(270, 80%, 60%)" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+
+          <div className="animate-fade-in rounded-lg border border-white/10 bg-white/[0.025] p-5">
+            <div className="mb-5">
+              <h2 className="text-lg font-semibold text-white">Provider mix</h2>
+              <p className="mt-1 text-sm text-white/45">Request share by provider.</p>
+            </div>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={stats.providerDistribution} dataKey="value" nameKey="name" innerRadius={58} outerRadius={88} paddingAngle={3}>
+                    {stats.providerDistribution.map((_, index) => (
+                      <Cell key={index} fill={providerColors[index % providerColors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: 'rgba(11,11,11,0.96)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-4 space-y-2">
+              {stats.providerDistribution.slice(0, 5).map((item, index) => (
+                <div key={item.name} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="flex min-w-0 items-center gap-2 text-white/65">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: providerColors[index % providerColors.length] }} />
+                    <span className="truncate">{item.name}</span>
+                  </span>
+                  <span className="font-mono text-xs text-white/45">{formatNumber(item.value)}</span>
+                </div>
+              ))}
+              {stats.providerDistribution.length === 0 && <p className="text-sm text-white/45">No provider traffic yet.</p>}
+            </div>
           </div>
-        </Panel>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
+          <div className="animate-fade-in rounded-lg border border-white/10 bg-white/[0.025] p-5">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Top models</h2>
+                <p className="mt-1 text-sm text-white/45">Highest request volume in retained logs.</p>
+              </div>
+              <Cpu className="text-primary" size={20} />
+            </div>
+            <div className="space-y-4">
+              {stats.byModel.slice(0, 8).map((item, index) => (
+                <div key={item.model} className="group">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="min-w-0 truncate font-mono text-xs text-white/70">{item.model}</p>
+                    <p className="shrink-0 text-xs text-white/45">{formatNumber(item.count)} requests</p>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-700 group-hover:bg-[hsl(142,68%,45%)]"
+                      style={{ width: `${Math.max(6, Math.round((item.count / maxModelCount) * 100))}%`, transitionDelay: `${index * 45}ms` }}
+                    />
+                  </div>
+                </div>
+              ))}
+              {stats.byModel.length === 0 && <EmptyState icon={Cpu} message="No model usage yet." />}
+            </div>
+          </div>
+
+          <div className="animate-fade-in rounded-lg border border-white/10 bg-white/[0.025] p-5">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Failure queue</h2>
+                <p className="mt-1 text-sm text-white/45">Latest rejected or failed requests.</p>
+              </div>
+              <AlertTriangle className={stats.recentErrors.length ? 'text-warning' : 'text-primary'} size={20} />
+            </div>
+            <div className="space-y-3">
+              {stats.recentErrors.slice(0, 5).map(item => (
+                <div key={item.id} className="rounded-lg border border-white/10 bg-white/[0.025] p-3 transition duration-300 hover:border-warning/30 hover:bg-white/[0.04]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-xs text-primary/80">{item.model}</p>
+                      <p className="mt-1 line-clamp-2 text-sm text-white/60">{item.error || 'Request failed'}</p>
+                    </div>
+                    <StatusCode code={item.statusCode} />
+                  </div>
+                  <p className="mt-2 text-xs text-white/35">{item.provider} · {formatDate(item.createdAt)}</p>
+                </div>
+              ))}
+              {stats.recentErrors.length === 0 && <EmptyState icon={CheckCircle2} message="No recent failures." />}
+            </div>
+          </div>
+        </section>
       </div>
     </Page>
   )
@@ -1951,21 +2102,6 @@ function Metric({ label, value, helper, icon: Icon, tone = 'neutral' }: { label:
         <div className={`rounded-xl bg-white/5 p-2 ${toneClass}`}>
           <Icon size={20} />
         </div>
-      </div>
-    </div>
-  )
-}
-
-function InlineStat({ label, value, helper, icon: Icon }: { label: string; value: string; helper: string; icon: typeof Activity }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="rounded-xl bg-white/5 p-2 text-primary">
-        <Icon size={18} />
-      </div>
-      <div>
-        <p className="label text-white/50">{label}</p>
-        <p className="mt-2 text-2xl font-bold text-white">{value}</p>
-        <p className="mt-1 text-sm text-white/40">{helper}</p>
       </div>
     </div>
   )
