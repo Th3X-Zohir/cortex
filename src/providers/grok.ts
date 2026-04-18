@@ -23,6 +23,9 @@ export class GrokProvider extends BaseProvider {
     const page = await this._preparePage();
     const detachDiagnostics = this._attachNetworkDiagnostics(page, 'nonstream');
     try {
+      if (req.newConversation) {
+        await this._startNewConversation(page);
+      }
       await this._sendPrompt(page, req);
       logger.info('[grok] non-streaming mode: using DOM immediately (no fetch-intercept wait)');
 
@@ -43,6 +46,9 @@ export class GrokProvider extends BaseProvider {
     const detachDiagnostics = this._attachNetworkDiagnostics(page, 'stream');
 
     try {
+      if (req.newConversation) {
+        await this._startNewConversation(page);
+      }
       await this._injectInterceptor(page);
       await this._sendPrompt(page, req);
 
@@ -173,6 +179,46 @@ export class GrokProvider extends BaseProvider {
     }
 
     return page;
+  }
+
+  private async _startNewConversation(page: Page): Promise<void> {
+    logger.info('[grok] starting fresh conversation...');
+
+    const candidates = [
+      'a[href="/"]',
+      'a[href="/chat"]',
+      'a[href="/new"]',
+      'a[href*="/new"]',
+      'button:has-text("New chat")',
+      'button:has-text("New conversation")',
+      'button:has-text("New")',
+      'button[aria-label*="New" i]',
+      '[data-testid*="new" i]',
+    ];
+
+    for (const selector of candidates) {
+      const control = page.locator(selector).first();
+      if (!await control.isVisible({ timeout: 1200 }).catch(() => false)) continue;
+      try {
+        await control.evaluate((element: any) => {
+          if (typeof element.click === 'function') element.click();
+          else element.dispatchEvent(new (globalThis as any).MouseEvent('click', { bubbles: true, cancelable: true }));
+        });
+        await new Promise(r => setTimeout(r, 1800));
+        if (await page.locator(this.verifySelector).first().isVisible({ timeout: 5000 }).catch(() => false)) {
+          logger.info(`[grok] fresh conversation started via selector="${selector}" url=${page.url().slice(0, 160)}`);
+          return;
+        }
+      } catch (err) {
+        logger.warn(`[grok] fresh conversation selector failed selector="${selector}" error=${(err as Error).message}`);
+      }
+    }
+
+    logger.info('[grok] fresh conversation control not found; using direct navigation');
+    await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
+    await new Promise(r => setTimeout(r, 2500));
+    await page.locator(this.verifySelector).first().waitFor({ timeout: 15000 });
+    logger.info(`[grok] fresh conversation ready via direct navigation url=${page.url().slice(0, 160)}`);
   }
 
   private async _sendPrompt(page: Page, req: ChatRequest): Promise<void> {
