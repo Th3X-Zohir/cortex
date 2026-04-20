@@ -7,11 +7,11 @@
 	"variable": [
 		{
 			"key": "baseUrl",
-			"value": "http://localhost:31339"
+			"value": "https://cortex.zohirrayhan.com"
 		},
 		{
 			"key": "apiKey",
-			"value": "REPLACE_WITH_API_KEY"
+			"value": "ctx_373762fcf6a1404ea7db393cce902498"
 		},
 		{
 			"key": "defaultPrompt",
@@ -48,7 +48,7 @@
 			},
 			{
 				"key": "value",
-				"value": "{{apiKey}}",
+				"value": "ctx_373762fcf6a1404ea7db393cce902498",
 				"type": "string"
 			},
 			{
