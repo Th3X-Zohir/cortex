@@ -195,6 +195,13 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
       .sort((a, b) => b.requests - a.requests)
   }, [catalog?.models, providers, stats.byProvider])
 
+  const providerScale = useMemo(() => {
+    const maxRequests = Math.max(1, ...providerRows.map(row => row.requests))
+    const maxTokens = Math.max(1, ...providerRows.map(row => row.totalTokens))
+    const maxLatency = Math.max(1, ...providerRows.map(row => row.avgResponseTime))
+    return { maxRequests, maxTokens, maxLatency }
+  }, [providerRows])
+
   const throughputSeries = useMemo(
     () => stats.hourlyData.slice(-36).map(point => ({
       label: new Date(point.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -393,40 +400,72 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
             </Surface>
 
             <Surface>
-              <SurfaceHeader title="Provider Health Matrix" description="Session validity combined with performance and token load." />
+              <SurfaceHeader title="Provider Health Matrix" description="Visual provider cards showing session state, throughput, token load, and latency pressure." />
               {providerRows.length === 0 ? (
                 <EmptyPanel text="No provider status found." />
               ) : (
-                <div className="ui-table-wrap">
-                  <table className="ui-table min-w-full">
-                    <thead>
-                      <tr>
-                        <th>Provider</th>
-                        <th>Status</th>
-                        <th>Requests</th>
-                        <th>Latency</th>
-                        <th>Tokens</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {providerRows.map(row => (
-                        <tr key={row.name}>
-                          <td>
-                            <p className="font-semibold text-slate-900">{row.name}</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {providerRows.map(row => {
+                    const requestPercent = Math.round((row.requests / providerScale.maxRequests) * 100)
+                    const tokenPercent = Math.round((row.totalTokens / providerScale.maxTokens) * 100)
+                    const latencyPercent = Math.round((row.avgResponseTime / providerScale.maxLatency) * 100)
+
+                    const cardToneClass = row.sessionValid
+                      ? 'border-emerald-200 bg-emerald-50/40'
+                      : row.hasProfile
+                        ? 'border-amber-200 bg-amber-50/40'
+                        : 'border-rose-200 bg-rose-50/40'
+
+                    return (
+                      <article key={row.name} className={`rounded-2xl border p-4 ${cardToneClass}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{row.name}</p>
                             <p className="text-xs text-slate-500">{row.modelCount} models</p>
-                          </td>
-                          <td>
-                            <Chip tone={row.sessionValid ? 'good' : row.hasProfile ? 'warn' : 'bad'}>
-                              {row.sessionValid ? 'Connected' : row.hasProfile ? 'Profile Ready' : 'Disconnected'}
-                            </Chip>
-                          </td>
-                          <td>{formatNumber(row.requests)}</td>
-                          <td>{formatNumber(row.avgResponseTime)} ms</td>
-                          <td>{formatNumber(row.totalTokens)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                          <Chip tone={row.sessionValid ? 'good' : row.hasProfile ? 'warn' : 'bad'}>
+                            {row.sessionValid ? 'Connected' : row.hasProfile ? 'Profile Ready' : 'Disconnected'}
+                          </Chip>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                          <div className="rounded-xl border border-slate-200 bg-white px-2 py-1.5">
+                            <p className="text-slate-500">Requests</p>
+                            <p className="mt-0.5 font-semibold text-slate-900">{formatNumber(row.requests)}</p>
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-white px-2 py-1.5">
+                            <p className="text-slate-500">Tokens</p>
+                            <p className="mt-0.5 font-semibold text-slate-900">{formatNumber(row.totalTokens)}</p>
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-white px-2 py-1.5">
+                            <p className="text-slate-500">Latency</p>
+                            <p className="mt-0.5 font-semibold text-slate-900">{formatNumber(row.avgResponseTime)} ms</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 space-y-2">
+                          <MetricBar
+                            label="Traffic share"
+                            value={`${requestPercent}% of peak provider`}
+                            percent={requestPercent}
+                            tone="blue"
+                          />
+                          <MetricBar
+                            label="Token load"
+                            value={`${tokenPercent}% of peak provider`}
+                            percent={tokenPercent}
+                            tone="emerald"
+                          />
+                          <MetricBar
+                            label="Latency pressure"
+                            value={`${latencyPercent}% of slowest provider`}
+                            percent={latencyPercent}
+                            tone="amber"
+                          />
+                        </div>
+                      </article>
+                    )
+                  })}
                 </div>
               )}
             </Surface>
@@ -608,5 +647,36 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
         </>
       )}
     </PageShell>
+  )
+}
+
+function MetricBar({
+  label,
+  value,
+  percent,
+  tone,
+}: {
+  label: string
+  value: string
+  percent: number
+  tone: 'blue' | 'emerald' | 'amber'
+}) {
+  const fillClass =
+    tone === 'emerald'
+      ? 'bg-emerald-500'
+      : tone === 'amber'
+        ? 'bg-amber-500'
+        : 'bg-blue-600'
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <p className="font-semibold uppercase tracking-[0.1em] text-slate-500">{label}</p>
+        <p className="text-slate-600">{value}</p>
+      </div>
+      <div className="ui-progress-track mt-1">
+        <div className={fillClass} style={{ width: `${Math.max(2, Math.min(100, percent))}%`, height: '100%', borderRadius: 9999 }} />
+      </div>
+    </div>
   )
 }
