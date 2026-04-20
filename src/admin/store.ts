@@ -45,6 +45,8 @@ export interface RequestLogRecord {
   error: string | null;
   ip_address: string | null;
   user_agent: string | null;
+  request_payload: string | null;
+  response_payload: string | null;
   created_at: string;
 }
 
@@ -127,6 +129,8 @@ CREATE TABLE IF NOT EXISTS request_logs (
   error TEXT,
   ip_address TEXT,
   user_agent TEXT,
+  request_payload TEXT,
+  response_payload TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -178,6 +182,8 @@ export class AdminStore {
     this.ensureColumn('request_logs', 'prompt_tokens', 'INTEGER');
     this.ensureColumn('request_logs', 'completion_tokens', 'INTEGER');
     this.ensureColumn('request_logs', 'total_tokens', 'INTEGER');
+    this.ensureColumn('request_logs', 'request_payload', 'TEXT');
+    this.ensureColumn('request_logs', 'response_payload', 'TEXT');
   }
 
   private ensureColumn(table: string, column: string, definition: string): void {
@@ -344,11 +350,11 @@ export class AdminStore {
 
   // ── Request Logs ─────────────────────────────────────────────────────
 
-  logRequest(log: Omit<RequestLogRecord, 'id' | 'created_at'>): void {
+  logRequest(log: Omit<RequestLogRecord, 'id' | 'created_at' | 'request_payload' | 'response_payload'> & { request_payload?: string | null; response_payload?: string | null }): void {
     const id = randomUUID();
     this.db.prepare(
-      `INSERT INTO request_logs (id, api_key_id, api_key_name, provider, model, messages_count, stream, status_code, response_time_ms, prompt_tokens, completion_tokens, total_tokens, tokens_used, error, ip_address, user_agent, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+      `INSERT INTO request_logs (id, api_key_id, api_key_name, provider, model, messages_count, stream, status_code, response_time_ms, prompt_tokens, completion_tokens, total_tokens, tokens_used, error, ip_address, user_agent, request_payload, response_payload, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
     ).run(
       id,
       log.api_key_id,
@@ -366,6 +372,8 @@ export class AdminStore {
       log.error,
       log.ip_address,
       log.user_agent,
+      log.request_payload ?? null,
+      log.response_payload ?? null,
     );
   }
 

@@ -48,6 +48,8 @@ export interface RequestLog {
   error: string | null
   ipAddress: string | null
   userAgent: string | null
+  requestPayload: unknown | null
+  responsePayload: unknown | null
   createdAt: string
 }
 

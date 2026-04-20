@@ -167,8 +167,22 @@ export class BridgeServer {
       try {
         reqData = JSON.parse(body);
       } catch {
-        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 400, startedAt, 'Invalid JSON', req);
-        json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } });
+        const errorPayload = { error: { message: 'Invalid JSON', type: 'invalid_request' } };
+        this._logApiRequest(
+          auth,
+          providerName,
+          modelName,
+          messagesCount,
+          streamRequest,
+          400,
+          startedAt,
+          'Invalid JSON',
+          req,
+          undefined,
+          { rawBody: body },
+          errorPayload,
+        );
+        json(res, 400, errorPayload);
         return;
       }
 
@@ -178,23 +192,31 @@ export class BridgeServer {
       streamRequest = Boolean(stream);
 
       if (!model || !messages) {
-        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 400, startedAt, 'model and messages required', req);
-        json(res, 400, { error: { message: 'model and messages required', type: 'invalid_request' } });
+        const errorPayload = { error: { message: 'model and messages required', type: 'invalid_request' } };
+        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 400, startedAt, 'model and messages required', req, undefined, reqData, errorPayload);
+        json(res, 400, errorPayload);
         return;
       }
 
       const provider = this._registry.providerForModel(model);
       if (!provider) {
-        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 404, startedAt, `Unknown model: ${model}`, req);
-        json(res, 404, { error: { message: `Unknown model: ${model}`, type: 'invalid_request' } });
+        const errorPayload = { error: { message: `Unknown model: ${model}`, type: 'invalid_request' } };
+        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 404, startedAt, `Unknown model: ${model}`, req, undefined, reqData, errorPayload);
+        json(res, 404, errorPayload);
         return;
       }
       providerName = provider.name;
 
       const connected = await provider.ensureConnected();
       if (!connected) {
-        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 503, startedAt, `${provider.name} is not connected`, req);
-        json(res, 503, { error: { message: `${provider.name} is not connected. Use the admin provider controls to connect it.`, type: 'provider_unavailable' } });
+        const errorPayload = {
+          error: {
+            message: `${provider.name} is not connected. Use the admin provider controls to connect it.`,
+            type: 'provider_unavailable',
+          },
+        };
+        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 503, startedAt, `${provider.name} is not connected`, req, undefined, reqData, errorPayload);
+        json(res, 503, errorPayload);
         return;
       }
 
@@ -209,6 +231,8 @@ export class BridgeServer {
         const id = `chatcmpl-${Date.now()}`;
         let streamError: string | null = null;
         const chunks: string[] = [];
+        let usageForLog: TokenUsage = this._estimateTokenUsage(reqData, '');
+        let responsePayloadForLog: unknown = null;
         try {
           for await (const chunk of provider.chatStream({ model, messages, temperature, max_tokens, newConversation })) {
             chunks.push(chunk);
@@ -223,6 +247,7 @@ export class BridgeServer {
           }
           const finalMeta = 'currentMeta' in provider ? (provider as any).currentMeta : undefined;
           const usage = this._tokenUsage(provider, reqData, chunks.join(''));
+          usageForLog = usage;
           const doneData = JSON.stringify({
             id, object: 'chat.completion.chunk', model,
             choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
@@ -231,18 +256,55 @@ export class BridgeServer {
           });
           res.write(`data: ${doneData}\n\n`);
           res.write('data: [DONE]\n\n');
+          responsePayloadForLog = {
+            id,
+            object: 'chat.completion',
+            model,
+            choices: [{
+              index: 0,
+              message: { role: 'assistant', content: chunks.join('') },
+              finish_reason: 'stop',
+            }],
+            usage,
+          };
         } catch (err) {
           streamError = (err as Error).message;
+          usageForLog = this._tokenUsage(provider, reqData, chunks.join(''));
+          responsePayloadForLog = {
+            id,
+            object: 'chat.completion',
+            model,
+            choices: [{
+              index: 0,
+              message: { role: 'assistant', content: chunks.join('') },
+              finish_reason: 'error',
+            }],
+            usage: usageForLog,
+            error: { message: streamError, type: 'provider_error' },
+          };
           res.write(`data: ${JSON.stringify({ error: streamError })}\n\n`);
         } finally {
           res.end();
-          this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 200, startedAt, streamError, req, this._tokenUsage(provider, reqData, chunks.join('')));
+          this._logApiRequest(
+            auth,
+            providerName,
+            modelName,
+            messagesCount,
+            streamRequest,
+            200,
+            startedAt,
+            streamError,
+            req,
+            usageForLog,
+            reqData,
+            responsePayloadForLog,
+          );
         }
       } else {
         try {
           const content = await provider.chat({ model, messages, temperature, max_tokens, newConversation });
           const usage = this._tokenUsage(provider, reqData, content);
-          json(res, 200, {
+          const responsePayload = {
             id: `chatcmpl-${Date.now()}`,
             object: 'chat.completion',
             model,
@@ -252,12 +314,15 @@ export class BridgeServer {
               finish_reason: 'stop',
             }],
             usage,
-          });
-          this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 200, startedAt, null, req, usage);
+          };
+          json(res, 200, responsePayload);
+          this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 200, startedAt, null, req, usage, reqData, responsePayload);
         } catch (err) {
           const message = (err as Error).message;
-          json(res, 503, { error: { message, type: 'provider_error' } });
-          this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 503, startedAt, message, req, this._estimateTokenUsage(reqData, ''));
+          const usage = this._estimateTokenUsage(reqData, '');
+          const errorPayload = { error: { message, type: 'provider_error' } };
+          json(res, 503, errorPayload);
+          this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 503, startedAt, message, req, usage, reqData, errorPayload);
         }
       }
       return;
@@ -293,6 +358,8 @@ export class BridgeServer {
         error: 'API key required',
         ip_address: getIp(req),
         user_agent: getUserAgent(req),
+        request_payload: safeJsonStringify({ method: req.method ?? 'GET', path: req.url ?? '/' }),
+        response_payload: safeJsonStringify({ error: { message: 'API key required', type: 'authentication_error' } }),
       });
       json(res, 401, { error: { message: 'API key required', type: 'authentication_error' } });
       return null;
@@ -317,6 +384,8 @@ export class BridgeServer {
         error: validation.reason ?? 'Invalid API key',
         ip_address: getIp(req),
         user_agent: getUserAgent(req),
+        request_payload: safeJsonStringify({ method: req.method ?? 'GET', path: req.url ?? '/' }),
+        response_payload: safeJsonStringify({ error: { message: validation.reason ?? 'Invalid API key', type: 'authentication_error' } }),
       });
       json(res, statusCode, { error: { message: validation.reason ?? 'Invalid API key', type: 'authentication_error' } });
       return null;
@@ -348,6 +417,8 @@ export class BridgeServer {
     error: string | null,
     req: IncomingMessage,
     usage: TokenUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    requestPayload?: unknown,
+    responsePayload?: unknown,
   ): void {
     try {
       this._adminStore.logRequest({
@@ -366,6 +437,8 @@ export class BridgeServer {
         error,
         ip_address: getIp(req),
         user_agent: getUserAgent(req),
+        request_payload: safeJsonStringify(requestPayload),
+        response_payload: safeJsonStringify(responsePayload),
       });
     } catch (err) {
       logger.debug(`Failed to log request: ${(err as Error).message}`);
@@ -475,6 +548,15 @@ function estimateTokens(value: string): number {
 function numberOrZero(value: unknown): number {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? Math.round(number) : 0;
+}
+
+function safeJsonStringify(value: unknown): string | null {
+  if (value === undefined) return null;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return JSON.stringify({ serializationError: true, value: String(value) });
+  }
 }
 
 function contentType(filePath: string): string {

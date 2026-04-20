@@ -226,6 +226,8 @@ export function LogsPage() {
                                   {log.error}
                                 </pre>
                               ) : null}
+                              {log.requestPayload ? <JsonDetail label="Request JSON" value={log.requestPayload} /> : null}
+                              {log.responsePayload ? <JsonDetail label="Response JSON" value={log.responsePayload} /> : null}
                             </div>
                           </td>
                         </tr>
@@ -302,6 +304,21 @@ function Detail({ label, value, mono = false, wide = false }: { label: string; v
     <div className={wide ? 'md:col-span-3' : ''}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">{label}</p>
       <p className={`mt-1 break-words text-sm text-slate-700 ${mono ? 'font-mono text-xs' : ''}`}>{value}</p>
+    </div>
+  )
+}
+
+function JsonDetail({ label, value }: { label: string; value: unknown }) {
+  const formatted = typeof value === 'string'
+    ? value
+    : JSON.stringify(value, null, 2)
+
+  return (
+    <div className="mt-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">{label}</p>
+      <pre className="ui-scroll mt-1 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
+        {formatted}
+      </pre>
     </div>
   )
 }

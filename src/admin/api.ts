@@ -456,27 +456,30 @@ export class AdminApi {
     const providerName = provider?.name ?? 'unknown';
 
     if (!provider) {
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 404, startedAt, `Unknown model: ${model}`, { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
-      json(res, 404, { error: `Unknown model: ${model}`, code: 'UNKNOWN_MODEL' });
+      const errorPayload = { error: `Unknown model: ${model}`, code: 'UNKNOWN_MODEL' };
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 404, startedAt, `Unknown model: ${model}`, { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }, body, errorPayload);
+      json(res, 404, errorPayload);
       return;
     }
 
     if (temperature !== undefined && (!Number.isFinite(temperature) || temperature < 0 || temperature > 2)) {
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 400, startedAt, 'temperature must be between 0 and 2', this.estimateTokenUsage(messages, ''));
-      json(res, 400, { error: 'temperature must be between 0 and 2', code: 'INVALID_TEMPERATURE' });
+      const errorPayload = { error: 'temperature must be between 0 and 2', code: 'INVALID_TEMPERATURE' };
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 400, startedAt, 'temperature must be between 0 and 2', this.estimateTokenUsage(messages, ''), body, errorPayload);
+      json(res, 400, errorPayload);
       return;
     }
 
     const connected = await provider.ensureConnected();
     if (!connected) {
       const error = `${provider.name} is not connected`;
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 503, startedAt, error, this.estimateTokenUsage(messages, ''));
-      json(res, 503, { error, code: 'PROVIDER_UNAVAILABLE' });
+      const errorPayload = { error, code: 'PROVIDER_UNAVAILABLE' };
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 503, startedAt, error, this.estimateTokenUsage(messages, ''), body, errorPayload);
+      json(res, 503, errorPayload);
       return;
     }
 
     if (stream) {
-      await this.playgroundStream(req, res, ctx, provider, providerName, model, messages, temperature, maxTokens, newConversation, startedAt);
+      await this.playgroundStream(req, res, ctx, provider, providerName, model, messages, temperature, maxTokens, newConversation, startedAt, body);
       return;
     }
 
@@ -489,9 +492,7 @@ export class AdminApi {
         newConversation,
       });
       const usage = this.tokenUsage(provider, messages, content);
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, false, 200, startedAt, null, usage);
-      this.audit(req, ctx, 'playground_chat', 'provider', providerName, { model, stream: false, usage });
-      json(res, 200, {
+      const responsePayload = {
         id: `admin-playground-${Date.now()}`,
         object: 'chat.completion',
         model,
@@ -505,12 +506,17 @@ export class AdminApi {
           finish_reason: 'stop',
         }],
         usage,
-      });
+      };
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, false, 200, startedAt, null, usage, body, responsePayload);
+      this.audit(req, ctx, 'playground_chat', 'provider', providerName, { model, stream: false, usage });
+      json(res, 200, responsePayload);
     } catch (err) {
       const message = (err as Error).message;
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, false, 503, startedAt, message, this.estimateTokenUsage(messages, ''));
+      const usage = this.estimateTokenUsage(messages, '');
+      const errorPayload = { error: message, code: 'PROVIDER_ERROR' };
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, false, 503, startedAt, message, usage, body, errorPayload);
       this.audit(req, ctx, 'playground_chat_failed', 'provider', providerName, { model, stream: false, error: message });
-      json(res, 503, { error: message, code: 'PROVIDER_ERROR' });
+      json(res, 503, errorPayload);
     }
   }
 
@@ -526,10 +532,12 @@ export class AdminApi {
     maxTokens: number | undefined,
     newConversation: boolean,
     startedAt: number,
+    requestPayload: unknown,
   ): Promise<void> {
     const id = `admin-playground-${Date.now()}`;
     const chunks: string[] = [];
     let streamError: string | null = null;
+    let responsePayloadForLog: unknown = null;
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -564,13 +572,38 @@ export class AdminApi {
         limited: false,
       })}\n\n`);
       res.write('data: [DONE]\n\n');
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, true, 200, startedAt, null, usage);
+      responsePayloadForLog = {
+        id,
+        object: 'chat.completion',
+        model,
+        provider: providerName,
+        choices: [{
+          index: 0,
+          message: { role: 'assistant', content: chunks.join('') },
+          finish_reason: 'stop',
+        }],
+        usage,
+      };
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, true, 200, startedAt, null, usage, requestPayload, responsePayloadForLog);
       this.audit(req, ctx, 'playground_chat', 'provider', providerName, { model, stream: true, usage });
     } catch (err) {
       streamError = (err as Error).message;
       const usage = this.estimateTokenUsage(messages, chunks.join(''));
       res.write(`data: ${JSON.stringify({ error: streamError, code: 'PROVIDER_ERROR' })}\n\n`);
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, true, 200, startedAt, streamError, usage);
+      responsePayloadForLog = {
+        id,
+        object: 'chat.completion',
+        model,
+        provider: providerName,
+        choices: [{
+          index: 0,
+          message: { role: 'assistant', content: chunks.join('') },
+          finish_reason: 'error',
+        }],
+        usage,
+        error: { message: streamError, code: 'PROVIDER_ERROR' },
+      };
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, true, 200, startedAt, streamError, usage, requestPayload, responsePayloadForLog);
       this.audit(req, ctx, 'playground_chat_failed', 'provider', providerName, { model, stream: true, error: streamError });
     } finally {
       res.end();
@@ -588,6 +621,8 @@ export class AdminApi {
     startedAt: number,
     error: string | null,
     usage: TokenUsage,
+    requestPayload?: unknown,
+    responsePayload?: unknown,
   ): void {
     this.store.logRequest({
       api_key_id: null,
@@ -605,6 +640,8 @@ export class AdminApi {
       error,
       ip_address: getIp(req),
       user_agent: getUserAgent(req),
+      request_payload: safeJsonStringify(requestPayload),
+      response_payload: safeJsonStringify(responsePayload),
     });
   }
 
@@ -758,6 +795,15 @@ function numberOrZero(value: unknown): number {
   return Number.isFinite(number) && number > 0 ? Math.round(number) : 0;
 }
 
+function safeJsonStringify(value: unknown): string | null {
+  if (value === undefined) return null;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return JSON.stringify({ serializationError: true, value: String(value) });
+  }
+}
+
 function mapRequestLog(log: RequestLogRecord) {
   return {
     id: log.id,
@@ -776,8 +822,19 @@ function mapRequestLog(log: RequestLogRecord) {
     error: log.error,
     ipAddress: log.ip_address,
     userAgent: log.user_agent,
+    requestPayload: parseJsonPayload(log.request_payload),
+    responsePayload: parseJsonPayload(log.response_payload),
     createdAt: log.created_at,
   };
+}
+
+function parseJsonPayload(payload: string | null): unknown | null {
+  if (!payload) return null;
+  try {
+    return JSON.parse(payload);
+  } catch {
+    return { raw: payload };
+  }
 }
 
 function mapAuditLog(log: AuditLogRecord) {
