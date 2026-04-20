@@ -74,12 +74,7 @@ export class ClaudeProvider extends BaseProvider {
     // Type into ProseMirror editor
     const editor = page.locator('.ProseMirror').first();
     await editor.waitFor({ timeout: 15000 });
-    await editor.click();
-    await editor.evaluate((el: { focus: () => void }, msg: string) => {
-      el.focus();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (globalThis as any).document.execCommand('insertText', false, msg);
-    }, userMsg);
+    await this._insertPromptText(page, editor, userMsg);
 
     await new Promise(r => setTimeout(r, 300));
     await page.keyboard.press('Enter');

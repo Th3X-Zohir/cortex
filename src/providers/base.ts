@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright';
 import { existsSync, mkdirSync } from 'node:fs';
 import type { BridgeConfig, ProviderName, ChatRequest, ModelDefinition, ProviderAdapter } from '../types.js';
 import { profileDir } from '../config.js';
@@ -265,6 +265,57 @@ export abstract class BaseProvider implements ProviderAdapter {
       this._ctx = null;
     }
     logger.info(`[${this.name}] logged out`);
+  }
+
+  protected async _insertPromptText(page: Page, input: Locator, text: string): Promise<void> {
+    await input.waitFor({ timeout: 15000 });
+    await input.click();
+    await new Promise(r => setTimeout(r, 100));
+
+    // Clear any pre-filled draft before inserting a full multiline prompt.
+    try {
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.keyboard.press('Backspace');
+    } catch {}
+
+    try {
+      await page.keyboard.insertText(text);
+      return;
+    } catch (err) {
+      logger.debug(`[${this.name}] keyboard.insertText failed, trying fallbacks: ${(err as Error).message}`);
+    }
+
+    try {
+      await input.fill(text);
+      return;
+    } catch (err) {
+      logger.debug(`[${this.name}] locator.fill fallback failed: ${(err as Error).message}`);
+    }
+
+    await input.evaluate((el: any, msg: string) => {
+      if (typeof el.focus === 'function') el.focus();
+
+      const Evt = (globalThis as any).Event;
+      const emitInput = () => {
+        if (Evt) el.dispatchEvent(new Evt('input', { bubbles: true }));
+      };
+
+      if ('value' in el) {
+        el.value = msg;
+        emitInput();
+        return;
+      }
+
+      if (el.isContentEditable) {
+        const doc = el.ownerDocument;
+        if (doc && typeof doc.execCommand === 'function') {
+          doc.execCommand('insertText', false, msg);
+        } else {
+          el.textContent = msg;
+          emitInput();
+        }
+      }
+    }, text);
   }
 
   // ── Chat — subclasses implement these ────────────────────────────────────

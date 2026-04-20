@@ -125,20 +125,8 @@ export class GeminiProvider extends BaseProvider {
     }));
     logger.info(`[gemini] INPUT: tag=${elInfo.tag} contenteditable=${elInfo.contentEditable} class="${elInfo.className}"`);
 
-    // Input the message
-    const tagName = elInfo.tag?.toLowerCase() ?? '';
-    if (tagName === 'textarea' || tagName === 'input') {
-      await inputEl.fill(userMsg);
-    } else {
-      await inputEl.click();
-      await new Promise(r => setTimeout(r, 300));
-      try {
-        await inputEl.pressSequentially(userMsg, { delay: 50 });
-      } catch (seqErr) {
-        logger.warn(`[gemini] pressSequentially failed: ${(seqErr as Error).message}`);
-        await page.keyboard.type(userMsg, { delay: 50 });
-      }
-    }
+    logger.info(`[gemini] inserting prompt via paste-style input (${userMsg.length} chars)`);
+    await this._insertPromptText(page, inputEl, userMsg);
 
     await new Promise(r => setTimeout(r, 200));
     await page.keyboard.press('Enter');

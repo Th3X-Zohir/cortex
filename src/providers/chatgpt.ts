@@ -40,8 +40,7 @@ export class ChatGPTProvider extends BaseProvider {
 
     const textarea = page.locator('#prompt-textarea, [contenteditable="true"]').first();
     await textarea.waitFor({ timeout: 15000 });
-    await textarea.click();
-    await textarea.fill(userMsg);
+    await this._insertPromptText(page, textarea, userMsg);
 
     await new Promise(r => setTimeout(r, 300));
     await page.keyboard.press('Enter');
@@ -186,8 +185,7 @@ export class ChatGPTProvider extends BaseProvider {
 
     const textarea = page.locator('#prompt-textarea, [contenteditable="true"]').first();
     await textarea.waitFor({ timeout: 15000 });
-    await textarea.click();
-    await textarea.fill(userMsg);
+    await this._insertPromptText(page, textarea, userMsg);
 
     await new Promise(r => setTimeout(r, 300));
     await page.keyboard.press('Enter');
