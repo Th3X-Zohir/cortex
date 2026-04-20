@@ -1,148 +1,336 @@
 import { useEffect, useState } from 'react'
-import { KeyRound, Trash2 } from 'lucide-react'
+import { KeyRound, Pencil, Power, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, formatNumber } from '@/lib/utils'
 import type { ApiKey } from '@/types'
-import { Alert, EmptyState, Field, Page, Panel, RefreshButton, StatusPill } from '@/components/shared/AppPrimitives'
+import {
+  BusyPanel,
+  Chip,
+  EmptyPanel,
+  ErrorBanner,
+  PageShell,
+  StatTile,
+  SuccessBanner,
+  Surface,
+  SurfaceHeader,
+} from '@/components/dashboard/UiKit'
 
 export function AccessPage() {
   const [keys, setKeys] = useState<ApiKey[]>([])
-  const [createdKey, setCreatedKey] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', dailyLimit: 1000, rateLimitPerMin: 60 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [revealedKey, setRevealedKey] = useState<string | null>(null)
+  const [form, setForm] = useState({
+    name: '',
+    dailyLimit: 10000,
+    rateLimitPerMin: 120,
+  })
 
   async function load() {
     setLoading(true)
+    setError(null)
     try {
-      setKeys(await api.admin.keys.list())
+      const next = await api.admin.keys.list()
+      setKeys(next)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load API keys')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    void load()
+  }, [])
 
   async function createKey(event: React.FormEvent) {
     event.preventDefault()
     setError(null)
+    setNotice(null)
+
     try {
-      const response = await api.admin.keys.create(form)
-      setCreatedKey(response.key)
-      setForm({ name: '', dailyLimit: 1000, rateLimitPerMin: 60 })
+      const created = await api.admin.keys.create({
+        name: form.name.trim(),
+        dailyLimit: form.dailyLimit,
+        rateLimitPerMin: form.rateLimitPerMin,
+      })
+      setRevealedKey(created.key)
+      setNotice(`API key "${created.name}" created successfully.`)
+      setForm({ name: '', dailyLimit: 10000, rateLimitPerMin: 120 })
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to create key')
+      setError(err instanceof Error ? err.message : 'Unable to create API key')
     }
   }
 
-  async function updateKey(id: string, data: Partial<ApiKey>) {
-    await api.admin.keys.update(id, data)
-    await load()
+  async function saveKey(id: string, data: Partial<ApiKey>) {
+    setError(null)
+    setNotice(null)
+
+    try {
+      await api.admin.keys.update(id, data)
+      setNotice('API key updated.')
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update API key')
+    }
   }
 
-  async function deleteKey(id: string) {
-    if (!window.confirm('Delete this API key? Existing clients will lose access immediately.')) return
-    await api.admin.keys.delete(id)
-    await load()
+  async function deleteKey(id: string, name: string) {
+    if (!window.confirm(`Delete API key "${name}"? This action cannot be undone.`)) return
+
+    setError(null)
+    setNotice(null)
+    try {
+      await api.admin.keys.delete(id)
+      setNotice('API key removed.')
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete API key')
+    }
   }
+
+  const activeCount = keys.filter(item => item.active).length
+  const totalToday = keys.reduce((sum, item) => sum + item.requestsToday, 0)
 
   return (
-    <Page title="API Access" description="Issue, disable, rotate, and tune token-based access for OpenAI-compatible API clients." action={<RefreshButton onClick={load} loading={loading} />}>
-      <div className="grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
-        <Panel title="Create API key" description="The secret is shown once. Store it in the consuming service.">
+    <PageShell
+      title="API Access Management"
+      description="Issue, govern, and tune production API credentials with daily and per-minute guardrails."
+      action={<button type="button" className="ui-btn-secondary" onClick={() => void load()}>Refresh</button>}
+    >
+      {error ? <ErrorBanner text={error} /> : null}
+      {notice ? <SuccessBanner text={notice} /> : null}
+
+      <section className="grid gap-3 sm:grid-cols-3">
+        <StatTile label="Total Keys" value={formatNumber(keys.length)} hint={`${formatNumber(activeCount)} active`} />
+        <StatTile label="Requests Today" value={formatNumber(totalToday)} hint="Across all keys" />
+        <StatTile label="Highest Daily Limit" value={formatNumber(Math.max(0, ...keys.map(item => item.dailyLimit)))} hint="Configured cap" />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <Surface>
+          <SurfaceHeader title="Create API Key" description="New secret is shown once. Save it securely in your client service." />
           <form className="space-y-4" onSubmit={createKey}>
-            <Field label="Key name">
-              <input className="input" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder="Production gateway" required />
-            </Field>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Daily limit">
-                <input className="input" type="number" min={1} value={form.dailyLimit} onChange={event => setForm({ ...form, dailyLimit: Number(event.target.value) })} />
-              </Field>
-              <Field label="Rate per minute">
-                <input className="input" type="number" min={1} value={form.rateLimitPerMin} onChange={event => setForm({ ...form, rateLimitPerMin: Number(event.target.value) })} />
-              </Field>
+            <div>
+              <label className="ui-label">Key name</label>
+              <input
+                className="ui-input"
+                value={form.name}
+                onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
+                placeholder="Production gateway"
+                required
+              />
             </div>
-            {error && <Alert tone="bad">{error}</Alert>}
-            <button className="btn-primary w-full">Create key</button>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="ui-label">Daily limit</label>
+                <input
+                  className="ui-input"
+                  type="number"
+                  min={1}
+                  value={form.dailyLimit}
+                  onChange={event => setForm(current => ({ ...current, dailyLimit: Number(event.target.value) }))}
+                />
+              </div>
+              <div>
+                <label className="ui-label">Rate / minute</label>
+                <input
+                  className="ui-input"
+                  type="number"
+                  min={1}
+                  value={form.rateLimitPerMin}
+                  onChange={event => setForm(current => ({ ...current, rateLimitPerMin: Number(event.target.value) }))}
+                />
+              </div>
+            </div>
+
+            <button type="submit" className="ui-btn-primary w-full">
+              <KeyRound size={16} /> Create key
+            </button>
           </form>
-          {createdKey && (
-            <div className="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-4 backdrop-blur-xl">
-              <p className="text-sm font-semibold text-primary">New API key</p>
-              <code className="mt-2 block break-all rounded-lg bg-black/40 p-3 text-sm font-mono text-primary">{createdKey}</code>
-              <p className="mt-2 text-xs text-white/40">This value cannot be shown again.</p>
+
+          {revealedKey ? (
+            <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-700">Key secret (shown once)</p>
+              <code className="mt-2 block break-all rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs text-slate-700">{revealedKey}</code>
+            </div>
+          ) : null}
+        </Surface>
+
+        <Surface>
+          <SurfaceHeader title="Managed Keys" description="Enable, disable, and tune limits without redeploying client integrations." />
+
+          {loading ? (
+            <BusyPanel text="Loading API keys..." />
+          ) : keys.length === 0 ? (
+            <EmptyPanel text="No API keys found yet. Create one to start accepting traffic." />
+          ) : (
+            <div className="ui-table-wrap">
+              <table className="ui-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Prefix</th>
+                    <th>Today</th>
+                    <th>Daily Limit</th>
+                    <th>Rate / Min</th>
+                    <th>Status</th>
+                    <th>Last Used</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {keys.map(item => (
+                    <KeyRow
+                      key={item.id}
+                      item={item}
+                      onSave={saveKey}
+                      onDelete={deleteKey}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-        </Panel>
-
-        <Panel title="Managed keys" description="Operational access tokens and their current limit state.">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[880px] text-left text-sm">
-              <thead className="border-b border-white/5 text-xs uppercase text-white/40">
-                <tr>
-                  <th className="py-3 pr-4">Name</th>
-                  <th className="py-3 pr-4">Prefix</th>
-                  <th className="py-3 pr-4">Today</th>
-                  <th className="py-3 pr-4">Limit</th>
-                  <th className="py-3 pr-4">Rate</th>
-                  <th className="py-3 pr-4">Status</th>
-                  <th className="py-3 pr-4">Last used</th>
-                  <th className="py-3 pr-0 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {keys.map(key => (
-                  <ApiKeyRow key={key.id} item={key} onUpdate={updateKey} onDelete={deleteKey} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {keys.length === 0 && <EmptyState icon={KeyRound} message="No API keys have been created." />}
-        </Panel>
-      </div>
-    </Page>
+        </Surface>
+      </section>
+    </PageShell>
   )
 }
 
-function ApiKeyRow({ item, onUpdate, onDelete }: { item: ApiKey; onUpdate: (id: string, data: Partial<ApiKey>) => Promise<void>; onDelete: (id: string) => Promise<void> }) {
+function KeyRow({
+  item,
+  onSave,
+  onDelete,
+}: {
+  item: ApiKey
+  onSave: (id: string, data: Partial<ApiKey>) => Promise<void>
+  onDelete: (id: string, name: string) => Promise<void>
+}) {
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState({ name: item.name, dailyLimit: item.dailyLimit, rateLimitPerMin: item.rateLimitPerMin })
-  const usagePercent = item.dailyLimit > 0 ? Math.min(100, Math.round((item.requestsToday / item.dailyLimit) * 100)) : 0
+  const [draft, setDraft] = useState({
+    name: item.name,
+    dailyLimit: item.dailyLimit,
+    rateLimitPerMin: item.rateLimitPerMin,
+  })
+
+  const usagePercent = Math.min(100, item.dailyLimit > 0 ? Math.round((item.requestsToday / item.dailyLimit) * 100) : 0)
 
   async function save() {
-    await onUpdate(item.id, draft)
+    await onSave(item.id, {
+      name: draft.name,
+      dailyLimit: draft.dailyLimit,
+      rateLimitPerMin: draft.rateLimitPerMin,
+    })
     setEditing(false)
   }
 
   return (
-    <tr className="border-b border-white/5 last:border-0">
-      <td className="py-3 pr-4">
-        {editing ? <input className="input" value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} /> : <span className="font-semibold">{item.name}</span>}
+    <tr>
+      <td>
+        {editing ? (
+          <input
+            className="ui-input min-h-9"
+            value={draft.name}
+            onChange={event => setDraft(current => ({ ...current, name: event.target.value }))}
+          />
+        ) : (
+          <span className="font-semibold text-slate-800">{item.name}</span>
+        )}
       </td>
-      <td className="py-3 pr-4 font-mono text-xs text-primary/60">{item.keyPrefix}...</td>
-      <td className="py-3 pr-4">
-        <div className="h-2 w-28 rounded-full bg-white/5">
-          <div className={`h-2 rounded-full transition-all ${usagePercent > 90 ? 'bg-destructive' : usagePercent > 75 ? 'bg-warning' : 'bg-primary'}`} style={{ width: `${usagePercent}%` }} />
+
+      <td className="font-mono text-xs text-slate-600">{item.keyPrefix}...</td>
+
+      <td>
+        <div className="space-y-1">
+          <div className="ui-progress-track">
+            <div
+              className={`h-2 rounded-full ${usagePercent > 90 ? 'bg-rose-500' : usagePercent > 75 ? 'bg-amber-500' : 'bg-blue-600'}`}
+              style={{ width: `${usagePercent}%` }}
+            />
+          </div>
+          <p className="text-xs text-slate-500">{formatNumber(item.requestsToday)} ({usagePercent}%)</p>
         </div>
-        <span className="mt-1 block text-xs text-white/40">{formatNumber(item.requestsToday)}</span>
       </td>
-      <td className="py-3 pr-4">
-        {editing ? <input className="input w-28" type="number" min={1} value={draft.dailyLimit} onChange={event => setDraft({ ...draft, dailyLimit: Number(event.target.value) })} /> : formatNumber(item.dailyLimit)}
+
+      <td>
+        {editing ? (
+          <input
+            className="ui-input min-h-9"
+            type="number"
+            min={1}
+            value={draft.dailyLimit}
+            onChange={event => setDraft(current => ({ ...current, dailyLimit: Number(event.target.value) }))}
+          />
+        ) : (
+          formatNumber(item.dailyLimit)
+        )}
       </td>
-      <td className="py-3 pr-4">
-        {editing ? <input className="input w-24" type="number" min={1} value={draft.rateLimitPerMin} onChange={event => setDraft({ ...draft, rateLimitPerMin: Number(event.target.value) })} /> : `${item.rateLimitPerMin}/min`}
+
+      <td>
+        {editing ? (
+          <input
+            className="ui-input min-h-9"
+            type="number"
+            min={1}
+            value={draft.rateLimitPerMin}
+            onChange={event => setDraft(current => ({ ...current, rateLimitPerMin: Number(event.target.value) }))}
+          />
+        ) : (
+          formatNumber(item.rateLimitPerMin)
+        )}
       </td>
-      <td className="py-3 pr-4"><StatusPill ok={item.active} trueLabel="Active" falseLabel="Disabled" /></td>
-      <td className="py-3 pr-4 text-white/40">{item.lastUsed ? formatDate(item.lastUsed) : 'Never'}</td>
-      <td className="py-3 pr-0">
-        <div className="flex justify-end gap-2">
+
+      <td>{item.active ? <Chip tone="good">Active</Chip> : <Chip tone="warn">Disabled</Chip>}</td>
+
+      <td className="text-xs text-slate-500">{item.lastUsed ? formatDate(item.lastUsed) : 'Never'}</td>
+
+      <td>
+        <div className="flex flex-wrap justify-end gap-1.5">
           {editing ? (
-            <button className="btn-primary min-h-9 px-3" onClick={save}>Save</button>
+            <>
+              <button type="button" className="ui-btn-primary min-h-8 px-3 text-xs" onClick={() => void save()}>
+                Save
+              </button>
+              <button
+                type="button"
+                className="ui-btn-secondary min-h-8 px-3 text-xs"
+                onClick={() => {
+                  setDraft({
+                    name: item.name,
+                    dailyLimit: item.dailyLimit,
+                    rateLimitPerMin: item.rateLimitPerMin,
+                  })
+                  setEditing(false)
+                }}
+              >
+                Cancel
+              </button>
+            </>
           ) : (
-            <button className="btn-ghost min-h-9 px-3" onClick={() => setEditing(true)}>Edit</button>
+            <button type="button" className="ui-btn-secondary min-h-8 px-3 text-xs" onClick={() => setEditing(true)}>
+              <Pencil size={12} /> Edit
+            </button>
           )}
-          <button className="btn-ghost min-h-9 px-3" onClick={() => onUpdate(item.id, { active: !item.active })}>{item.active ? 'Disable' : 'Enable'}</button>
-          <button className="btn-ghost min-h-9 px-3 text-destructive hover:bg-destructive/10" onClick={() => onDelete(item.id)}><Trash2 size={15} /></button>
+
+          <button
+            type="button"
+            className="ui-btn-secondary min-h-8 px-3 text-xs"
+            onClick={() => void onSave(item.id, { active: !item.active })}
+          >
+            <Power size={12} /> {item.active ? 'Disable' : 'Enable'}
+          </button>
+
+          <button
+            type="button"
+            className="ui-btn-danger min-h-8 px-3 text-xs"
+            onClick={() => void onDelete(item.id, item.name)}
+          >
+            <Trash2 size={12} /> Remove
+          </button>
         </div>
       </td>
     </tr>

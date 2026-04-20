@@ -31,30 +31,30 @@ export function Sidebar({ collapsed, admin, onLogout }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "hidden lg:flex flex-col h-screen fixed left-0 top-0 z-40",
-        "bg-[#0a0a0a]/80 backdrop-blur-xl border-r border-white/5",
+        "fixed left-0 top-0 z-40 hidden h-screen flex-col lg:flex",
+        "border-r border-white/12 bg-background-secondary/90 shadow-[0_14px_34px_rgba(4,11,24,0.36)] backdrop-blur-xl",
         "transition-all duration-300 ease-in-out",
         collapsed ? "w-[72px]" : "w-[280px]"
       )}
     >
       {/* Logo */}
       <div className={cn(
-        "flex items-center h-16 px-5 border-b border-white/5 shrink-0",
+        "flex h-16 shrink-0 items-center border-b border-white/12 px-5",
         collapsed ? "justify-center" : "gap-3"
       )}>
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl border border-primary/20 bg-primary/10">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/30 bg-primary/12 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
           <ShieldCheck size={20} className="text-primary" />
         </div>
         {!collapsed && (
           <div className="animate-fade-in overflow-hidden">
-            <h1 className="font-bold text-base bg-gradient-to-r from-primary to-[hsl(270,80%,60%)] bg-clip-text text-transparent">Cortex</h1>
-            <p className="text-[10px] text-white/40 uppercase tracking-wider">Admin</p>
+            <h1 className="bg-gradient-to-r from-primary-light to-secondary-light bg-clip-text text-base font-bold text-transparent">Cortex</h1>
+            <p className="text-[10px] uppercase tracking-wider text-white/45">Admin</p>
           </div>
         )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {navItems.map(({ to, icon: Icon, label }) => {
           const active = location.pathname === to
           return (
@@ -64,8 +64,8 @@ export function Sidebar({ collapsed, admin, onLogout }: SidebarProps) {
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                 active
-                  ? "bg-primary/10 text-primary border border-primary/20"
-                  : "text-white/50 hover:bg-white/5 hover:text-white",
+                  ? "border border-primary/30 bg-primary/14 text-primary-light shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                  : "text-white/62 hover:bg-white/[0.06] hover:text-white",
                 collapsed && "justify-center px-2"
               )}
             >
@@ -78,21 +78,21 @@ export function Sidebar({ collapsed, admin, onLogout }: SidebarProps) {
 
       {/* User panel */}
       <div className={cn(
-        "border-t border-white/5 p-4 shrink-0",
+        "shrink-0 border-t border-white/12 p-4",
         collapsed && "flex justify-center"
       )}>
         {!collapsed && admin ? (
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full border border-primary/20 bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/12 text-sm font-semibold text-primary-light">
               {admin.username.slice(0, 2).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{admin.username}</p>
-              <p className="text-xs text-white/40 capitalize">{admin.role.replace('_', ' ')}</p>
+              <p className="text-xs capitalize text-white/48">{admin.role.replace('_', ' ')}</p>
             </div>
             <button
               onClick={onLogout}
-              className="p-2 rounded-lg text-white/40 hover:text-destructive hover:bg-white/5 transition-all"
+              className="rounded-lg p-2 text-white/45 transition-all hover:bg-white/[0.06] hover:text-destructive"
               title="Logout"
             >
               <LogOut size={16} />
@@ -101,7 +101,7 @@ export function Sidebar({ collapsed, admin, onLogout }: SidebarProps) {
         ) : (
           <button
             onClick={onLogout}
-            className="p-2 rounded-lg text-white/40 hover:text-destructive hover:bg-white/5 transition-all"
+            className="rounded-lg p-2 text-white/45 transition-all hover:bg-white/[0.06] hover:text-destructive"
             title="Logout"
           >
             <LogOut size={16} />

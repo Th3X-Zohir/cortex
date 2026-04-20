@@ -1,145 +1,172 @@
 import { useState } from 'react'
 import { Copy } from 'lucide-react'
-import { Page, Panel } from '@/components/shared/AppPrimitives'
+import {
+  Chip,
+  PageShell,
+  Surface,
+  SurfaceHeader,
+  SuccessBanner,
+} from '@/components/dashboard/UiKit'
 
 export function DocsPage() {
-  const [copied, setCopied] = useState<string | null>(null)
-
-  function copy(text: string, id: string) {
-    navigator.clipboard.writeText(text)
-    setCopied(id)
-    setTimeout(() => setCopied(null), 2000)
-  }
-
+  const [copiedId, setCopiedId] = useState<string | null>(null)
   const baseUrl = window.location.origin
 
+  function copy(text: string, id: string) {
+    void navigator.clipboard.writeText(text)
+    setCopiedId(id)
+    window.setTimeout(() => setCopiedId(null), 1500)
+  }
+
   return (
-    <Page title="API Documentation" description="Share this reference with API consumers. All endpoints are OpenAI-compatible.">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-5">
-          <Panel title="Authentication">
-            <p className="text-sm text-white/60">All <code className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-primary/60">/v1/*</code> endpoints require an API key passed via the <code className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-primary/60">Authorization</code> header or <code className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-primary/60">X-API-Key</code> header.</p>
-            <CodeBlock label="Header format" id="auth" onCopy={copy} copied={copied}>{`Authorization: Bearer ctx_your_api_key_here\n\n# Alternative:\nX-API-Key: ctx_your_api_key_here`}</CodeBlock>
-          </Panel>
+    <PageShell
+      title="Developer API Docs"
+      description="Operational integration reference for OpenAI-compatible requests and admin control endpoints."
+      action={<Chip tone="default">Base URL: {baseUrl}</Chip>}
+    >
+      {copiedId ? <SuccessBanner text="Code snippet copied to clipboard." /> : null}
 
-          <Panel title="POST /v1/chat/completions" description="Send a chat message and receive a completion. Supports streaming.">
-            <CodeBlock label="curl" id="curl-chat" onCopy={copy} copied={copied}>{`curl ${baseUrl}/v1/chat/completions \\\n  -H "Authorization: Bearer ctx_your_api_key_here" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "model": "web-grok/grok-3",\n    "messages": [\n      {"role": "system", "content": "You are a helpful assistant."},\n      {"role": "user", "content": "Hello!"}\n    ],\n    "stream": false,\n    "newConversation": true\n  }'`}</CodeBlock>
-            <CodeBlock label="Response" id="resp-chat" onCopy={copy} copied={copied}>{`{\n  "id": "chatcmpl-1710000000000",\n  "object": "chat.completion",\n  "model": "web-grok/grok-3",\n  "choices": [{\n    "index": 0,\n    "message": {"role": "assistant", "content": "Hello! How can I help?"},\n    "finish_reason": "stop"\n  }],\n  "usage": {"prompt_tokens": 18, "completion_tokens": 9, "total_tokens": 27}\n}`}</CodeBlock>
-          </Panel>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-4">
+          <Surface>
+            <SurfaceHeader title="Authentication" description="All /v1 endpoints require a valid API key unless API key enforcement is disabled." />
+            <CodeBlock
+              id="auth"
+              label="Headers"
+              value={`Authorization: Bearer ctx_your_api_key\n\n# Alternative header\nX-API-Key: ctx_your_api_key`}
+              onCopy={copy}
+              copiedId={copiedId}
+            />
+          </Surface>
 
-          <Panel title="Streaming" description="Set stream: true to receive Server-Sent Events.">
-            <CodeBlock label="Request body" id="stream-req" onCopy={copy} copied={copied}>{`{\n  "model": "web-claude/claude-opus",\n  "messages": [{"role": "user", "content": "Explain quantum computing"}],\n  "stream": true,\n  "newConversation": true\n}`}</CodeBlock>
-            <CodeBlock label="SSE output" id="stream-resp" onCopy={copy} copied={copied}>{`data: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{"content":"Quantum"},"finish_reason":null}]}\n\ndata: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{"content":" computing"},"finish_reason":null}]}\n\ndata: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]`}</CodeBlock>
-          </Panel>
+          <Surface>
+            <SurfaceHeader title="POST /v1/chat/completions" description="Primary OpenAI-compatible generation endpoint." />
+            <CodeBlock
+              id="chat-curl"
+              label="curl"
+              value={`curl ${baseUrl}/v1/chat/completions \\\n  -H "Authorization: Bearer ctx_your_api_key" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "model": "web-grok/grok-expert",\n    "messages": [\n      {"role": "user", "content": "Summarize this service in one sentence."}\n    ],\n    "stream": false,\n    "temperature": 0.7,\n    "max_tokens": 300\n  }'`}
+              onCopy={copy}
+              copiedId={copiedId}
+            />
+            <CodeBlock
+              id="chat-response"
+              label="JSON response"
+              value={`{\n  "id": "chatcmpl-...",\n  "object": "chat.completion",\n  "model": "web-grok/grok-expert",\n  "choices": [\n    {\n      "index": 0,\n      "message": { "role": "assistant", "content": "..." },\n      "finish_reason": "stop"\n    }\n  ],\n  "usage": {\n    "prompt_tokens": 42,\n    "completion_tokens": 126,\n    "total_tokens": 168\n  }\n}`}
+              onCopy={copy}
+              copiedId={copiedId}
+            />
+          </Surface>
 
-          <Panel title="GET /v1/models" description="List all available models.">
-            <CodeBlock label="curl" id="curl-models" onCopy={copy} copied={copied}>{`curl ${baseUrl}/v1/models \\\n  -H "Authorization: Bearer ctx_your_api_key_here"`}</CodeBlock>
-          </Panel>
+          <Surface>
+            <SurfaceHeader title="Streaming" description="Set stream=true for server-sent event chunks." />
+            <CodeBlock
+              id="stream"
+              label="SSE example"
+              value={`data: {"id":"chatcmpl-...","choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}\n\ndata: {"id":"chatcmpl-...","choices":[{"delta":{"content":" world"},"finish_reason":null}]}\n\ndata: [DONE]`}
+              onCopy={copy}
+              copiedId={copiedId}
+            />
+          </Surface>
 
-          <Panel title="Python SDK" description="Use the official OpenAI Python library.">
-            <CodeBlock label="example.py" id="python" onCopy={copy} copied={copied}>{`from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${baseUrl}/v1",\n    api_key="ctx_your_api_key_here"\n)\n\nresponse = client.chat.completions.create(\n    model="web-grok/grok-3",\n    messages=[{"role": "user", "content": "Hello!"}],\n    stream=False\n)\nprint(response.choices[0].message.content)\n\n# Streaming:\nfor chunk in client.chat.completions.create(\n    model="web-claude/claude-sonnet",\n    messages=[{"role": "user", "content": "Explain AI"}],\n    stream=True\n):\n    print(chunk.choices[0].delta.content or "", end="")`}</CodeBlock>
-          </Panel>
+          <Surface>
+            <SurfaceHeader title="Model Discovery" description="List available model IDs." />
+            <CodeBlock
+              id="models"
+              label="GET /v1/models"
+              value={`curl ${baseUrl}/v1/models \\\n  -H "Authorization: Bearer ctx_your_api_key"`}
+              onCopy={copy}
+              copiedId={copiedId}
+            />
+          </Surface>
 
-          <Panel title="JavaScript / TypeScript" description="Use the OpenAI Node.js library.">
-            <CodeBlock label="example.ts" id="js" onCopy={copy} copied={copied}>{`import OpenAI from "openai";\n\nconst client = new OpenAI({\n  baseURL: "${baseUrl}/v1",\n  apiKey: "ctx_your_api_key_here",\n});\n\nconst response = await client.chat.completions.create({\n  model: "web-gemini/gemini-2.5-pro",\n  messages: [{ role: "user", content: "Hello!" }],\n});\nconsole.log(response.choices[0].message.content);\n\n// Streaming:\nconst stream = await client.chat.completions.create({\n  model: "web-chatgpt/gpt-4o",\n  messages: [{ role: "user", content: "Hello!" }],\n  stream: true,\n});\nfor await (const chunk of stream) {\n  process.stdout.write(chunk.choices[0]?.delta?.content ?? "");\n}`}</CodeBlock>
-          </Panel>
+          <Surface>
+            <SurfaceHeader title="Admin Provider Controls" description="Provider login/logout is admin-managed, not available through /v1/login or /v1/logout." />
+            <CodeBlock
+              id="provider-login"
+              label="Provider login"
+              value={`curl ${baseUrl}/api/providers/gemini/login \\\n  -H "Authorization: Bearer <admin_jwt>" \\\n  -X POST`}
+              onCopy={copy}
+              copiedId={copiedId}
+            />
+            <CodeBlock
+              id="provider-logout"
+              label="Provider logout"
+              value={`curl ${baseUrl}/api/providers/gemini/logout \\\n  -H "Authorization: Bearer <admin_jwt>" \\\n  -X POST`}
+              onCopy={copy}
+              copiedId={copiedId}
+            />
+          </Surface>
+        </div>
 
-          <Panel title="Error codes" description="Standard error response format.">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-white/5 text-xs uppercase text-white/40">
+        <div className="space-y-4">
+          <Surface>
+            <SurfaceHeader title="Supported Provider Families" />
+            <ul className="space-y-2 text-sm text-slate-700">
+              <li className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">ChatGPT models: web-chatgpt/*</li>
+              <li className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">Grok models: web-grok/*</li>
+              <li className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">Gemini models: web-gemini/*</li>
+            </ul>
+          </Surface>
+
+          <Surface>
+            <SurfaceHeader title="Common Errors" />
+            <div className="ui-table-wrap">
+              <table className="ui-table min-w-full">
+                <thead>
                   <tr>
-                    <th className="py-2 pr-4 text-left">Code</th>
-                    <th className="py-2 pr-4 text-left">Meaning</th>
+                    <th>Code</th>
+                    <th>Meaning</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    ['401', 'Missing or invalid API key'],
-                    ['403', 'API key is disabled'],
-                    ['404', 'Unknown model or endpoint'],
-                    ['429', 'Rate limit or daily limit exceeded'],
-                    ['500', 'Internal server error'],
-                    ['503', 'Provider not connected — contact admin'],
-                  ].map(([code, desc]) => (
-                    <tr key={code} className="border-b border-white/5 last:border-0">
-                      <td className="py-2 pr-4 font-mono text-primary/60">{code}</td>
-                      <td className="py-2 pr-4 text-white/60">{desc}</td>
-                    </tr>
-                  ))}
+                  <tr><td>401</td><td>Missing or invalid API key</td></tr>
+                  <tr><td>403</td><td>Request blocked by auth or route policy</td></tr>
+                  <tr><td>404</td><td>Model or endpoint not found</td></tr>
+                  <tr><td>429</td><td>Rate limit or daily key limit exceeded</td></tr>
+                  <tr><td>503</td><td>Provider session unavailable</td></tr>
                 </tbody>
               </table>
             </div>
-          </Panel>
+          </Surface>
+
+          <Surface>
+            <SurfaceHeader title="Integration Notes" />
+            <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+              <li>Provider browser login is handled via admin endpoints.</li>
+              <li>Use /api/providers/models to fetch provider status and VNC metadata.</li>
+              <li>Use /api/playground/chat for admin-side testing with bearer auth.</li>
+            </ul>
+          </Surface>
         </div>
-
-        <div className="space-y-5">
-          <Panel title="Quick reference">
-            <div className="space-y-3 text-sm">
-              <div>
-                <p className="label text-white/60">Base URL</p>
-                <code className="mt-1 block break-all rounded-lg border border-white/10 bg-white/5 p-2 text-xs text-primary/60">{baseUrl}/v1</code>
-              </div>
-              <div>
-                <p className="label text-white/60">Chat endpoint</p>
-                <code className="mt-1 block rounded-lg border border-white/10 bg-white/5 p-2 text-xs">POST /v1/chat/completions</code>
-              </div>
-              <div>
-                <p className="label text-white/60">Models endpoint</p>
-                <code className="mt-1 block rounded-lg border border-white/10 bg-white/5 p-2 text-xs">GET /v1/models</code>
-              </div>
-              <div>
-                <p className="label text-white/60">Compatibility</p>
-                <p className="text-white/60">OpenAI API (chat completions)</p>
-              </div>
-              <div>
-                <p className="label text-white/60">Auth method</p>
-                <p className="text-white/60">Bearer token / X-API-Key</p>
-              </div>
-              <div>
-                <p className="label text-white/60">Streaming</p>
-                <p className="text-white/60">text/event-stream (SSE)</p>
-              </div>
-            </div>
-          </Panel>
-
-          <Panel title="Request parameters">
-            <div className="space-y-2 text-sm">
-              {[
-                ['model', 'string', 'Required. Model ID (e.g. web-grok/grok-3)'],
-                ['messages', 'array', 'Required. Array of {role, content} objects'],
-                ['stream', 'boolean', 'Optional. Enable SSE streaming (default: false)'],
-                ['newConversation', 'boolean', 'Optional. Start fresh conversation (default: true)'],
-                ['temperature', 'number', 'Optional. Sampling temperature'],
-                ['max_tokens', 'number', 'Optional. Max tokens to generate'],
-              ].map(([name, type, desc]) => (
-                <div key={name}>
-                  <p className="font-mono text-xs font-semibold text-primary/80">{name} <span className="text-white/40">({type})</span></p>
-                  <p className="text-xs text-white/60">{desc}</p>
-                </div>
-              ))}
-            </div>
-          </Panel>
-
-          <Panel title="Rate limits">
-            <p className="text-sm text-white/60">Each API key has per-minute and daily request limits configured by your administrator. Exceeding limits returns a <code className="rounded bg-white/5 px-1 py-0.5 text-xs text-primary/60">429</code> status code.</p>
-          </Panel>
-        </div>
-      </div>
-    </Page>
+      </section>
+    </PageShell>
   )
 }
 
-function CodeBlock({ children, label, id, onCopy, copied }: { children: string; label: string; id: string; onCopy: (text: string, id: string) => void; copied: string | null }) {
+function CodeBlock({
+  id,
+  label,
+  value,
+  copiedId,
+  onCopy,
+}: {
+  id: string
+  label: string
+  value: string
+  copiedId: string | null
+  onCopy: (text: string, id: string) => void
+}) {
   return (
-    <div className="mt-3 rounded-xl border border-white/10 bg-[#080808] text-white/80">
-      <div className="flex items-center justify-between border-b border-white/5 px-4 py-2">
-        <span className="text-xs font-semibold text-white/40">{label}</span>
-        <button className="text-xs text-white/40 transition-colors hover:text-primary" onClick={() => onCopy(children, id)}>
-          {copied === id ? 'Copied!' : <><Copy size={12} className="mr-1 inline" />Copy</>}
+    <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
+      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-300">{label}</p>
+        <button type="button" className="inline-flex items-center gap-1 text-xs text-slate-300 hover:text-white" onClick={() => onCopy(value, id)}>
+          <Copy size={12} /> {copiedId === id ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="overflow-x-auto p-4 text-sm leading-relaxed"><code>{children}</code></pre>
+      <pre className="ui-scroll overflow-x-auto p-4 text-xs leading-6 text-slate-100">
+        <code>{value}</code>
+      </pre>
     </div>
   )
 }

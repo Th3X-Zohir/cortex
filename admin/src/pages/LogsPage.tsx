@@ -1,205 +1,307 @@
 import { Fragment, useEffect, useState } from 'react'
-import { Activity, Search, ShieldCheck } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, formatNumber } from '@/lib/utils'
 import type { ApiKey, AuditLog, RequestLog } from '@/types'
-import { DataTable, EmptyState, Page, Panel, RefreshButton, StatusCode } from '@/components/shared/AppPrimitives'
+import {
+  BusyPanel,
+  Chip,
+  EmptyPanel,
+  ErrorBanner,
+  PageShell,
+  Surface,
+  SurfaceHeader,
+} from '@/components/dashboard/UiKit'
 
 export function LogsPage() {
   const [tab, setTab] = useState<'requests' | 'audit'>('requests')
-  const [logs, setLogs] = useState<RequestLog[]>([])
+  const [requestLogs, setRequestLogs] = useState<RequestLog[]>([])
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
-  const [keys, setKeys] = useState<ApiKey[]>([])
-  const [filters, setFilters] = useState({ search: '', provider: '', statusCode: '', apiKeyId: '' })
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null)
-  const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [filters, setFilters] = useState({
+    search: '',
+    provider: '',
+    statusCode: '',
+    apiKeyId: '',
+  })
 
   async function load() {
     setLoading(true)
+    setError(null)
+
     try {
       const [requestResult, auditResult, keyList] = await Promise.all([
         api.logs.list({
-          limit: 100,
+          limit: 120,
           search: filters.search || undefined,
           provider: filters.provider || undefined,
           statusCode: filters.statusCode ? Number(filters.statusCode) : undefined,
           apiKeyId: filters.apiKeyId || undefined,
         }),
-        api.logs.audit({ limit: 100, search: filters.search || undefined }),
+        api.logs.audit({
+          limit: 120,
+          search: filters.search || undefined,
+        }),
         api.admin.keys.list(),
       ])
-      setLogs(requestResult.logs)
+
+      setRequestLogs(requestResult.logs)
       setAuditLogs(auditResult.logs)
-      setKeys(keyList)
+      setApiKeys(keyList)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load logs')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    void load()
+  }, [])
 
   async function prune() {
-    const days = Number(window.prompt('Delete request logs older than how many days?', '90'))
-    if (!Number.isFinite(days) || days < 1) return
-    await api.logs.prune(days)
-    await load()
+    const answer = window.prompt('Delete request logs older than how many days?', '90')
+    const olderThanDays = Number(answer)
+    if (!Number.isFinite(olderThanDays) || olderThanDays < 1) return
+
+    setError(null)
+    try {
+      await api.logs.prune(olderThanDays)
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to prune logs')
+    }
   }
 
   return (
-    <Page title="Logs" description="Search request logs, failures, access events, and admin changes." action={<div className="flex gap-2"><button className="btn-ghost" onClick={prune}>Prune</button><RefreshButton onClick={load} loading={loading} /></div>}>
-      <Panel title="Filters" description="Filter by client key, provider, status, or free text.">
-        <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_160px_160px_220px_auto]">
+    <PageShell
+      title="Request and Audit Logs"
+      description="Search traffic records, inspect failures, and review admin activity with a unified forensic view."
+      action={
+        <>
+          <button type="button" className="ui-btn-secondary" onClick={prune}>Prune</button>
+          <button type="button" className="ui-btn-secondary" onClick={() => void load()}>Refresh</button>
+        </>
+      }
+    >
+      {error ? <ErrorBanner text={error} /> : null}
+
+      <Surface>
+        <SurfaceHeader title="Filters" description="Narrow results by provider, key, status code, and keyword text." />
+        <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_170px_150px_200px_auto]">
           <div className="relative">
-            <Search className="absolute left-3 top-3 text-white/40" size={16} />
-            <input className="input pl-9" placeholder="Search model, key, error, action" value={filters.search} onChange={event => setFilters({ ...filters, search: event.target.value })} />
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              className="ui-input pl-9"
+              placeholder="Search model, error, action"
+              value={filters.search}
+              onChange={event => setFilters(current => ({ ...current, search: event.target.value }))}
+            />
           </div>
-          <input className="input" placeholder="Provider" value={filters.provider} onChange={event => setFilters({ ...filters, provider: event.target.value })} />
-          <input className="input" placeholder="Status code" value={filters.statusCode} onChange={event => setFilters({ ...filters, statusCode: event.target.value })} />
-          <select className="input" value={filters.apiKeyId} onChange={event => setFilters({ ...filters, apiKeyId: event.target.value })}>
+          <input
+            className="ui-input"
+            placeholder="Provider"
+            value={filters.provider}
+            onChange={event => setFilters(current => ({ ...current, provider: event.target.value }))}
+          />
+          <input
+            className="ui-input"
+            placeholder="Status"
+            value={filters.statusCode}
+            onChange={event => setFilters(current => ({ ...current, statusCode: event.target.value }))}
+          />
+          <select
+            className="ui-input"
+            value={filters.apiKeyId}
+            onChange={event => setFilters(current => ({ ...current, apiKeyId: event.target.value }))}
+          >
             <option value="">All keys</option>
-            {keys.map(key => <option key={key.id} value={key.id}>{key.name}</option>)}
+            {apiKeys.map(key => (
+              <option key={key.id} value={key.id}>{key.name}</option>
+            ))}
           </select>
-          <button className="btn-primary" onClick={load}>Apply</button>
+          <button type="button" className="ui-btn-primary" onClick={() => void load()}>Apply</button>
         </div>
-      </Panel>
+      </Surface>
 
-      <div className="mt-5 flex gap-2">
-        <button className={tab === 'requests' ? 'btn-primary' : 'btn-ghost'} onClick={() => setTab('requests')}>Request logs</button>
-        <button className={tab === 'audit' ? 'btn-primary' : 'btn-ghost'} onClick={() => setTab('audit')}>Audit trail</button>
-      </div>
+      <Surface>
+        <SurfaceHeader
+          title="Log Streams"
+          description="Switch between runtime API request logs and admin audit events."
+          action={
+            <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+              <button
+                type="button"
+                className={tab === 'requests' ? 'ui-btn-primary min-h-8 px-3 text-xs' : 'ui-btn-secondary min-h-8 border-transparent px-3 text-xs'}
+                onClick={() => {
+                  setTab('requests')
+                  setExpanded(null)
+                }}
+              >
+                Request logs
+              </button>
+              <button
+                type="button"
+                className={tab === 'audit' ? 'ui-btn-primary min-h-8 px-3 text-xs' : 'ui-btn-secondary min-h-8 border-transparent px-3 text-xs'}
+                onClick={() => {
+                  setTab('audit')
+                  setExpanded(null)
+                }}
+              >
+                Audit logs
+              </button>
+            </div>
+          }
+        />
 
-      {tab === 'requests' ? (
-        <Panel title="API request logs" description="Provider calls and rejected access attempts." className="mt-5">
-          <DataTable headers={['Time', 'Key', 'Provider', 'Model', 'Status', 'Latency', 'Tokens', 'Summary', 'Details']}>
-            {logs.map(log => (
-              <Fragment key={log.id}>
-                <tr className="border-b border-white/5 last:border-0">
-                  <td className="py-3 pr-4 text-white/40">{formatDate(log.createdAt)}</td>
-                  <td className="py-3 pr-4">{log.apiKeyName ?? 'Unknown'}</td>
-                  <td className="py-3 pr-4">{log.provider}</td>
-                  <td className="py-3 pr-4 font-mono text-xs text-primary/60">{log.model}</td>
-                  <td className="py-3 pr-4"><StatusCode code={log.statusCode} /></td>
-                  <td className="py-3 pr-4">{log.responseTimeMs ?? 0} ms</td>
-                  <td className="py-3 pr-4">
-                    <div className="text-xs">
-                      <p className="font-semibold">{formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)}</p>
-                      <p className="text-white/40">in {formatNumber(log.promptTokens ?? 0)} / out {formatNumber(log.completionTokens ?? 0)}</p>
-                    </div>
-                  </td>
-                  <td className="py-3 pr-4 text-sm text-white/60">{log.error || `${log.messagesCount} messages${log.stream ? ' · stream' : ''}`}</td>
-                  <td className="py-3 pr-4">
-                    <button className="btn-ghost min-h-8 px-3 py-1 text-xs" onClick={() => setExpandedRequestId(expandedRequestId === log.id ? null : log.id)}>
-                      {expandedRequestId === log.id ? 'Hide' : 'View'}
-                    </button>
-                  </td>
-                </tr>
-                {expandedRequestId === log.id && (
-                  <tr className="border-b border-white/5 bg-white/[0.02]">
-                    <td colSpan={9} className="p-4">
-                      <RequestLogDetails log={log} />
-                    </td>
+        {loading ? (
+          <BusyPanel text="Loading log records..." />
+        ) : tab === 'requests' ? (
+          requestLogs.length ? (
+            <div className="ui-table-wrap">
+              <table className="ui-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Key</th>
+                    <th>Provider</th>
+                    <th>Model</th>
+                    <th>Status</th>
+                    <th>Latency</th>
+                    <th>Tokens</th>
+                    <th>Summary</th>
+                    <th>Details</th>
                   </tr>
-                )}
-              </Fragment>
-            ))}
-          </DataTable>
-          {logs.length === 0 && <EmptyState icon={Activity} message="No matching request logs." />}
-        </Panel>
-      ) : (
-        <Panel title="Admin audit trail" description="Authentication, key, provider, and settings actions." className="mt-5">
-          <DataTable headers={['Time', 'Admin', 'Action', 'Entity', 'IP address', 'Metadata', 'Details']}>
-            {auditLogs.map(log => (
-              <Fragment key={log.id}>
-                <tr className="border-b border-white/5 last:border-0">
-                  <td className="py-3 pr-4 text-white/40">{formatDate(log.createdAt)}</td>
-                  <td className="py-3 pr-4">{log.adminUsername ?? 'System'}</td>
-                  <td className="py-3 pr-4 font-semibold text-primary">{log.action.replace(/_/g, ' ')}</td>
-                  <td className="py-3 pr-4">{log.entityType}{log.entityId ? ` · ${log.entityId.slice(0, 8)}` : ''}</td>
-                  <td className="py-3 pr-4 text-white/60">{log.ipAddress ?? 'Unknown'}</td>
-                  <td className="max-w-sm truncate py-3 pr-4 text-xs text-white/40">{log.metadata ? JSON.stringify(log.metadata) : ''}</td>
-                  <td className="py-3 pr-4">
-                    <button className="btn-ghost min-h-8 px-3 py-1 text-xs" onClick={() => setExpandedAuditId(expandedAuditId === log.id ? null : log.id)}>
-                      {expandedAuditId === log.id ? 'Hide' : 'View'}
-                    </button>
-                  </td>
+                </thead>
+                <tbody>
+                  {requestLogs.map(log => (
+                    <Fragment key={log.id}>
+                      <tr>
+                        <td>{formatDate(log.createdAt)}</td>
+                        <td>{log.apiKeyName ?? 'Unknown'}</td>
+                        <td>{log.provider}</td>
+                        <td className="font-mono text-xs text-slate-600">{log.model}</td>
+                        <td>
+                          {typeof log.statusCode === 'number' ? (
+                            log.statusCode >= 500 ? (
+                              <Chip tone="bad">{log.statusCode}</Chip>
+                            ) : log.statusCode >= 400 ? (
+                              <Chip tone="warn">{log.statusCode}</Chip>
+                            ) : (
+                              <Chip tone="good">{log.statusCode}</Chip>
+                            )
+                          ) : (
+                            <Chip tone="default">Pending</Chip>
+                          )}
+                        </td>
+                        <td>{log.responseTimeMs ?? 0} ms</td>
+                        <td>{formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)}</td>
+                        <td className="max-w-[320px] truncate text-slate-600">
+                          {log.error ? log.error : `${log.messagesCount} messages${log.stream ? ' • stream' : ''}`}
+                        </td>
+                        <td>
+                          <button type="button" className="ui-btn-secondary min-h-8 px-3 text-xs" onClick={() => setExpanded(expanded === log.id ? null : log.id)}>
+                            {expanded === log.id ? 'Hide' : 'View'}
+                          </button>
+                        </td>
+                      </tr>
+                      {expanded === log.id ? (
+                        <tr>
+                          <td colSpan={9}>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                              <div className="grid gap-3 md:grid-cols-3">
+                                <Detail label="Log ID" value={log.id} mono />
+                                <Detail label="API Key ID" value={log.apiKeyId ?? 'None'} mono />
+                                <Detail label="IP Address" value={log.ipAddress ?? 'Unknown'} mono />
+                                <Detail label="Prompt Tokens" value={formatNumber(log.promptTokens ?? 0)} />
+                                <Detail label="Completion Tokens" value={formatNumber(log.completionTokens ?? 0)} />
+                                <Detail label="Total Tokens" value={formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)} />
+                                <Detail label="User Agent" value={log.userAgent ?? 'Unknown'} wide />
+                              </div>
+                              {log.error ? (
+                                <pre className="mt-3 overflow-auto rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                                  {log.error}
+                                </pre>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyPanel text="No request logs matched the current filters." />
+          )
+        ) : auditLogs.length ? (
+          <div className="ui-table-wrap">
+            <table className="ui-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Admin</th>
+                  <th>Action</th>
+                  <th>Entity</th>
+                  <th>IP</th>
+                  <th>Details</th>
                 </tr>
-                {expandedAuditId === log.id && (
-                  <tr className="border-b border-white/5 bg-white/[0.02]">
-                    <td colSpan={7} className="p-4">
-                      <AuditLogDetails log={log} />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            ))}
-          </DataTable>
-          {auditLogs.length === 0 && <EmptyState icon={ShieldCheck} message="No matching audit events." />}
-        </Panel>
-      )}
-    </Page>
+              </thead>
+              <tbody>
+                {auditLogs.map(log => (
+                  <Fragment key={log.id}>
+                    <tr>
+                      <td>{formatDate(log.createdAt)}</td>
+                      <td>{log.adminUsername ?? 'System'}</td>
+                      <td>
+                        <Chip tone="default">{log.action.replace(/_/g, ' ')}</Chip>
+                      </td>
+                      <td>{log.entityType}{log.entityId ? ` • ${log.entityId.slice(0, 8)}` : ''}</td>
+                      <td>{log.ipAddress ?? 'Unknown'}</td>
+                      <td>
+                        <button type="button" className="ui-btn-secondary min-h-8 px-3 text-xs" onClick={() => setExpanded(expanded === log.id ? null : log.id)}>
+                          {expanded === log.id ? 'Hide' : 'View'}
+                        </button>
+                      </td>
+                    </tr>
+                    {expanded === log.id ? (
+                      <tr>
+                        <td colSpan={6}>
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="grid gap-3 md:grid-cols-3">
+                              <Detail label="Audit ID" value={log.id} mono />
+                              <Detail label="Admin ID" value={log.adminId ?? 'None'} mono />
+                              <Detail label="User Agent" value={log.userAgent ?? 'Unknown'} wide />
+                            </div>
+                            <pre className="mt-3 overflow-auto rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
+                              {log.metadata ? JSON.stringify(log.metadata, null, 2) : 'No metadata'}
+                            </pre>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyPanel text="No audit logs matched the current filters." />
+        )}
+      </Surface>
+    </PageShell>
   )
 }
 
-function RequestLogDetails({ log }: { log: RequestLog }) {
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-3">
-        <DetailItem label="Log ID" value={log.id} mono />
-        <DetailItem label="Created" value={formatDate(log.createdAt)} />
-        <DetailItem label="Status code" value={log.statusCode ?? 'Pending'} />
-        <DetailItem label="API key name" value={log.apiKeyName ?? 'Unknown'} />
-        <DetailItem label="API key ID" value={log.apiKeyId ?? 'None'} mono />
-        <DetailItem label="Stream" value={log.stream ? 'Yes' : 'No'} />
-        <DetailItem label="Provider" value={log.provider} />
-        <DetailItem label="Model" value={log.model} mono />
-        <DetailItem label="Messages" value={formatNumber(log.messagesCount)} />
-        <DetailItem label="Latency" value={`${log.responseTimeMs ?? 0} ms`} />
-        <DetailItem label="Input tokens" value={formatNumber(log.promptTokens ?? 0)} />
-        <DetailItem label="Output tokens" value={formatNumber(log.completionTokens ?? 0)} />
-        <DetailItem label="Total tokens" value={formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)} />
-        <DetailItem label="IP address" value={log.ipAddress ?? 'Unknown'} mono />
-        <DetailItem label="User agent" value={log.userAgent ?? 'Unknown'} wide />
-      </div>
-      {log.error && (
-        <div>
-          <p className="label text-white/60">Error detail</p>
-          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">{log.error}</pre>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function AuditLogDetails({ log }: { log: AuditLog }) {
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-3">
-        <DetailItem label="Audit ID" value={log.id} mono />
-        <DetailItem label="Created" value={formatDate(log.createdAt)} />
-        <DetailItem label="Action" value={log.action.replace(/_/g, ' ')} />
-        <DetailItem label="Admin" value={log.adminUsername ?? 'System'} />
-        <DetailItem label="Admin ID" value={log.adminId ?? 'None'} mono />
-        <DetailItem label="Entity type" value={log.entityType} />
-        <DetailItem label="Entity ID" value={log.entityId ?? 'None'} mono />
-        <DetailItem label="IP address" value={log.ipAddress ?? 'Unknown'} mono />
-        <DetailItem label="User agent" value={log.userAgent ?? 'Unknown'} wide />
-      </div>
-      <div>
-        <p className="label text-white/60">Metadata</p>
-        <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
-          {log.metadata ? JSON.stringify(log.metadata, null, 2) : 'No metadata'}
-        </pre>
-      </div>
-    </div>
-  )
-}
-
-function DetailItem({ label, value, mono = false, wide = false }: { label: string; value: React.ReactNode; mono?: boolean; wide?: boolean }) {
+function Detail({ label, value, mono = false, wide = false }: { label: string; value: string | number; mono?: boolean; wide?: boolean }) {
   return (
     <div className={wide ? 'md:col-span-3' : ''}>
-      <p className="label text-white/60">{label}</p>
-      <p className={`mt-1 break-words text-sm ${mono ? 'font-mono text-xs text-primary/60' : ''}`}>{value}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">{label}</p>
+      <p className={`mt-1 break-words text-sm text-slate-700 ${mono ? 'font-mono text-xs' : ''}`}>{value}</p>
     </div>
   )
 }

@@ -13,9 +13,9 @@ export function useTheme(): UseThemeReturn {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("cortex_theme") as Theme | null
       if (stored) return stored
-      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+      return "light"
     }
-    return "dark"
+    return "light"
   })
 
   React.useEffect(() => {

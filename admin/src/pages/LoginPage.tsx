@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, Lock, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Loader2, LockKeyhole, ShieldCheck } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { Admin } from '@/types'
 
@@ -7,13 +7,14 @@ export function LoginPage({ onLogin }: { onLogin?: (admin: Admin) => void }) {
   const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('')
   const [persist, setPersist] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     setLoading(true)
     setError(null)
+
     try {
       const response = await api.auth.login(username, password)
       const storage = persist ? localStorage : sessionStorage
@@ -33,65 +34,92 @@ export function LoginPage({ onLogin }: { onLogin?: (admin: Admin) => void }) {
   }
 
   return (
-    <div className="grid min-h-screen bg-[#080808] lg:grid-cols-[minmax(0,1fr)_520px]">
-      <section className="hidden border-r border-white/5 bg-[#0a0a0a]/50 lg:flex lg:flex-col lg:justify-between backdrop-blur-xl">
-        <div className="p-12">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
-              <ShieldCheck size={24} className="text-primary" />
+    <div className="grid min-h-screen grid-cols-1 bg-transparent lg:grid-cols-[minmax(0,1fr)_560px]">
+      <section className="relative hidden overflow-hidden lg:block">
+        <div className="absolute inset-0 bg-[linear-gradient(145deg,#1d4ed8_0%,#0f172a_45%,#0f766e_100%)]" />
+        <div className="absolute left-[-8%] top-[-16%] h-[34rem] w-[34rem] rounded-full bg-white/20 blur-3xl" />
+        <div className="absolute bottom-[-20%] right-[-8%] h-[30rem] w-[30rem] rounded-full bg-cyan-300/30 blur-3xl" />
+
+        <div className="relative z-10 flex h-full flex-col justify-between p-14 text-white">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-3 py-2 backdrop-blur">
+              <ShieldCheck size={16} />
+              <span className="text-sm font-semibold">Cortex Admin Platform</span>
             </div>
-            <p className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-xl font-bold text-transparent">Cortex Admin</p>
-          </div>
-          <div className="mt-24 max-w-xl">
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">Secure operations</p>
-            <h1 className="mt-4 bg-gradient-to-b from-white to-white/60 bg-clip-text text-5xl font-bold leading-tight text-transparent">
-              Control API access, usage limits, provider sessions, and production logs.
+
+            <h1 className="mt-8 max-w-lg text-5xl font-semibold leading-tight tracking-tight">
+              Professional operations cockpit for AI gateway management.
             </h1>
-            <p className="mt-5 text-lg text-white/50">
-              Token-gated administration for daily service operations.
+            <p className="mt-5 max-w-lg text-base text-blue-100">
+              Review live traffic, control provider sessions, secure API keys, and manage administrators from one modern control surface.
             </p>
           </div>
-        </div>
-        <div className="grid grid-cols-3 border-t border-white/5">
-          {['API keys', 'Rate controls', 'Audit trail'].map(item => (
-            <div key={item} className="border-r border-white/5 p-6 text-sm text-white/40 last:border-r-0">
-              {item}
-            </div>
-          ))}
+
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              ['Access Control', 'Issue and rotate keys'],
+              ['Provider Control', 'Live login and status'],
+              ['Audit Coverage', 'Complete event history'],
+            ].map(([title, text]) => (
+              <div key={title} className="rounded-2xl border border-white/20 bg-white/10 p-3 backdrop-blur">
+                <p className="text-sm font-semibold">{title}</p>
+                <p className="mt-1 text-xs text-blue-100">{text}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      <section className="flex items-center justify-center px-5 py-10">
-        <form className="w-full max-w-sm" onSubmit={submit}>
-          <div className="mb-8 lg:hidden">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
-                <ShieldCheck size={22} className="text-primary" />
-              </div>
-              <p className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-lg font-bold text-transparent">Cortex Admin</p>
+      <section className="flex items-center justify-center p-6 md:p-10">
+        <form className="w-full max-w-md rounded-3xl border border-slate-200 bg-white/92 p-7 shadow-[0_18px_46px_rgba(15,23,42,0.12)] backdrop-blur" onSubmit={submit}>
+          <div className="mb-6">
+            <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <LockKeyhole size={16} className="text-blue-700" />
+              <span className="text-sm font-semibold text-slate-700">Admin Sign In</span>
             </div>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">Welcome back</h2>
+            <p className="mt-2 text-sm text-slate-600">Authenticate to access the Cortex operations dashboard.</p>
           </div>
-          <h2 className="text-3xl font-bold text-white">Admin sign in</h2>
-          <p className="mt-2 text-sm text-white/50">
-            Use an admin account to manage keys, limits, logs, and providers.
-          </p>
-          <div className="mt-8 space-y-4">
+
+          <div className="space-y-4">
             <div>
-              <label className="label text-white/60">Username</label>
-              <input id="username" className="input mt-2" value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" />
+              <label className="ui-label">Username</label>
+              <input
+                className="ui-input"
+                value={username}
+                onChange={event => setUsername(event.target.value)}
+                autoComplete="username"
+                required
+              />
             </div>
+
             <div>
-              <label className="label text-white/60">Password</label>
-              <input id="password" className="input mt-2" type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" />
+              <label className="ui-label">Password</label>
+              <input
+                className="ui-input"
+                type="password"
+                value={password}
+                onChange={event => setPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+              />
             </div>
-            <label className="flex items-center gap-2 text-sm text-white/50">
-              <input type="checkbox" checked={persist} onChange={event => setPersist(event.target.checked)} className="accent-primary" />
+
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={persist}
+                onChange={event => setPersist(event.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-700"
+              />
               Keep me signed in on this device
             </label>
-            {error && <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive backdrop-blur-xl">{error}</div>}
-            <button className="btn-primary w-full" disabled={loading}>
-              {loading ? <Loader2 className="animate-spin" size={18} /> : <Lock size={18} />}
-              Sign in
+
+            {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
+
+            <button type="submit" className="ui-btn-primary w-full" disabled={loading}>
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+              Continue to dashboard
             </button>
           </div>
         </form>

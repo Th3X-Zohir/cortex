@@ -1,126 +1,215 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Cpu, ExternalLink, Eye, PlugZap } from 'lucide-react'
+import { ExternalLink, LogIn, LogOut, ShieldCheck } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, formatNumber } from '@/lib/utils'
 import type { ModelCatalog } from '@/types'
-import { Alert, Metric, Page, Panel, RefreshButton, StatusPill } from '@/components/shared/AppPrimitives'
+import {
+  BusyPanel,
+  Chip,
+  EmptyPanel,
+  ErrorBanner,
+  PageShell,
+  SuccessBanner,
+  Surface,
+  SurfaceHeader,
+} from '@/components/dashboard/UiKit'
 
 export function ProvidersPage() {
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
   const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<string, string>>({})
 
   async function load() {
     setLoading(true)
+    setError(null)
+
     try {
-      setCatalog(await api.providers.models())
+      const next = await api.providers.models()
+      setCatalog(next)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load provider catalog')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    void load()
+  }, [])
 
-  async function action(provider: string, operation: 'login' | 'logout') {
-    setMessage(null)
+  async function trigger(provider: string, action: 'login' | 'logout') {
+    setError(null)
+    setNotice(null)
+
     try {
-      if (operation === 'login') await api.providers.login(provider)
+      if (action === 'login') await api.providers.login(provider)
       else await api.providers.logout(provider)
-      setMessage(operation === 'login' ? 'Login browser started on the server.' : 'Provider session closed.')
+      setNotice(action === 'login' ? `Login started for ${provider}.` : `${provider} session closed.`)
       await load()
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Provider action failed')
+      setError(err instanceof Error ? err.message : 'Provider action failed')
     }
   }
 
   async function saveApiKey(provider: string) {
-    const key = apiKeyDrafts[provider]?.trim()
-    if (!key) {
-      setMessage('Enter an API key before saving.')
+    const value = apiKeyDrafts[provider]?.trim()
+    if (!value) {
+      setError('Enter an API key value before saving.')
       return
     }
+
+    setError(null)
+    setNotice(null)
+
     try {
-      await api.providers.setApiKey(provider, key)
-      setApiKeyDrafts({ ...apiKeyDrafts, [provider]: '' })
-      setMessage(`${provider} credentials saved. Provider status will refresh on the next request.`)
+      await api.providers.setApiKey(provider, value)
+      setApiKeyDrafts(current => ({ ...current, [provider]: '' }))
+      setNotice(`${provider} API key saved.`)
       await load()
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Unable to save provider credentials')
+      setError(err instanceof Error ? err.message : 'Unable to save API key')
     }
   }
 
-  const grouped = useMemo(() => {
-    const byProvider = new Map<string, ModelCatalog['models']>()
+  const groupedModels = useMemo(() => {
+    const map = new Map<string, ModelCatalog['models']>()
     for (const model of catalog?.models ?? []) {
-      const list = byProvider.get(model.provider) ?? []
-      list.push(model)
-      byProvider.set(model.provider, list)
+      const current = map.get(model.provider) ?? []
+      current.push(model)
+      map.set(model.provider, current)
     }
-    return byProvider
-  }, [catalog])
+    return map
+  }, [catalog?.models])
+
+  const providers = catalog?.providers ?? []
+  const connected = providers.filter(provider => provider.sessionValid).length
 
   return (
-    <Page title="Model Control" description="Manage model sessions, provider credentials, usage, and browser login workflows." action={<RefreshButton onClick={load} loading={loading} />}>
-      {message && <Alert>{message}</Alert>}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Metric label="Models" value={formatNumber(catalog?.models.length ?? 0)} helper="Registered in Cortex" icon={Cpu} />
-        <Metric label="Connected" value={formatNumber(catalog?.providers.filter(p => p.sessionValid).length ?? 0)} helper="Ready providers" icon={PlugZap} tone={(catalog?.providers.some(p => p.sessionValid) ?? false) ? 'good' : 'warn'} />
-        <Metric label="VNC" value={catalog?.vnc.enabled ? 'Ready' : 'Off'} helper={catalog?.vnc.url ? catalog.vnc.path : 'Unavailable'} icon={Eye} />
-      </div>
+    <PageShell
+      title="Provider Control"
+      description="Manage provider sessions, inspect model-level telemetry, and launch browser login workflows."
+      action={<button type="button" className="ui-btn-secondary" onClick={() => void load()}>Refresh</button>}
+    >
+      {error ? <ErrorBanner text={error} /> : null}
+      {notice ? <SuccessBanner text={notice} /> : null}
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-2">
-        {(catalog?.providers ?? []).map(provider => (
-          <Panel key={provider.name} title={provider.name} description={`${grouped.get(provider.name)?.length ?? provider.models.length} model configurations`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="space-y-2">
-                <StatusPill ok={provider.sessionValid} trueLabel="Connected" falseLabel={provider.hasProfile ? 'Profile exists' : 'Disconnected'} />
-                <p className="text-sm text-white/60">
-                  {provider.name.endsWith('-api') ? 'Uses configured server API credentials.' : 'Uses a managed browser session profile.'}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                {!provider.name.endsWith('-api') && <button className="btn-primary" onClick={() => action(provider.name, 'login')}>Login</button>}
-                <button className="btn-ghost" onClick={() => action(provider.name, 'logout')}>Logout</button>
-                {!provider.name.endsWith('-api') && catalog?.vnc.url && (
-                  <a className="btn-ghost" href={catalog.vnc.url} target="_blank" rel="noreferrer"><ExternalLink size={15} />VNC</a>
-                )}
-              </div>
-            </div>
-            {provider.name.endsWith('-api') && (
-              <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                <input
-                  className="input"
-                  type="password"
-                  placeholder={`${catalog?.apiKeysConfigured[provider.name] ? 'Replace' : 'Set'} ${provider.name} API key`}
-                  value={apiKeyDrafts[provider.name] ?? ''}
-                  onChange={event => setApiKeyDrafts({ ...apiKeyDrafts, [provider.name]: event.target.value })}
+      <section className="grid gap-3 sm:grid-cols-3">
+        <Surface className="p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Providers</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatNumber(providers.length)}</p>
+          <p className="text-xs text-slate-600">Configured runtime providers</p>
+        </Surface>
+        <Surface className="p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Connected Sessions</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatNumber(connected)}</p>
+          <p className="text-xs text-slate-600">Ready for immediate requests</p>
+        </Surface>
+        <Surface className="p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">VNC Endpoint</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900">{catalog?.vnc.enabled ? 'Enabled' : 'Unavailable'}</p>
+          <p className="text-xs text-slate-600">{catalog?.vnc.path ?? 'No path configured'}</p>
+        </Surface>
+      </section>
+
+      {loading ? (
+        <BusyPanel text="Loading provider metadata..." />
+      ) : providers.length === 0 ? (
+        <EmptyPanel text="No providers available in the current runtime." />
+      ) : (
+        <section className="grid gap-4 xl:grid-cols-2">
+          {providers.map(provider => {
+            const models = groupedModels.get(provider.name) ?? []
+            const isApiProvider = provider.name.endsWith('-api')
+            const apiConfigured = catalog?.apiKeysConfigured?.[provider.name]
+
+            return (
+              <Surface key={provider.name}>
+                <SurfaceHeader
+                  title={provider.name}
+                  description={`${models.length} models linked`}
+                  action={
+                    <Chip tone={provider.sessionValid ? 'good' : provider.hasProfile ? 'warn' : 'bad'}>
+                      {provider.sessionValid ? 'Connected' : provider.hasProfile ? 'Profile available' : 'Disconnected'}
+                    </Chip>
+                  }
                 />
-                <button className="btn-primary" onClick={() => saveApiKey(provider.name)}>Save key</button>
-              </div>
-            )}
-            <div className="mt-4 flex flex-wrap gap-2">
-              {(grouped.get(provider.name) ?? []).map(model => (
-                <div className="min-w-56 flex-1 rounded-xl border border-white/10 bg-white/[0.02] p-3 backdrop-blur-xl" key={model.id}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold">{model.displayName}</p>
-                      <p className="mt-1 font-mono text-xs text-white/40">{model.id}</p>
-                    </div>
-                    <span className="status-primary">{model.owned_by}</span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                    <div><p className="label text-white/60">Requests</p><p className="font-semibold">{formatNumber(model.usage.requests)}</p></div>
-                    <div><p className="label text-white/60">Tokens</p><p className="font-semibold">{formatNumber(model.usage.totalTokens)}</p></div>
-                    <div><p className="label text-white/60">Errors</p><p className="font-semibold">{formatNumber(model.usage.errorCount)}</p></div>
-                  </div>
-                  <p className="mt-2 text-xs text-white/40">Last used {model.usage.lastUsed ? formatDate(model.usage.lastUsed) : 'never'}</p>
+
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {!isApiProvider ? (
+                    <button type="button" className="ui-btn-primary" onClick={() => void trigger(provider.name, 'login')}>
+                      <LogIn size={15} /> Login
+                    </button>
+                  ) : null}
+
+                  <button type="button" className="ui-btn-secondary" onClick={() => void trigger(provider.name, 'logout')}>
+                    <LogOut size={15} /> Logout
+                  </button>
+
+                  {!isApiProvider && catalog?.vnc.url ? (
+                    <a className="ui-btn-secondary" href={catalog.vnc.url} target="_blank" rel="noreferrer">
+                      <ExternalLink size={15} /> Open VNC
+                    </a>
+                  ) : null}
                 </div>
-              ))}
-            </div>
-          </Panel>
-        ))}
-      </div>
-    </Page>
+
+                {isApiProvider ? (
+                  <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Server API Credential</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                      <input
+                        className="ui-input"
+                        type="password"
+                        value={apiKeyDrafts[provider.name] ?? ''}
+                        placeholder={apiConfigured ? 'Replace provider API key' : 'Set provider API key'}
+                        onChange={event => setApiKeyDrafts(current => ({ ...current, [provider.name]: event.target.value }))}
+                      />
+                      <button type="button" className="ui-btn-primary" onClick={() => void saveApiKey(provider.name)}>
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="space-y-2">
+                  {models.length === 0 ? (
+                    <EmptyPanel text="No models listed for this provider." />
+                  ) : (
+                    models.map(model => (
+                      <article key={model.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{model.displayName}</p>
+                            <p className="font-mono text-xs text-slate-600">{model.id}</p>
+                          </div>
+                          <Chip tone="default">{model.owned_by}</Chip>
+                        </div>
+
+                        <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-4">
+                          <p><span className="font-semibold text-slate-800">Requests:</span> {formatNumber(model.usage.requests)}</p>
+                          <p><span className="font-semibold text-slate-800">Tokens:</span> {formatNumber(model.usage.totalTokens)}</p>
+                          <p><span className="font-semibold text-slate-800">Latency:</span> {formatNumber(model.usage.avgResponseTime)} ms</p>
+                          <p><span className="font-semibold text-slate-800">Errors:</span> {formatNumber(model.usage.errorCount)}</p>
+                        </div>
+
+                        <p className="mt-2 text-xs text-slate-500">
+                          Last used {model.usage.lastUsed ? formatDate(model.usage.lastUsed) : 'never'}
+                        </p>
+                      </article>
+                    ))
+                  )}
+                </div>
+
+                <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-700">
+                  <p className="inline-flex items-center gap-1 font-semibold"><ShieldCheck size={12} /> Session tip</p>
+                  <p className="mt-1">If a provider is disconnected, launch Login and complete auth in VNC, then refresh status.</p>
+                </div>
+              </Surface>
+            )
+          })}
+        </section>
+      )}
+    </PageShell>
   )
 }

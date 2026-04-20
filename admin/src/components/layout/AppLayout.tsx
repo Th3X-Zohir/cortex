@@ -26,7 +26,7 @@ export function AppLayout({ admin, onLogout }: AppLayoutProps) {
   if (!admin) return null
 
   return (
-    <div className="min-h-screen bg-[#080808]">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Sidebar (desktop) */}
       <Sidebar
         collapsed={sidebarCollapsed}
@@ -46,7 +46,7 @@ export function AppLayout({ admin, onLogout }: AppLayoutProps) {
       {/* Main content */}
       <div
         className={cn(
-          "flex flex-col min-h-screen transition-all duration-300",
+          "flex min-h-screen flex-col transition-all duration-300",
           "lg:ml-[280px]",
           sidebarCollapsed && "lg:ml-[72px]"
         )}

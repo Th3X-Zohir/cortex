@@ -14,6 +14,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["Manrope", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["IBM Plex Mono", "ui-monospace", "SFMono-Regular", "monospace"],
+      },
       colors: {
         border: "hsl(var(--border))",
         "border-light": "hsl(var(--border-light))",
@@ -76,8 +80,8 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       boxShadow: {
-        "glow-primary": "0 0 30px rgba(0,255,213,0.15)",
-        "glow-accent": "0 0 30px rgba(96,165,250,0.15)",
+        "glow-primary": "0 0 24px rgba(37,99,235,0.22)",
+        "glow-accent": "0 0 24px rgba(13,148,136,0.2)",
       },
       keyframes: {
         "accordion-down": {

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,363 +6,158 @@
 
 @layer base {
   :root {
-    --background: 240 8% 5%;
-    --background-secondary: 240 8% 8%;
-    --background-tertiary: 240 7% 12%;
-    --foreground: 222 45% 95%;
-    --muted: 240 8% 18%;
-    --muted-foreground: 230 17% 66%;
-    --border: 238 12% 22%;
-    --border-light: 235 13% 31%;
-    --input: 238 13% 16%;
-    --primary: 218 96% 63%;
-    --primary-foreground: 224 40% 10%;
-    --primary-light: 220 95% 70%;
-    --primary-dark: 220 88% 55%;
-    --secondary: 262 90% 68%;
-    --secondary-foreground: 224 40% 10%;
-    --secondary-light: 266 86% 74%;
-    --secondary-dark: 262 82% 58%;
-    --destructive: 355 82% 63%;
-    --destructive-foreground: 0 0% 100%;
-    --accent: 188 100% 62%;
-    --accent-foreground: 224 40% 10%;
-    --accent-light: 190 100% 70%;
-    --accent-dark: 190 88% 48%;
-    --success: 163 74% 43%;
-    --success-foreground: 0 0% 100%;
-    --warning: 333 81% 67%;
-    --warning-foreground: 224 40% 10%;
-    --info: 200 100% 63%;
-    --info-foreground: 224 40% 10%;
-    --card: 240 8% 10%;
-    --card-foreground: 222 45% 95%;
-    --popover: 240 9% 9%;
-    --popover-foreground: 222 45% 95%;
-    --ring: 218 96% 63%;
-    --radius: 0.625rem;
-    --shadow-sm: 0 8px 18px rgba(2, 4, 12, 0.38);
-    --shadow-md: 0 14px 28px rgba(2, 4, 12, 0.48);
-    --shadow-lg: 0 22px 44px rgba(2, 4, 12, 0.56);
-    --shadow-xl: 0 34px 62px rgba(2, 4, 12, 0.62);
-    --glow-primary: 0 0 34px rgba(79, 141, 255, 0.2);
-    --glow-accent: 0 0 34px rgba(77, 241, 255, 0.15);
+    --bg: 247 250 252;
+    --bg-elevated: 255 255 255;
+    --bg-soft: 241 245 249;
+    --text: 15 23 42;
+    --text-muted: 71 85 105;
+    --primary: 29 78 216;
+    --primary-soft: 219 234 254;
+    --ring: 59 130 246;
+    --line: 226 232 240;
   }
 
   * {
-    border-color: hsl(var(--border));
+    border-color: rgb(var(--line));
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
   }
 
   body {
-    background-color: hsl(var(--background));
-    background-image:
-      radial-gradient(circle at 8% -12%, hsl(var(--primary) / 0.24), transparent 40%),
-      radial-gradient(circle at 92% 10%, hsl(var(--secondary) / 0.18), transparent 42%),
-      radial-gradient(circle at 58% 100%, hsl(var(--accent) / 0.13), transparent 46%),
-      linear-gradient(145deg, hsl(var(--background)) 0%, hsl(var(--background-secondary)) 48%, hsl(var(--background-tertiary)) 100%);
-    color: hsl(var(--foreground));
-    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    margin: 0;
+    color: rgb(var(--text));
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background:
+      radial-gradient(70rem 50rem at -10% -20%, rgba(56, 189, 248, 0.18), transparent 60%),
+      radial-gradient(56rem 42rem at 120% -10%, rgba(37, 99, 235, 0.2), transparent 58%),
+      radial-gradient(60rem 42rem at 30% 120%, rgba(20, 184, 166, 0.13), transparent 58%),
+      linear-gradient(160deg, #f8fbff 0%, #f2f6fc 45%, #edf3fb 100%);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    min-height: 100dvh;
-    letter-spacing: 0.01em;
   }
 
-  *:focus-visible {
-    outline: 2px solid hsl(var(--ring) / 0.9);
-    outline-offset: 2px;
-  }
-
-  ::selection {
-    background-color: hsl(var(--primary) / 0.2);
-  }
-
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: hsl(var(--background-secondary));
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted));
-    border-radius: 4px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground));
+  code,
+  pre,
+  kbd,
+  samp {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 }
 
 @layer components {
-  .glass {
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+  .ui-app-shell {
+    @apply min-h-screen;
   }
 
-  .glass-card {
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02));
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.08);
+  .ui-surface {
+    @apply rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-[0_12px_34px_rgba(15,23,42,0.08)] backdrop-blur;
   }
 
-  .btn {
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-transparent px-4 py-2 text-sm font-semibold transition-all duration-200;
+  .ui-muted-surface {
+    @apply rounded-2xl border border-slate-200 bg-slate-50/80 p-4;
   }
 
-  .btn-primary {
-    @apply btn text-primary-foreground hover:brightness-105 active:scale-[0.98];
-    background-image: linear-gradient(120deg, hsl(var(--primary)), hsl(var(--secondary)));
-    box-shadow: var(--glow-primary);
-    transition: filter 200ms, box-shadow 200ms;
+  .ui-input {
+    @apply min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition;
+    @apply placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100;
   }
 
-  .btn-secondary {
-    @apply btn text-secondary-foreground active:scale-[0.98];
-    background-image: linear-gradient(120deg, hsl(var(--secondary)), hsl(var(--accent)));
+  .ui-textarea {
+    @apply ui-input min-h-28 resize-y;
   }
 
-  .btn-ghost {
-    @apply btn border-white/15 bg-white/[0.04] text-foreground/90 hover:bg-white/[0.09] active:scale-[0.98];
+  .ui-label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500;
   }
 
-  .btn-ghost:hover {
-    @apply bg-white/10;
+  .ui-btn {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition;
   }
 
-  .btn-danger {
-    @apply btn bg-destructive text-destructive-foreground hover:bg-destructive/85 active:scale-[0.98];
+  .ui-btn-primary {
+    @apply ui-btn border-blue-700 bg-blue-700 text-white shadow-[0_10px_24px_rgba(29,78,216,0.34)] hover:bg-blue-800;
   }
 
-  .input {
-    @apply min-h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-foreground shadow-sm transition-all duration-200 placeholder:text-muted-foreground focus:border-primary/45 focus:ring-2 focus:ring-primary/15 focus:shadow-md focus:outline-none;
+  .ui-btn-secondary {
+    @apply ui-btn border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50;
   }
 
-  .label {
-    @apply text-xs font-semibold uppercase tracking-wide text-muted-foreground;
+  .ui-btn-danger {
+    @apply ui-btn border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100;
   }
 
-  .panel {
-    @apply rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl;
-    box-shadow: var(--shadow-md);
+  .ui-table-wrap {
+    @apply overflow-x-auto rounded-2xl border border-slate-200 bg-white/95;
   }
 
-  .status-pill {
-    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium;
+  .ui-table {
+    @apply w-full min-w-[760px] border-collapse text-left text-sm;
   }
 
-  .status-success {
-    background: hsl(var(--success) / 0.15);
-    color: hsl(var(--success));
-    border: 1px solid hsl(var(--success) / 0.3);
+  .ui-table thead {
+    @apply bg-slate-50;
   }
 
-  .status-warning {
-    background: hsl(var(--warning) / 0.15);
-    color: hsl(var(--warning));
-    border: 1px solid hsl(var(--warning) / 0.3);
+  .ui-table th {
+    @apply border-b border-slate-200 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500;
   }
 
-  .status-error {
-    background: hsl(var(--destructive) / 0.15);
-    color: hsl(var(--destructive));
-    border: 1px solid hsl(var(--destructive) / 0.3);
+  .ui-table td {
+    @apply border-b border-slate-100 px-4 py-3 align-top text-slate-700;
   }
 
-  .status-info {
-    background: hsl(var(--info) / 0.15);
-    color: hsl(var(--info));
-    border: 1px solid hsl(var(--info) / 0.3);
+  .ui-table tbody tr:last-child td {
+    @apply border-b-0;
   }
 
-  .status-primary {
-    background: hsl(var(--primary) / 0.15);
-    color: hsl(var(--primary));
-    border: 1px solid hsl(var(--primary) / 0.3);
+  .ui-pill {
+    @apply inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium;
   }
 
-  .skeleton {
-    background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground) / 0.1) 50%, hsl(var(--muted)) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: 4px;
+  .ui-pill-good {
+    @apply ui-pill border-emerald-200 bg-emerald-50 text-emerald-700;
   }
 
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+  .ui-pill-warn {
+    @apply ui-pill border-amber-200 bg-amber-50 text-amber-700;
   }
 
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+  .ui-pill-bad {
+    @apply ui-pill border-rose-200 bg-rose-50 text-rose-700;
   }
 
-  @keyframes slide-in-right {
-    from { opacity: 0; transform: translateX(16px); }
-    to { opacity: 1; transform: translateX(0); }
+  .ui-pill-neutral {
+    @apply ui-pill border-slate-200 bg-slate-50 text-slate-700;
   }
 
-  @keyframes scale-in {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
+  .ui-progress-track {
+    @apply h-2 w-full rounded-full bg-slate-200;
   }
 
-  @keyframes pulse-ring {
-    0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); }
-    70% { box-shadow: 0 0 0 8px hsl(var(--primary) / 0); }
-    100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+  .ui-progress-fill {
+    @apply h-2 rounded-full bg-blue-600;
   }
 
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-6px); }
+  .ui-scroll::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
   }
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
+  .ui-scroll::-webkit-scrollbar-track {
+    background: rgba(148, 163, 184, 0.16);
+    border-radius: 10px;
   }
 
-  .animate-fade-in {
-    animation: fade-in 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  .ui-scroll::-webkit-scrollbar-thumb {
+    background: rgba(71, 85, 105, 0.4);
+    border-radius: 10px;
   }
 
-  .animate-slide-in {
-    animation: slide-in-right 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  .animate-scale-in {
-    animation: scale-in 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  .animate-spin {
-    animation: spin 1s linear infinite;
-  }
-
-  .animate-float {
-    animation: float 3s ease-in-out infinite;
-  }
-
-  .stagger-1 { animation-delay: 0ms; }
-  .stagger-2 { animation-delay: 50ms; }
-  .stagger-3 { animation-delay: 100ms; }
-  .stagger-4 { animation-delay: 150ms; }
-  .stagger-5 { animation-delay: 200ms; }
-  .stagger-6 { animation-delay: 250ms; }
-  .stagger-7 { animation-delay: 300ms; }
-  .stagger-8 { animation-delay: 350ms; }
-
-  .code-block {
-    background: hsl(var(--background-tertiary));
-    border: 1px solid hsl(var(--border));
-    border-radius: calc(var(--radius) - 2px);
-    padding: 1rem;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8125rem;
-    line-height: 1.6;
-    overflow-x: auto;
-    color: hsl(var(--foreground));
-  }
-
-  .code-block code {
-    color: hsl(var(--foreground));
-  }
-
-  .progress-bar {
-    height: 6px;
-    background: hsl(var(--muted));
-    border-radius: 9999px;
-    overflow: hidden;
-  }
-
-  .progress-bar-fill {
-    height: 100%;
-    border-radius: 9999px;
-    transition: width 500ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  .gradient-text {
-    background: linear-gradient(120deg, hsl(var(--primary)), hsl(var(--secondary)));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .gradient-border {
-    position: relative;
-  }
-
-  .gradient-border::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(120deg, hsl(var(--primary)), hsl(var(--secondary)));
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-  }
-
-  .gradient-bg {
-    background: linear-gradient(145deg, hsl(var(--background)), hsl(var(--background-secondary)));
-  }
-
-  .glow-primary {
-    box-shadow: var(--glow-primary);
-  }
-
-  .glow-accent {
-    box-shadow: var(--glow-accent);
-  }
-
-  .nav-item {
-    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200;
-    @apply text-muted-foreground hover:text-foreground hover:bg-white/5;
-  }
-
-  .nav-item-active {
-    @apply bg-primary/10 text-primary border border-primary/20;
-    @apply hover:bg-primary/15 hover:text-primary;
-  }
-
-  .metric-card {
-    @apply rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5;
-    box-shadow: var(--shadow-md);
-  }
-
-  .page-header {
-    @apply mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start;
-  }
-
-  .table-header {
-    @apply border-b border-white/10 text-xs uppercase tracking-wide text-muted-foreground;
-  }
-
-  .table-row {
-    @apply border-b border-white/5 last:border-0;
-  }
-
-  .badge {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
-  }
-}
-
-@layer utilities {
-  .backdrop-blur-xl {
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-  }
-
-  .scroll-smooth {
-    scroll-behavior: smooth;
+  .ui-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(71, 85, 105, 0.56);
   }
 }
