@@ -330,6 +330,8 @@ docker run -d \
 
 Then open **http://localhost:6080** in your browser to access the noVNC web interface.
 
+If you want noVNC on the same public port as the admin/API surface, use the docker-compose setup below (nginx reverse proxy).
+
 ### Using docker-compose
 
 ```yaml
@@ -337,10 +339,10 @@ services:
   cortex:
     image: th3x-zohir/cortex:latest
     container_name: cortex
-    ports:
-      - "31338:31338"   # API
-      - "5900:5900"       # VNC (optional)
-      - "6080:6080"       # noVNC web UI (optional)
+    expose:
+      - "31338"
+      - "5900"
+      - "6080"
     volumes:
       - cortex-profiles:/app/profiles
       - cortex-logs:/app/logs
@@ -350,10 +352,22 @@ services:
       - CORTEX_LOG_LEVEL=info
     restart: unless-stopped
 
+  cortex-proxy:
+    image: nginx:1.27-alpine
+    depends_on:
+      - cortex
+    ports:
+      - "31339:80"      # API + Admin + noVNC on one port
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
 volumes:
   cortex-profiles:
   cortex-logs:
 ```
+
+With this compose stack, open the admin panel at **http://localhost:31339/admin/** and noVNC at **http://localhost:31339/novnc/vnc.html**.
 
 ### Build your own image
 

@@ -75,7 +75,7 @@ export function VncPage() {
           )}
         </section>
         <div className={`space-y-5 ${detailsOpen ? '' : 'hidden'}`}>
-          <Panel title="Access details" description="Use Large or Max when provider pages are clipped inside noVNC.">
+          <Panel title="Access details" description="VNC is proxied through the admin origin; use Large or Max when provider pages are clipped.">
             <div className="space-y-3 text-sm">
               <div>
                 <p className="label text-white/60">Viewer URL</p>

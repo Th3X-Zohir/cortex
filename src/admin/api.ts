@@ -677,21 +677,22 @@ export class AdminApi {
       vnc: {
         enabled: true,
         internalUrl: 'http://localhost:6080/vnc.html',
-        externalPort: Number(process.env.CORTEX_VNC_PUBLIC_PORT || 6081),
+        proxyPath: '/novnc/vnc.html',
       },
     };
   }
 
   private vncInfo(req: IncomingMessage) {
-    const host = req.headers.host?.split(':')[0] || 'localhost';
-    const forwardedProto = req.headers['x-forwarded-proto'];
-    const protocol = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto || 'http';
-    const publicPort = Number(process.env.CORTEX_VNC_PUBLIC_PORT || 6081);
+    const hostHeader = req.headers.host || 'localhost';
+    const host = hostHeader.split(':')[0] || 'localhost';
+    const portMatch = hostHeader.match(/:(\d+)$/);
+    const path = '/novnc/vnc.html';
     return {
       enabled: true,
       host,
-      port: publicPort,
-      url: `${protocol}://${host}:${publicPort}/vnc.html?autoconnect=1&resize=scale&reconnect=1`,
+      port: portMatch ? Number(portMatch[1]) : this.cfg.port,
+      path,
+      url: `${path}?autoconnect=1&resize=scale&reconnect=1&path=websockify`,
     };
   }
 }

@@ -66,7 +66,7 @@ export function ProvidersPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Metric label="Models" value={formatNumber(catalog?.models.length ?? 0)} helper="Registered in Cortex" icon={Cpu} />
         <Metric label="Connected" value={formatNumber(catalog?.providers.filter(p => p.sessionValid).length ?? 0)} helper="Ready providers" icon={PlugZap} tone={(catalog?.providers.some(p => p.sessionValid) ?? false) ? 'good' : 'warn'} />
-        <Metric label="VNC" value={catalog?.vnc.enabled ? 'Ready' : 'Off'} helper={catalog?.vnc.url ? `:${catalog.vnc.port}` : 'Unavailable'} icon={Eye} />
+        <Metric label="VNC" value={catalog?.vnc.enabled ? 'Ready' : 'Off'} helper={catalog?.vnc.url ? catalog.vnc.path : 'Unavailable'} icon={Eye} />
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">

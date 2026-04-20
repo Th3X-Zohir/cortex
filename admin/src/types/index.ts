@@ -176,7 +176,7 @@ export interface Config {
   vnc: {
     enabled: boolean
     internalUrl: string
-    externalPort: number
+    proxyPath: string
   }
 }
 
@@ -207,6 +207,7 @@ export interface VncInfo {
   enabled: boolean
   host: string
   port: number
+  path: string
   url: string
 }
 

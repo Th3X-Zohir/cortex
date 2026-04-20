@@ -76,7 +76,7 @@ export function SettingsPage() {
           <div className="mt-4 space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-sm text-white/40 backdrop-blur-xl">
             <p>Admin database: <span className="font-mono text-primary/60">{config.admin.dbPath}</span></p>
             <p>JWT secret configured: {config.admin.jwtSecretConfigured ? 'yes' : 'generated local secret file'}</p>
-            <p>noVNC public port: <span className="font-mono text-primary/60">{config.vnc.externalPort}</span></p>
+            <p>noVNC proxy route: <span className="font-mono text-primary/60">{config.vnc.proxyPath}</span></p>
           </div>
         </Panel>
       </div>
