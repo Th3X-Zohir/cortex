@@ -99,8 +99,6 @@ function App() {
     return <LoginPage onLogin={setAdmin} />
   }
 
-  const current = visibleSections.find(section => section.id === active)
-
   return (
     <div className="ui-app-shell">
       <div className="grid min-h-screen grid-cols-1 gap-4 p-4 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:pl-0">
@@ -151,36 +149,6 @@ function App() {
         </aside>
 
         <div className="space-y-4">
-          <header className="ui-surface">
-            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Command Center</p>
-                <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{current?.label ?? 'Overview'}</h1>
-                <p className="mt-1 text-sm text-slate-600">{current?.caption ?? ''}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="ui-pill-neutral">{new Date().toLocaleDateString()}</span>
-                <button type="button" className="ui-btn-secondary lg:hidden" onClick={() => logout(setAdmin)}>
-                  <LogOut size={15} /> Sign out
-                </button>
-              </div>
-            </div>
-
-            <div className="ui-scroll mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
-              {visibleSections.map(section => (
-                <button
-                  key={section.id}
-                  type="button"
-                  className={section.id === active ? 'ui-btn-primary min-h-9 whitespace-nowrap px-3 text-xs' : 'ui-btn-secondary min-h-9 whitespace-nowrap px-3 text-xs'}
-                  onClick={() => setActive(section.id)}
-                >
-                  <section.icon size={14} />
-                  {section.label}
-                </button>
-              ))}
-            </div>
-          </header>
-
           {admin.mustChangePassword ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
               Default admin credentials are still active. Update the account password immediately.
