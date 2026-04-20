@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Loader2, LockKeyhole, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Loader2, LockKeyhole } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { Admin } from '@/types'
 
@@ -43,7 +43,7 @@ export function LoginPage({ onLogin }: { onLogin?: (admin: Admin) => void }) {
         <div className="relative z-10 flex h-full flex-col justify-between p-14 text-white">
           <div>
             <div className="inline-flex items-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-3 py-2 backdrop-blur">
-              <ShieldCheck size={16} />
+              <img src="/favicon.svg" alt="Cortex" className="h-4 w-4" />
               <span className="text-sm font-semibold">Cortex Admin Platform</span>
             </div>
 
@@ -73,6 +73,7 @@ export function LoginPage({ onLogin }: { onLogin?: (admin: Admin) => void }) {
       <section className="flex items-center justify-center p-6 md:p-10">
         <form className="w-full max-w-md rounded-3xl border border-slate-200 bg-white/92 p-7 shadow-[0_18px_46px_rgba(15,23,42,0.12)] backdrop-blur" onSubmit={submit}>
           <div className="mb-6">
+            <img src="/logo.svg" alt="Cortex Admin" className="h-8 w-auto" />
             <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <LockKeyhole size={16} className="text-blue-700" />
               <span className="text-sm font-semibold text-slate-700">Admin Sign In</span>

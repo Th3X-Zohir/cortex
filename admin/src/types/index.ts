@@ -84,6 +84,7 @@ export interface ProviderMetric {
 export interface HourlyData {
   hour: string
   count: number
+  totalTokens?: number
 }
 
 export interface Stats {

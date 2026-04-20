@@ -1,0 +1,15 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="fav_bg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1D4ED8"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+    <linearGradient id="fav_ring" x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DBEAFE"/>
+      <stop offset="1" stop-color="#67E8F9"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#fav_bg)"/>
+  <path d="M32 14C22.1 14 14 22.1 14 32C14 41.9 22.1 50 32 50C39.4 50 45.9 45.5 48.6 39.1H40.7C38.8 41.3 35.6 42.7 32 42.7C26.1 42.7 21.3 37.9 21.3 32C21.3 26.1 26.1 21.3 32 21.3C35.6 21.3 38.8 22.7 40.7 24.9H48.6C45.9 18.5 39.4 14 32 14Z" fill="url(#fav_ring)"/>
+  <rect x="22" y="30" width="20" height="4" rx="2" fill="#A5F3FC" fill-opacity="0.95"/>
+</svg>

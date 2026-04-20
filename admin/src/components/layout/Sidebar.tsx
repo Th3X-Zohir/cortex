@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom"
 import {
   BarChart3, KeyRound, Gauge, Activity, Cpu, TerminalSquare,
-  Monitor, BookOpen, Users, Settings, LogOut, ShieldCheck
+  Monitor, BookOpen, Users, Settings, LogOut
 } from "lucide-react"
 import { cn } from "~/lib/utils"
 
@@ -42,14 +42,10 @@ export function Sidebar({ collapsed, admin, onLogout }: SidebarProps) {
         "flex h-16 shrink-0 items-center border-b border-white/12 px-5",
         collapsed ? "justify-center" : "gap-3"
       )}>
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/30 bg-primary/12 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-          <ShieldCheck size={20} className="text-primary" />
-        </div>
-        {!collapsed && (
-          <div className="animate-fade-in overflow-hidden">
-            <h1 className="bg-gradient-to-r from-primary-light to-secondary-light bg-clip-text text-base font-bold text-transparent">Cortex</h1>
-            <p className="text-[10px] uppercase tracking-wider text-white/45">Admin</p>
-          </div>
+        {collapsed ? (
+          <img src="/favicon.svg" alt="Cortex Admin" className="h-10 w-10" />
+        ) : (
+          <img src="/logo.svg" alt="Cortex Admin" className="h-9 w-auto animate-fade-in" />
         )}
       </div>
 

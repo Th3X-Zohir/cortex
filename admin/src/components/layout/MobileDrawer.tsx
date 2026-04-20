@@ -2,7 +2,7 @@ import * as React from "react"
 import { NavLink } from "react-router-dom"
 import {
   X, BarChart3, KeyRound, Gauge, Activity, Cpu, TerminalSquare,
-  Monitor, BookOpen, Users, Settings, ShieldCheck, LogOut
+  Monitor, BookOpen, Users, Settings, LogOut
 } from "lucide-react"
 import { cn } from "~/lib/utils"
 
@@ -58,13 +58,7 @@ export function MobileDrawer({ open, onClose, admin, onLogout }: MobileDrawerPro
         {/* Header */}
         <div className="flex h-16 items-center justify-between border-b border-white/12 px-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/30 bg-primary/12">
-              <ShieldCheck size={20} className="text-primary" />
-            </div>
-            <div>
-              <h1 className="bg-gradient-to-r from-primary-light to-secondary-light bg-clip-text text-base font-bold text-transparent">Cortex</h1>
-              <p className="text-[10px] uppercase tracking-wider text-white/45">Admin</p>
-            </div>
+            <img src="/logo.svg" alt="Cortex Admin" className="h-9 w-auto" />
           </div>
           <button
             onClick={onClose}

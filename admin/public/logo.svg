@@ -1,0 +1,15 @@
+<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logo_bg" x1="6" y1="4" x2="50" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1D4ED8"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+    <linearGradient id="logo_ring" x1="14" y1="13" x2="42" y2="43" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DBEAFE"/>
+      <stop offset="1" stop-color="#67E8F9"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="48" height="48" rx="14" fill="url(#logo_bg)"/>
+  <path d="M26 11.5C17.7 11.5 11 18.2 11 26.5C11 34.8 17.7 41.5 26 41.5C32.1 41.5 37.5 37.8 39.8 32.4H33.2C31.6 34.3 29 35.4 26 35.4C21 35.4 17.1 31.5 17.1 26.5C17.1 21.5 21 17.6 26 17.6C29 17.6 31.6 18.7 33.2 20.6H39.8C37.5 15.2 32.1 11.5 26 11.5Z" fill="url(#logo_ring)"/>
+  <rect x="17" y="24.5" width="18" height="4" rx="2" fill="#A5F3FC" fill-opacity="0.95"/>
+</svg>

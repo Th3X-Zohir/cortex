@@ -98,6 +98,7 @@ export class BridgeServer {
   private async _handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = req.url ?? '/';
     const method = req.method ?? 'GET';
+    const pathname = new URL(url, 'http://localhost').pathname;
 
     res.setHeader('Access-Control-Allow-Origin', this._cfg.admin.corsOrigin);
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
@@ -106,7 +107,11 @@ export class BridgeServer {
 
     if (await this._adminApi.handle(req, res)) return;
 
-    if (url === '/admin' || url.startsWith('/admin/')) {
+    if (method === 'GET' && (pathname === '/favicon.svg' || pathname === '/logo.svg')) {
+      if (this._serveAdminRootAsset(pathname, res)) return;
+    }
+
+    if (pathname === '/admin' || pathname.startsWith('/admin/')) {
       this._serveAdminAsset(req, res);
       return;
     }
@@ -503,6 +508,22 @@ export class BridgeServer {
 
     res.writeHead(200, { 'Content-Type': contentType(filePath) });
     createReadStream(filePath).pipe(res);
+  }
+
+  private _serveAdminRootAsset(pathname: string, res: ServerResponse): boolean {
+    const adminRoot = join(__dirname, '..', 'admin', 'dist');
+    if (!existsSync(adminRoot)) return false;
+
+    const relativePath = normalize(pathname.replace(/^\/+/, ''));
+    if (!relativePath) return false;
+
+    const candidate = join(adminRoot, relativePath);
+    const safeRelative = relative(adminRoot, candidate);
+    if (safeRelative.startsWith('..') || !existsSync(candidate) || !statSync(candidate).isFile()) return false;
+
+    res.writeHead(200, { 'Content-Type': contentType(candidate) });
+    createReadStream(candidate).pipe(res);
+    return true;
   }
 }
 

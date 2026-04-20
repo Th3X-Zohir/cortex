@@ -1,17 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
   Boxes,
   Clock3,
-  ShieldCheck,
+  KeyRound,
+  RefreshCcw,
+  Timer,
+  TrendingUp,
 } from 'lucide-react'
 import {
-  Area,
-  AreaChart,
   Bar,
-  BarChart,
   CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,7 +22,7 @@ import {
 } from 'recharts'
 import { api } from '@/lib/api'
 import { formatDate, formatNumber } from '@/lib/utils'
-import type { BridgeStatus, Stats, UsageSummary } from '@/types'
+import type { BridgeStatus, ModelCatalog, RequestLog, Stats, UsageSummary } from '@/types'
 import {
   BusyPanel,
   Chip,
@@ -30,6 +33,9 @@ import {
   Surface,
   SurfaceHeader,
 } from '@/components/dashboard/UiKit'
+
+const LIVE_REFRESH_MS = 10_000
+const LIVE_REFRESH_SECONDS = LIVE_REFRESH_MS / 1000
 
 const EMPTY_STATS: Stats = {
   overview: {
@@ -52,76 +58,208 @@ const EMPTY_STATS: Stats = {
   recentErrors: [],
 }
 
+type ModelOverviewRow = {
+  id: string
+  provider: string
+  requests: number
+  avgResponseTime: number
+  errorCount: number
+  totalTokens: number
+  lastUsed: string | null
+}
+
 export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
   const [stats, setStats] = useState<Stats>(EMPTY_STATS)
   const [status, setStatus] = useState<BridgeStatus | null>(null)
   const [usage, setUsage] = useState<UsageSummary | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
+  const [recentLogs, setRecentLogs] = useState<RequestLog[]>([])
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastSync, setLastSync] = useState<Date | null>(null)
+  const [nextRefreshIn, setNextRefreshIn] = useState(LIVE_REFRESH_SECONDS)
 
-  async function load() {
-    setLoading(true)
-    setError(null)
+  const inFlightRef = useRef(false)
+  const hasLoadedRef = useRef(false)
+
+  async function load(silent = true) {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
+
+    if (!hasLoadedRef.current && !silent) {
+      setInitialLoading(true)
+    } else {
+      setRefreshing(true)
+    }
 
     try {
-      const [nextStats, nextStatus, nextUsage] = await Promise.all([
+      const [nextStats, nextStatus, nextUsage, nextCatalog, nextLogs] = await Promise.all([
         api.stats.get(),
         api.providers.status(),
         api.admin.usage(),
+        api.providers.models(),
+        api.logs.list({ limit: 12 }),
       ])
+
       setStats(nextStats)
       setStatus(nextStatus)
       setUsage(nextUsage)
+      setCatalog(nextCatalog)
+      setRecentLogs(nextLogs.logs)
       setLastSync(new Date())
+      setNextRefreshIn(LIVE_REFRESH_SECONDS)
+      setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load dashboard metrics')
     } finally {
-      setLoading(false)
+      inFlightRef.current = false
+      if (!hasLoadedRef.current) {
+        hasLoadedRef.current = true
+        setInitialLoading(false)
+      }
+      setRefreshing(false)
     }
   }
 
   useEffect(() => {
-    void load()
-    const timer = window.setInterval(() => {
-      void load()
-    }, 30000)
-    return () => window.clearInterval(timer)
+    void load(false)
+
+    const refreshTimer = window.setInterval(() => {
+      void load(true)
+    }, LIVE_REFRESH_MS)
+
+    const countdownTimer = window.setInterval(() => {
+      setNextRefreshIn(current => (current <= 1 ? LIVE_REFRESH_SECONDS : current - 1))
+    }, 1000)
+
+    return () => {
+      window.clearInterval(refreshTimer)
+      window.clearInterval(countdownTimer)
+    }
   }, [])
 
   const providers = status?.providers ?? []
   const connected = providers.filter(provider => provider.sessionValid).length
   const disconnected = providers.length - connected
-  const errorRate = Number(stats.overview.errorRate) || 0
-  const keyUsagePercent = Math.round(usage?.summary.usagePercent ?? 0)
 
-  const trendData = useMemo(
-    () =>
-      stats.hourlyData.slice(-36).map(point => ({
-        label: new Date(point.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        requests: point.count,
-      })),
+  const errorRateValue = Number(String(stats.overview.errorRate).replace('%', '')) || 0
+  const quotaPercent = usage?.summary.usagePercent ?? 0
+  const activeKeys = usage?.summary.activeKeys ?? 0
+  const totalKeys = usage?.keys.length ?? 0
+  const requestsPerMinute = Math.round(stats.overview.requestsLast1h / 60)
+  const tokensPerRequest = stats.overview.requestsLast24h > 0
+    ? Math.round(stats.overview.tokensLast24h / stats.overview.requestsLast24h)
+    : 0
+  const remainingCapacity = Math.max(0, (usage?.summary.totalLimit ?? 0) - (usage?.summary.totalUsage ?? 0))
+
+  const operationalTone: 'good' | 'warn' | 'bad' = disconnected > 0 || errorRateValue >= 5
+    ? 'bad'
+    : errorRateValue >= 3
+      ? 'warn'
+      : 'good'
+
+  const operationalLabel = operationalTone === 'good'
+    ? 'Healthy'
+    : operationalTone === 'warn'
+      ? 'Watch Mode'
+      : 'Attention Required'
+
+  const providerRows = useMemo(() => {
+    const statsByProvider = new Map(stats.byProvider.map(item => [item.provider, item]))
+    const providerNames = Array.from(
+      new Set([
+        ...providers.map(provider => provider.name),
+        ...stats.byProvider.map(item => item.provider),
+      ]),
+    )
+
+    return providerNames
+      .map(name => {
+        const statusRow = providers.find(provider => provider.name === name)
+        const statsRow = statsByProvider.get(name)
+        const modelCount = statusRow?.models.length
+          ?? catalog?.models.filter(model => model.provider === name).length
+          ?? 0
+
+        return {
+          name,
+          modelCount,
+          requests: statsRow?.count ?? 0,
+          avgResponseTime: Math.round(statsRow?.avgResponseTime ?? 0),
+          totalTokens: statsRow?.totalTokens ?? 0,
+          hasProfile: statusRow?.hasProfile ?? false,
+          sessionValid: statusRow?.sessionValid ?? false,
+        }
+      })
+      .sort((a, b) => b.requests - a.requests)
+  }, [catalog?.models, providers, stats.byProvider])
+
+  const throughputSeries = useMemo(
+    () => stats.hourlyData.slice(-36).map(point => ({
+      label: new Date(point.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      requests: point.count,
+      tokens: point.totalTokens ?? 0,
+    })),
     [stats.hourlyData],
   )
 
-  const providerBars = useMemo(
-    () =>
-      stats.byProvider.map(item => ({
-        name: item.provider,
-        requests: item.count,
-      })),
-    [stats.byProvider],
+  const topModels = useMemo<ModelOverviewRow[]>(() => {
+    if (catalog?.models.length) {
+      return [...catalog.models]
+        .sort((a, b) => b.usage.requests - a.usage.requests)
+        .slice(0, 8)
+        .map(model => ({
+          id: model.id,
+          provider: model.provider,
+          requests: model.usage.requests,
+          avgResponseTime: model.usage.avgResponseTime,
+          errorCount: model.usage.errorCount,
+          totalTokens: model.usage.totalTokens,
+          lastUsed: model.usage.lastUsed,
+        }))
+    }
+
+    return stats.byModel.slice(0, 8).map(model => ({
+      id: model.model,
+      provider: model.model.split('/')[0] ?? 'unknown',
+      requests: model.count,
+      avgResponseTime: 0,
+      errorCount: 0,
+      totalTokens: model.totalTokens,
+      lastUsed: null,
+    }))
+  }, [catalog?.models, stats.byModel])
+
+  const keyUsageRows = useMemo(
+    () => [...(usage?.keys ?? [])]
+      .sort((a, b) => b.requestsToday - a.requestsToday)
+      .slice(0, 8),
+    [usage?.keys],
   )
+
+  const mostActiveProvider = stats.byProvider[0]
+  const mostUsedKey = keyUsageRows[0]
+  const mostUsedModel = topModels[0]
 
   return (
     <PageShell
       title="Operations Overview"
-      description="Live service health, throughput, provider readiness, and key consumption from production telemetry."
+      description="Comprehensive live command view for traffic, provider health, model demand, key capacity, and failure hotspots."
       action={
         <>
-          <Chip tone={status?.running ? 'good' : 'warn'}>{status?.running ? 'Service Running' : 'Service Degraded'}</Chip>
-          <button type="button" className="ui-btn-secondary" onClick={() => void load()}>
-            Refresh
+          <Chip tone={operationalTone}>{operationalLabel}</Chip>
+          <Chip tone="default">
+            <span className="inline-flex items-center gap-1">
+              <Timer size={12} /> Auto refresh {LIVE_REFRESH_SECONDS}s
+            </span>
+          </Chip>
+          <Chip tone="default">Next update in {nextRefreshIn}s</Chip>
+          <button type="button" className="ui-btn-secondary" onClick={() => void load(true)} disabled={refreshing}>
+            <span className="inline-flex items-center gap-1.5">
+              <RefreshCcw size={14} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Refreshing...' : 'Refresh now'}
+            </span>
           </button>
         </>
       }
@@ -129,17 +267,19 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
       {error ? <ErrorBanner text={error} /> : null}
 
       <Surface className="overflow-hidden p-0">
-        <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_360px]">
           <div className="bg-gradient-to-br from-blue-700 via-blue-700 to-cyan-700 p-6 text-white md:p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-100">Live control surface</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-100">Realtime operations briefing</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">Welcome, {adminName}</h2>
             <p className="mt-3 max-w-xl text-sm text-blue-100 md:text-base">
-              Monitor requests, session health, and capacity in one clear operational frame.
+              This screen auto-refreshes with live telemetry so admins can understand request volume, reliability,
+              provider readiness, key limits, and model load at a glance.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-2 text-xs text-blue-100">
               <span className="rounded-full border border-white/25 px-2.5 py-1">{formatNumber(stats.overview.requestsLast24h)} requests (24h)</span>
               <span className="rounded-full border border-white/25 px-2.5 py-1">{formatNumber(stats.overview.tokensLast24h)} tokens (24h)</span>
-              <span className="rounded-full border border-white/25 px-2.5 py-1">{providers.length} providers tracked</span>
+              <span className="rounded-full border border-white/25 px-2.5 py-1">{connected}/{providers.length} providers connected</span>
+              <span className="rounded-full border border-white/25 px-2.5 py-1">{activeKeys}/{totalKeys} keys active</span>
             </div>
           </div>
           <div className="space-y-3 bg-slate-50 p-6 md:p-8">
@@ -148,22 +288,23 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
               <p className="mt-1 text-sm font-semibold text-slate-900">{lastSync ? formatDate(lastSync) : 'Not synced yet'}</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Connected providers</p>
-              <p className="mt-1 text-xl font-semibold text-slate-900">{connected} / {providers.length}</p>
-              <p className="text-xs text-slate-500">{disconnected > 0 ? `${disconnected} need attention` : 'All providers healthy'}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Service state</p>
+              <p className="mt-1 text-xl font-semibold text-slate-900">{status?.running ? 'Running' : 'Degraded'}</p>
+              <p className="text-xs text-slate-500">{disconnected > 0 ? `${disconnected} provider sessions need action` : 'All provider sessions responding'}</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">API key usage</p>
-              <p className="mt-1 text-xl font-semibold text-slate-900">{keyUsagePercent}%</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Quota pressure</p>
+              <p className="mt-1 text-xl font-semibold text-slate-900">{quotaPercent}%</p>
               <div className="ui-progress-track mt-2">
-                <div className="ui-progress-fill" style={{ width: `${Math.min(100, keyUsagePercent)}%` }} />
+                <div className="ui-progress-fill" style={{ width: `${Math.min(100, quotaPercent)}%` }} />
               </div>
+              <p className="mt-1 text-xs text-slate-500">{formatNumber(remainingCapacity)} requests remaining today</p>
             </div>
           </div>
         </div>
       </Surface>
 
-      {loading ? (
+      {initialLoading ? (
         <BusyPanel text="Loading dashboard data..." />
       ) : (
         <>
@@ -174,9 +315,15 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
               hint={`${formatNumber(stats.overview.requestsLast7d)} in last 7 days`}
             />
             <StatTile
-              label="Requests (1h)"
-              value={formatNumber(stats.overview.requestsLast1h)}
-              hint={`${formatNumber(stats.overview.requestsLast24h)} in last 24h`}
+              label="Requests (24h)"
+              value={formatNumber(stats.overview.requestsLast24h)}
+              hint={`${formatNumber(stats.overview.requestsLast1h)} in last 1h`}
+            />
+            <StatTile
+              label="Requests / Min (1h)"
+              value={formatNumber(requestsPerMinute)}
+              hint="Derived from latest hour volume"
+              tone={requestsPerMinute > 20 ? 'warn' : 'good'}
             />
             <StatTile
               label="Average Latency"
@@ -186,34 +333,47 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
             />
             <StatTile
               label="Error Rate"
-              value={`${errorRate.toFixed(2)}%`}
+              value={`${errorRateValue.toFixed(2)}%`}
               hint={`${formatNumber(stats.overview.errorCount)} failed requests`}
-              tone={errorRate > 3 ? 'bad' : 'good'}
+              tone={errorRateValue >= 3 ? 'bad' : 'good'}
+            />
+            <StatTile
+              label="Providers Connected"
+              value={`${connected}/${providers.length}`}
+              hint={disconnected > 0 ? `${disconnected} disconnected` : 'All sessions healthy'}
+              tone={disconnected > 0 ? 'warn' : 'good'}
+            />
+            <StatTile
+              label="Active API Keys"
+              value={`${activeKeys}/${totalKeys}`}
+              hint={`${formatNumber(usage?.summary.totalUsage ?? 0)} requests consumed today`}
+              tone={activeKeys === 0 ? 'warn' : 'default'}
+            />
+            <StatTile
+              label="Tokens / Request (24h)"
+              value={formatNumber(tokensPerRequest)}
+              hint={`${formatNumber(stats.overview.tokensLast24h)} total tokens in 24h`}
+              tone="default"
             />
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
             <Surface>
               <SurfaceHeader
-                title="Request Throughput"
-                description="Hourly traffic trend from the request log telemetry stream."
+                title="Traffic and Token Throughput"
+                description="Requests and token output by hour from live request logs."
                 action={<Chip tone="default">Last 36 points</Chip>}
               />
-              {trendData.length === 0 ? (
-                <EmptyPanel text="No throughput data available yet." />
+              {throughputSeries.length === 0 ? (
+                <EmptyPanel text="No hourly throughput data available yet." />
               ) : (
-                <div className="h-72">
+                <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="overviewTrend" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#2563eb" stopOpacity={0.5} />
-                          <stop offset="100%" stopColor="#2563eb" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
+                    <ComposedChart data={throughputSeries} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#64748b' }} />
                       <Tooltip
                         contentStyle={{
                           borderRadius: 12,
@@ -221,36 +381,52 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
                           background: '#ffffff',
                           fontSize: 12,
                         }}
+                        formatter={(value: number, name: string) => [formatNumber(Number(value)), name === 'requests' ? 'Requests' : 'Tokens']}
                       />
-                      <Area type="monotone" dataKey="requests" stroke="#1d4ed8" strokeWidth={2} fill="url(#overviewTrend)" />
-                    </AreaChart>
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Bar yAxisId="left" dataKey="requests" name="requests" fill="#2563eb" radius={[8, 8, 0, 0]} />
+                      <Line yAxisId="right" type="monotone" dataKey="tokens" name="tokens" stroke="#0f766e" strokeWidth={2.2} dot={false} />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               )}
             </Surface>
 
             <Surface>
-              <SurfaceHeader title="Provider Load" description="Requests handled by each provider." />
-              {providerBars.length === 0 ? (
-                <EmptyPanel text="No provider usage has been recorded yet." />
+              <SurfaceHeader title="Provider Health Matrix" description="Session validity combined with performance and token load." />
+              {providerRows.length === 0 ? (
+                <EmptyPanel text="No provider status found." />
               ) : (
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={providerBars} margin={{ top: 8, right: 4, left: -18, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                      <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
-                      <Tooltip
-                        contentStyle={{
-                          borderRadius: 12,
-                          border: '1px solid #cbd5e1',
-                          background: '#ffffff',
-                          fontSize: 12,
-                        }}
-                      />
-                      <Bar dataKey="requests" fill="#0f766e" radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className="ui-table-wrap">
+                  <table className="ui-table min-w-full">
+                    <thead>
+                      <tr>
+                        <th>Provider</th>
+                        <th>Status</th>
+                        <th>Requests</th>
+                        <th>Latency</th>
+                        <th>Tokens</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {providerRows.map(row => (
+                        <tr key={row.name}>
+                          <td>
+                            <p className="font-semibold text-slate-900">{row.name}</p>
+                            <p className="text-xs text-slate-500">{row.modelCount} models</p>
+                          </td>
+                          <td>
+                            <Chip tone={row.sessionValid ? 'good' : row.hasProfile ? 'warn' : 'bad'}>
+                              {row.sessionValid ? 'Connected' : row.hasProfile ? 'Profile Ready' : 'Disconnected'}
+                            </Chip>
+                          </td>
+                          <td>{formatNumber(row.requests)}</td>
+                          <td>{formatNumber(row.avgResponseTime)} ms</td>
+                          <td>{formatNumber(row.totalTokens)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </Surface>
@@ -258,29 +434,31 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
 
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
             <Surface>
-              <SurfaceHeader title="Recent Errors" description="Newest failed requests from production logs." />
-              {stats.recentErrors.length === 0 ? (
-                <EmptyPanel text="No recent errors detected." />
+              <SurfaceHeader title="Top Models" description="Highest demand models ranked by live usage telemetry." />
+              {topModels.length === 0 ? (
+                <EmptyPanel text="No model usage has been recorded yet." />
               ) : (
                 <div className="ui-table-wrap">
-                  <table className="ui-table">
+                  <table className="ui-table min-w-full">
                     <thead>
                       <tr>
-                        <th>When</th>
-                        <th>Provider</th>
                         <th>Model</th>
-                        <th>Status</th>
-                        <th>Error</th>
+                        <th>Provider</th>
+                        <th>Requests</th>
+                        <th>Latency</th>
+                        <th>Errors</th>
+                        <th>Last Used</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {stats.recentErrors.slice(0, 8).map(item => (
-                        <tr key={item.id}>
-                          <td>{formatDate(item.createdAt)}</td>
-                          <td>{item.provider}</td>
-                          <td className="font-mono text-xs text-slate-600">{item.model}</td>
-                          <td>{item.statusCode ?? '-'}</td>
-                          <td className="text-rose-700">{item.error ?? 'Unknown error'}</td>
+                      {topModels.map(model => (
+                        <tr key={model.id}>
+                          <td className="font-mono text-xs text-slate-700">{model.id}</td>
+                          <td>{model.provider}</td>
+                          <td>{formatNumber(model.requests)}</td>
+                          <td>{model.avgResponseTime > 0 ? `${formatNumber(model.avgResponseTime)} ms` : '-'}</td>
+                          <td>{formatNumber(model.errorCount)}</td>
+                          <td>{model.lastUsed ? formatDate(model.lastUsed) : '-'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -290,68 +468,141 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
             </Surface>
 
             <Surface>
-              <SurfaceHeader title="Provider Session Health" description="Current session validity and model mapping." />
-              <div className="space-y-2">
-                {providers.length === 0 ? (
-                  <EmptyPanel text="No provider status found." />
-                ) : (
-                  providers.map(provider => (
-                    <div key={provider.name} className="rounded-xl border border-slate-200 bg-white p-3">
+              <SurfaceHeader title="API Key Utilization" description="Daily demand and quota pressure by key." />
+              {keyUsageRows.length === 0 ? (
+                <EmptyPanel text="No API key usage data found." />
+              ) : (
+                <div className="space-y-2">
+                  {keyUsageRows.map(key => (
+                    <div key={key.id} className="rounded-xl border border-slate-200 bg-white p-3">
                       <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">{provider.name}</p>
-                          <p className="text-xs text-slate-500">{provider.models.length} models</p>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">{key.name}</p>
+                          <p className="text-xs text-slate-500">{formatNumber(key.requestsToday)} requests today</p>
                         </div>
-                        <Chip tone={provider.sessionValid ? 'good' : provider.hasProfile ? 'warn' : 'bad'}>
-                          {provider.sessionValid ? (
-                            <span className="inline-flex items-center gap-1"><ShieldCheck size={12} /> Connected</span>
-                          ) : provider.hasProfile ? (
-                            <span className="inline-flex items-center gap-1"><Clock3 size={12} /> Profile Ready</span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1"><AlertTriangle size={12} /> Disconnected</span>
-                          )}
+                        <Chip tone={key.usagePercent >= 85 ? 'bad' : key.usagePercent >= 65 ? 'warn' : 'good'}>
+                          {key.usagePercent}%
                         </Chip>
                       </div>
+                      <div className="ui-progress-track mt-2">
+                        <div className="ui-progress-fill" style={{ width: `${Math.min(100, key.usagePercent)}%` }} />
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatNumber(key.requestsToday)} / {formatNumber(key.dailyLimit)} daily limit • {formatNumber(key.tokensToday)} tokens today
+                      </p>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </Surface>
           </section>
 
-          <section className="grid gap-3 md:grid-cols-3">
-            <StatTile
-              label="Total Tokens"
-              value={formatNumber(stats.overview.totalTokens)}
-              hint={`${formatNumber(stats.overview.promptTokens)} prompt / ${formatNumber(stats.overview.completionTokens)} completion`}
-              tone="default"
-            />
-            <StatTile
-              label="Configured Models"
-              value={formatNumber(status?.providers.reduce((sum, provider) => sum + provider.models.length, 0) ?? 0)}
-              hint="Across active providers"
-              tone="default"
-            />
-            <StatTile
-              label="Daily Request Capacity"
-              value={formatNumber(usage?.summary.totalLimit ?? 0)}
-              hint={`${formatNumber(usage?.summary.totalUsage ?? 0)} consumed today`}
-              tone={keyUsagePercent > 85 ? 'warn' : 'good'}
-            />
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+            <Surface>
+              <SurfaceHeader title="Recent Request Activity" description="Most recent live request events across all providers." />
+              {recentLogs.length === 0 ? (
+                <EmptyPanel text="No request activity has been recorded yet." />
+              ) : (
+                <div className="ui-table-wrap">
+                  <table className="ui-table min-w-full">
+                    <thead>
+                      <tr>
+                        <th>When</th>
+                        <th>Provider</th>
+                        <th>Model</th>
+                        <th>Status</th>
+                        <th>Latency</th>
+                        <th>Tokens</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentLogs.map(log => (
+                        <tr key={log.id}>
+                          <td>{formatDate(log.createdAt)}</td>
+                          <td>{log.provider}</td>
+                          <td className="font-mono text-xs text-slate-600">{log.model}</td>
+                          <td>
+                            {typeof log.statusCode === 'number' ? (
+                              <Chip tone={log.statusCode >= 500 ? 'bad' : log.statusCode >= 400 ? 'warn' : 'good'}>
+                                {log.statusCode}
+                              </Chip>
+                            ) : (
+                              <Chip tone="default">-</Chip>
+                            )}
+                          </td>
+                          <td>{log.responseTimeMs ? `${formatNumber(log.responseTimeMs)} ms` : '-'}</td>
+                          <td>{formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Surface>
+
+            <Surface>
+              <SurfaceHeader title="Recent Errors" description="Newest failures requiring operator attention." />
+              {stats.recentErrors.length === 0 ? (
+                <EmptyPanel text="No recent errors detected." />
+              ) : (
+                <div className="space-y-2">
+                  {stats.recentErrors.map(item => (
+                    <div key={item.id} className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-rose-800">{item.provider}</p>
+                        <Chip tone="bad">{item.statusCode ?? 'ERR'}</Chip>
+                      </div>
+                      <p className="mt-1 font-mono text-xs text-rose-700">{item.model}</p>
+                      <p className="mt-2 text-xs text-rose-700">{item.error ?? 'Unknown error'}</p>
+                      <p className="mt-1 text-[11px] text-rose-600">{formatDate(item.createdAt)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Surface>
           </section>
 
           <section className="grid gap-3 md:grid-cols-3">
             <Surface className="bg-gradient-to-br from-blue-50 to-white">
-              <div className="flex items-center gap-2 text-blue-700"><Activity size={16} /><p className="text-sm font-semibold">Traffic Monitoring</p></div>
-              <p className="mt-2 text-sm text-slate-600">All KPI values are driven by real request logs and refresh every 30 seconds.</p>
+              <div className="flex items-center gap-2 text-blue-700"><Activity size={16} /><p className="text-sm font-semibold">Top Provider</p></div>
+              <p className="mt-2 text-sm text-slate-700">
+                {mostActiveProvider
+                  ? `${mostActiveProvider.provider} leads with ${formatNumber(mostActiveProvider.count)} requests and ${formatNumber(Math.round(mostActiveProvider.avgResponseTime))} ms average latency.`
+                  : 'No provider traffic ranking available yet.'}
+              </p>
             </Surface>
             <Surface className="bg-gradient-to-br from-emerald-50 to-white">
-              <div className="flex items-center gap-2 text-emerald-700"><ShieldCheck size={16} /><p className="text-sm font-semibold">Provider Readiness</p></div>
-              <p className="mt-2 text-sm text-slate-600">Provider status and model inventory are fetched live from provider control endpoints.</p>
+              <div className="flex items-center gap-2 text-emerald-700"><KeyRound size={16} /><p className="text-sm font-semibold">Top API Key</p></div>
+              <p className="mt-2 text-sm text-slate-700">
+                {mostUsedKey
+                  ? `${mostUsedKey.name} has ${formatNumber(mostUsedKey.requestsToday)} requests today (${mostUsedKey.usagePercent}% of quota).`
+                  : 'No API key utilization ranking available yet.'}
+              </p>
             </Surface>
             <Surface className="bg-gradient-to-br from-cyan-50 to-white">
-              <div className="flex items-center gap-2 text-cyan-700"><Boxes size={16} /><p className="text-sm font-semibold">Capacity Awareness</p></div>
-              <p className="mt-2 text-sm text-slate-600">Key usage and quota pressure are sourced from admin usage metrics in real time.</p>
+              <div className="flex items-center gap-2 text-cyan-700"><TrendingUp size={16} /><p className="text-sm font-semibold">Top Model</p></div>
+              <p className="mt-2 text-sm text-slate-700">
+                {mostUsedModel
+                  ? `${mostUsedModel.id} leads with ${formatNumber(mostUsedModel.requests)} requests and ${formatNumber(mostUsedModel.totalTokens)} tokens.`
+                  : 'No model demand ranking available yet.'}
+              </p>
+            </Surface>
+          </section>
+
+          <section className="grid gap-3 md:grid-cols-3">
+            <Surface className="bg-gradient-to-br from-slate-50 to-white">
+              <div className="flex items-center gap-2 text-slate-700"><Clock3 size={16} /><p className="text-sm font-semibold">Continuous Refresh</p></div>
+              <p className="mt-2 text-sm text-slate-600">Dashboard data refreshes every {LIVE_REFRESH_SECONDS} seconds and can also be refreshed manually.</p>
+            </Surface>
+            <Surface className="bg-gradient-to-br from-amber-50 to-white">
+              <div className="flex items-center gap-2 text-amber-700"><AlertTriangle size={16} /><p className="text-sm font-semibold">Risk Signal</p></div>
+              <p className="mt-2 text-sm text-slate-600">Posture is {operationalLabel.toLowerCase()} based on current error rate and provider session availability.</p>
+            </Surface>
+            <Surface className="bg-gradient-to-br from-violet-50 to-white">
+              <div className="flex items-center gap-2 text-violet-700"><Boxes size={16} /><p className="text-sm font-semibold">Capacity Summary</p></div>
+              <p className="mt-2 text-sm text-slate-600">
+                {formatNumber(usage?.summary.totalUsage ?? 0)} requests consumed out of {formatNumber(usage?.summary.totalLimit ?? 0)} daily limit.
+              </p>
             </Surface>
           </section>
         </>
