@@ -36,6 +36,10 @@ import {
 
 const LIVE_REFRESH_MS = 10_000
 const LIVE_REFRESH_SECONDS = LIVE_REFRESH_MS / 1000
+const GRAPH_LOG_LIMIT = 1000
+const GRAPH_POINT_LIMIT = 48
+
+const PROVIDER_SERIES_COLORS = ['#2563eb', '#0891b2', '#0f766e']
 
 const EMPTY_STATS: Stats = {
   overview: {
@@ -68,11 +72,52 @@ type ModelOverviewRow = {
   lastUsed: string | null
 }
 
+type NamedCount = {
+  name: string
+  count: number
+}
+
+type ThroughputPoint = {
+  bucket: string
+  label: string
+  requests: number
+  tokens: number
+  errors: number
+  avgLatency: number
+  streamRequests: number
+  uniqueModels: number
+  uniqueApiKeys: number
+  uniqueProviders: number
+  topProvider: string
+  topModel: string
+  topApiKey: string
+  providerBreakdown: NamedCount[]
+  modelBreakdown: NamedCount[]
+  apiKeyBreakdown: NamedCount[]
+  otherProviders: number
+  [key: string]: string | number | NamedCount[]
+}
+
+type ProviderSeries = {
+  name: string
+  key: string
+  color: string
+}
+
+type ThroughputAnalytics = {
+  points: ThroughputPoint[]
+  providerSeries: ProviderSeries[]
+  overallProviders: NamedCount[]
+  overallModels: NamedCount[]
+  overallApiKeys: NamedCount[]
+}
+
 export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
   const [stats, setStats] = useState<Stats>(EMPTY_STATS)
   const [status, setStatus] = useState<BridgeStatus | null>(null)
   const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
+  const [graphLogs, setGraphLogs] = useState<RequestLog[]>([])
   const [recentLogs, setRecentLogs] = useState<RequestLog[]>([])
   const [initialLoading, setInitialLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -99,14 +144,15 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
         api.providers.status(),
         api.admin.usage(),
         api.providers.models(),
-        api.logs.list({ limit: 12 }),
+        api.logs.list({ limit: GRAPH_LOG_LIMIT }),
       ])
 
       setStats(nextStats)
       setStatus(nextStatus)
       setUsage(nextUsage)
       setCatalog(nextCatalog)
-      setRecentLogs(nextLogs.logs)
+      setGraphLogs(nextLogs.logs)
+      setRecentLogs(nextLogs.logs.slice(0, 12))
       setLastSync(new Date())
       setNextRefreshIn(LIVE_REFRESH_SECONDS)
       setError(null)
@@ -202,13 +248,9 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
     return { maxRequests, maxTokens, maxLatency }
   }, [providerRows])
 
-  const throughputSeries = useMemo(
-    () => stats.hourlyData.slice(-36).map(point => ({
-      label: new Date(point.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      requests: point.count,
-      tokens: point.totalTokens ?? 0,
-    })),
-    [stats.hourlyData],
+  const throughputAnalytics = useMemo(
+    () => buildThroughputAnalytics(graphLogs),
+    [graphLogs],
   )
 
   const topModels = useMemo<ModelOverviewRow[]>(() => {
@@ -368,35 +410,59 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
             <Surface>
               <SurfaceHeader
                 title="Traffic and Token Throughput"
-                description="Requests and token output by hour from live request logs."
-                action={<Chip tone="default">Last 36 points</Chip>}
+                description="Detailed live graph with provider composition, token flow, errors, and per-bucket API model/key insights from system logs."
+                action={<Chip tone="default">Last {GRAPH_POINT_LIMIT} hourly buckets</Chip>}
               />
-              {throughputSeries.length === 0 ? (
+              {throughputAnalytics.points.length === 0 ? (
                 <EmptyPanel text="No hourly throughput data available yet." />
               ) : (
-                <div className="h-80">
+                <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={throughputSeries} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                    <ComposedChart data={throughputAnalytics.points} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} interval="preserveStartEnd" />
                       <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#64748b' }} />
                       <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#64748b' }} />
                       <Tooltip
-                        contentStyle={{
-                          borderRadius: 12,
-                          border: '1px solid #cbd5e1',
-                          background: '#ffffff',
-                          fontSize: 12,
-                        }}
-                        formatter={(value: number, name: string) => [formatNumber(Number(value)), name === 'requests' ? 'Requests' : 'Tokens']}
+                        cursor={{ fill: 'rgba(148, 163, 184, 0.14)' }}
+                        content={<ThroughputTooltip />}
                       />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar yAxisId="left" dataKey="requests" name="requests" fill="#2563eb" radius={[8, 8, 0, 0]} />
+
+                      {throughputAnalytics.providerSeries.map((series, index) => (
+                        <Bar
+                          key={series.key}
+                          yAxisId="left"
+                          dataKey={series.key}
+                          name={`${series.name} requests`}
+                          stackId="providerTraffic"
+                          fill={series.color}
+                          radius={index === 0 ? [8, 8, 0, 0] : [0, 0, 0, 0]}
+                        />
+                      ))}
+                      <Bar
+                        yAxisId="left"
+                        dataKey="otherProviders"
+                        name="other providers requests"
+                        stackId="providerTraffic"
+                        fill="#94a3b8"
+                        radius={[8, 8, 0, 0]}
+                      />
+
                       <Line yAxisId="right" type="monotone" dataKey="tokens" name="tokens" stroke="#0f766e" strokeWidth={2.2} dot={false} />
+                      <Line yAxisId="left" type="monotone" dataKey="errors" name="errors" stroke="#dc2626" strokeWidth={2} dot={false} strokeDasharray="6 4" />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               )}
+
+              {throughputAnalytics.points.length > 0 ? (
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <BreakdownPanel title="Top Providers In Window" items={throughputAnalytics.overallProviders} emptyText="No provider traffic yet." />
+                  <BreakdownPanel title="Top Models In Window" items={throughputAnalytics.overallModels} emptyText="No model calls yet." />
+                  <BreakdownPanel title="Top API Keys In Window" items={throughputAnalytics.overallApiKeys} emptyText="No key usage yet." />
+                </div>
+              ) : null}
             </Surface>
 
             <Surface>
@@ -679,4 +745,255 @@ function MetricBar({
       </div>
     </div>
   )
+}
+
+function BreakdownPanel({
+  title,
+  items,
+  emptyText,
+}: {
+  title: string
+  items: NamedCount[]
+  emptyText: string
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{title}</p>
+      {items.length === 0 ? (
+        <p className="mt-2 text-xs text-slate-500">{emptyText}</p>
+      ) : (
+        <div className="mt-2 space-y-1.5">
+          {items.slice(0, 4).map(item => (
+            <div key={`${title}-${item.name}`} className="flex items-center justify-between gap-2 text-xs">
+              <p className="truncate text-slate-700">{item.name}</p>
+              <p className="font-semibold text-slate-900">{formatNumber(item.count)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ThroughputTooltip({ active, payload }: any) {
+  const point = payload?.[0]?.payload as ThroughputPoint | undefined
+  if (!active || !point) return null
+
+  return (
+    <div className="max-w-[320px] rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{point.bucket}</p>
+      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+        <TooltipMetric label="Requests" value={formatNumber(point.requests)} />
+        <TooltipMetric label="Tokens" value={formatNumber(point.tokens)} />
+        <TooltipMetric label="Errors" value={formatNumber(point.errors)} />
+        <TooltipMetric label="Avg latency" value={`${formatNumber(point.avgLatency)} ms`} />
+        <TooltipMetric label="Models" value={formatNumber(point.uniqueModels)} />
+        <TooltipMetric label="API keys" value={formatNumber(point.uniqueApiKeys)} />
+      </div>
+
+      <div className="mt-3 space-y-1 text-xs">
+        <p className="text-slate-600"><span className="font-semibold text-slate-800">Top provider:</span> {point.topProvider}</p>
+        <p className="text-slate-600"><span className="font-semibold text-slate-800">Top model:</span> {point.topModel}</p>
+        <p className="text-slate-600"><span className="font-semibold text-slate-800">Top API key:</span> {point.topApiKey}</p>
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        <TooltipBreakdown title="Provider split" items={point.providerBreakdown} />
+        <TooltipBreakdown title="Model split" items={point.modelBreakdown} />
+      </div>
+    </div>
+  )
+}
+
+function TooltipMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+      <p className="text-[10px] uppercase tracking-[0.1em] text-slate-500">{label}</p>
+      <p className="mt-0.5 font-semibold text-slate-800">{value}</p>
+    </div>
+  )
+}
+
+function TooltipBreakdown({ title, items }: { title: string; items: NamedCount[] }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">{title}</p>
+      <div className="mt-1 space-y-1">
+        {items.slice(0, 3).map(item => (
+          <div key={`${title}-${item.name}`} className="flex items-center justify-between gap-2 text-xs">
+            <p className="truncate text-slate-600">{item.name}</p>
+            <p className="font-semibold text-slate-800">{formatNumber(item.count)}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function buildThroughputAnalytics(logs: RequestLog[]): ThroughputAnalytics {
+  if (logs.length === 0) {
+    return {
+      points: [],
+      providerSeries: [],
+      overallProviders: [],
+      overallModels: [],
+      overallApiKeys: [],
+    }
+  }
+
+  type BucketAggregate = {
+    requests: number
+    tokens: number
+    errors: number
+    latencyTotal: number
+    latencyCount: number
+    streamRequests: number
+    providers: Map<string, number>
+    models: Map<string, number>
+    apiKeys: Map<string, number>
+  }
+
+  const bucketMap = new Map<string, BucketAggregate>()
+
+  for (const log of logs) {
+    const timestamp = new Date(log.createdAt)
+    if (Number.isNaN(timestamp.getTime())) continue
+
+    const bucket = toHourBucket(timestamp)
+    const aggregate = bucketMap.get(bucket) ?? {
+      requests: 0,
+      tokens: 0,
+      errors: 0,
+      latencyTotal: 0,
+      latencyCount: 0,
+      streamRequests: 0,
+      providers: new Map<string, number>(),
+      models: new Map<string, number>(),
+      apiKeys: new Map<string, number>(),
+    }
+
+    aggregate.requests += 1
+    aggregate.tokens += asNumber(log.totalTokens ?? log.tokensUsed)
+    if ((log.statusCode ?? 0) >= 400 || Boolean(log.error)) aggregate.errors += 1
+    if (log.stream) aggregate.streamRequests += 1
+
+    const latency = asNumber(log.responseTimeMs)
+    if (latency > 0) {
+      aggregate.latencyTotal += latency
+      aggregate.latencyCount += 1
+    }
+
+    incrementCount(aggregate.providers, log.provider || 'unknown')
+    incrementCount(aggregate.models, log.model || 'unknown')
+    incrementCount(aggregate.apiKeys, log.apiKeyName || log.apiKeyId || 'anonymous')
+
+    bucketMap.set(bucket, aggregate)
+  }
+
+  const bucketEntries = [...bucketMap.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(-GRAPH_POINT_LIMIT)
+
+  const overallProvidersMap = new Map<string, number>()
+  const overallModelsMap = new Map<string, number>()
+  const overallApiKeysMap = new Map<string, number>()
+
+  for (const [, aggregate] of bucketEntries) {
+    mergeCounts(overallProvidersMap, aggregate.providers)
+    mergeCounts(overallModelsMap, aggregate.models)
+    mergeCounts(overallApiKeysMap, aggregate.apiKeys)
+  }
+
+  const overallProviders = mapToSortedCounts(overallProvidersMap)
+  const overallModels = mapToSortedCounts(overallModelsMap)
+  const overallApiKeys = mapToSortedCounts(overallApiKeysMap)
+
+  const providerSeries = overallProviders.slice(0, 3).map((provider, index) => ({
+    name: provider.name,
+    key: `provider_${toSeriesKey(provider.name)}`,
+    color: PROVIDER_SERIES_COLORS[index] ?? '#2563eb',
+  }))
+
+  const points: ThroughputPoint[] = bucketEntries.map(([bucket, aggregate]) => {
+    const providerBreakdown = mapToSortedCounts(aggregate.providers)
+    const modelBreakdown = mapToSortedCounts(aggregate.models)
+    const apiKeyBreakdown = mapToSortedCounts(aggregate.apiKeys)
+
+    const point: ThroughputPoint = {
+      bucket,
+      label: formatBucketLabel(bucket),
+      requests: aggregate.requests,
+      tokens: aggregate.tokens,
+      errors: aggregate.errors,
+      avgLatency: aggregate.latencyCount > 0 ? Math.round(aggregate.latencyTotal / aggregate.latencyCount) : 0,
+      streamRequests: aggregate.streamRequests,
+      uniqueModels: aggregate.models.size,
+      uniqueApiKeys: aggregate.apiKeys.size,
+      uniqueProviders: aggregate.providers.size,
+      topProvider: providerBreakdown[0]?.name ?? '-',
+      topModel: modelBreakdown[0]?.name ?? '-',
+      topApiKey: apiKeyBreakdown[0]?.name ?? '-',
+      providerBreakdown,
+      modelBreakdown,
+      apiKeyBreakdown,
+      otherProviders: 0,
+    }
+
+    let represented = 0
+    for (const series of providerSeries) {
+      const count = aggregate.providers.get(series.name) ?? 0
+      point[series.key] = count
+      represented += count
+    }
+    point.otherProviders = Math.max(0, aggregate.requests - represented)
+
+    return point
+  })
+
+  return {
+    points,
+    providerSeries,
+    overallProviders,
+    overallModels,
+    overallApiKeys,
+  }
+}
+
+function toHourBucket(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hour}:00`
+}
+
+function formatBucketLabel(bucket: string): string {
+  const asDate = new Date(bucket.replace(' ', 'T') + ':00')
+  if (Number.isNaN(asDate.getTime())) return bucket
+  return asDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function toSeriesKey(name: string): string {
+  const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  return key || 'unknown'
+}
+
+function asNumber(value: number | null | undefined): number {
+  return Number.isFinite(value) ? Math.max(0, Number(value)) : 0
+}
+
+function incrementCount(map: Map<string, number>, key: string): void {
+  map.set(key, (map.get(key) ?? 0) + 1)
+}
+
+function mergeCounts(target: Map<string, number>, source: Map<string, number>): void {
+  for (const [key, count] of source.entries()) {
+    target.set(key, (target.get(key) ?? 0) + count)
+  }
+}
+
+function mapToSortedCounts(map: Map<string, number>): NamedCount[] {
+  return [...map.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((left, right) => right.count - left.count)
 }
