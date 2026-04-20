@@ -40,7 +40,7 @@ export function PlaygroundPage() {
   const [prompt, setPrompt] = useState('')
   const [temperature, setTemperature] = useState(0.7)
   const [maxTokens, setMaxTokens] = useState(1000)
-  const [stream, setStream] = useState(true)
+  const [stream, setStream] = useState(false)
   const [newConversation, setNewConversation] = useState(true)
   const [running, setRunning] = useState(false)
   const [responseText, setResponseText] = useState('')

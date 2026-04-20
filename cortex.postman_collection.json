@@ -99,7 +99,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -109,7 +109,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
@@ -124,7 +124,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -134,7 +134,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.4-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
@@ -149,7 +149,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.3-instant\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.3-instant\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -159,7 +159,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.3-instant\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5.3-instant\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
@@ -174,7 +174,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5-thinking-mini\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5-thinking-mini\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -184,7 +184,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5-thinking-mini\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/gpt-5-thinking-mini\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
@@ -199,7 +199,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/o3\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/o3\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -209,7 +209,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/o3\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-chatgpt/o3\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
@@ -229,7 +229,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-expert\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-expert\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -239,7 +239,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-expert\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-expert\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
@@ -254,7 +254,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -264,7 +264,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
@@ -279,7 +279,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-heavy\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-heavy\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -289,7 +289,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-heavy\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-heavy\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
@@ -304,7 +304,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-4.20-beta\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-4.20-beta\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -314,7 +314,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-4.20-beta\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-grok/grok-4.20-beta\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
@@ -334,7 +334,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -344,7 +344,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-fast\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
@@ -359,7 +359,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -369,7 +369,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3-thinking\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
@@ -384,7 +384,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3.1-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3.1-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": false,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						},
 						{
@@ -394,7 +394,7 @@
 								"url": "{{baseUrl}}/v1/chat/completions",
 								"method": "POST",
 								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3.1-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
+								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-gemini/gemini-3.1-pro\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"newConversation\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
 							}
 						}
 					]
