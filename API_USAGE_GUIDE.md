@@ -1,6 +1,6 @@
-# Conduit Bridge API Usage Guide
+# CorteX API Usage Guide
 
-This document is a complete, shareable reference for integrating with the Conduit Bridge API correctly.
+This document is a complete, shareable reference for integrating with the CorteX API correctly.
 
 It covers:
 - Base URLs and authentication
