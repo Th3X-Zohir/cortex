@@ -44,7 +44,78 @@ Important:
 - If API key is missing, the API returns 401.
 - If API key is invalid, disabled, over daily limit, or over rate limit, requests fail with corresponding error codes.
 
+### Quick curl Setup Variables
+
+For terminal use, define these once:
+
+```bash
+BASE_URL="https://cortex.zohirrayhan.com"
+API_KEY="ctx_373762fcf6a1404ea7db393cce902498"
+```
+
+PowerShell:
+
+```powershell
+$BASE_URL = "https://cortex.zohirrayhan.com"
+$API_KEY = "ctx_373762fcf6a1404ea7db393cce902498"
+```
+
 ## 2. Public API Endpoints
+
+### Quick Copy-Paste curl Commands
+
+List models:
+
+```bash
+curl "$BASE_URL/v1/models" -H "X-API-Key: $API_KEY"
+```
+
+Provider status:
+
+```bash
+curl "$BASE_URL/v1/status" -H "X-API-Key: $API_KEY"
+```
+
+Non-streaming chat:
+
+```bash
+curl "$BASE_URL/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{
+    "model": "web-grok/grok-expert",
+    "messages": [{"role":"user","content":"Say hello in one line."}],
+    "stream": false,
+    "newConversation": true,
+    "temperature": 0.7,
+    "max_tokens": 120
+  }'
+```
+
+Streaming chat:
+
+```bash
+curl -N "$BASE_URL/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{
+    "model": "web-chatgpt/gpt-5.4-thinking",
+    "messages": [{"role":"user","content":"Write a 2-line poem about uptime."}],
+    "stream": true,
+    "newConversation": true,
+    "temperature": 0.6,
+    "max_tokens": 120
+  }'
+```
+
+PowerShell note:
+- Use curl.exe (not curl alias) to ensure standard curl behavior.
+
+PowerShell non-streaming example:
+
+```powershell
+curl.exe "$BASE_URL/v1/chat/completions" -H "Content-Type: application/json" -H "X-API-Key: $API_KEY" -d '{"model":"web-grok/grok-expert","messages":[{"role":"user","content":"Say hello in one line."}],"stream":false,"newConversation":true,"temperature":0.7,"max_tokens":120}'
+```
 
 ## Health
 
@@ -254,6 +325,11 @@ Always call GET /v1/models for latest runtime list. Current configured models:
 
 ## 7. JavaScript Integration
 
+Important:
+- The following examples are JavaScript/Node.js only.
+- Do not put JavaScript import syntax inside a Python file.
+- If your file is run.py, use the Python examples in the next section.
+
 ## Using fetch
 
 ```js
@@ -344,6 +420,46 @@ r = requests.post(
 
 r.raise_for_status()
 print(r.json()["choices"][0]["message"]["content"])
+```
+
+### Python OpenAI SDK Compatible Mode (Correct for run.py)
+
+If you saw this error:
+
+```text
+SyntaxError: import OpenAI from "openai";
+```
+
+that means JavaScript code was pasted into Python.
+
+Use this Python code instead:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+  api_key="ctx_373762fcf6a1404ea7db393cce902498",
+  base_url="https://cortex.zohirrayhan.com/v1",
+)
+
+completion = client.chat.completions.create(
+  model="web-chatgpt/gpt-5.4-pro",
+  messages=[
+    {"role": "system", "content": "You are a concise assistant."},
+    {"role": "user", "content": "Say hello in one short sentence."},
+  ],
+  stream=False,
+  temperature=0.5,
+  max_tokens=120,
+)
+
+print(completion.choices[0].message.content)
+```
+
+Install dependency first:
+
+```bash
+pip install --upgrade openai
 ```
 
 ## 9. Postman Setup
