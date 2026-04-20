@@ -1,13 +1,17 @@
 {
 	"info": {
 		"name": "cortex",
-		"description": "OpenAI-compatible AI proxy — Grok, Claude, Gemini, ChatGPT via headless browser",
+		"description": "OpenAI-compatible AI proxy — Grok, Gemini, ChatGPT via headless browser",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
 		{
 			"key": "baseUrl",
 			"value": "http://localhost:31339"
+		},
+		{
+			"key": "apiKey",
+			"value": "REPLACE_WITH_API_KEY"
 		},
 		{
 			"key": "defaultPrompt",
@@ -20,8 +24,40 @@
 		{
 			"key": "defaultMaxTokens",
 			"value": "150"
+		},
+		{
+			"key": "adminUsername",
+			"value": "admin"
+		},
+		{
+			"key": "adminPassword",
+			"value": "REPLACE_WITH_ADMIN_PASSWORD"
+		},
+		{
+			"key": "adminToken",
+			"value": "REPLACE_WITH_ADMIN_JWT"
 		}
 	],
+	"auth": {
+		"type": "apikey",
+		"apikey": [
+			{
+				"key": "key",
+				"value": "X-API-Key",
+				"type": "string"
+			},
+			{
+				"key": "value",
+				"value": "{{apiKey}}",
+				"type": "string"
+			},
+			{
+				"key": "in",
+				"value": "header",
+				"type": "string"
+			}
+		]
+	},
 	"item": [
 		{
 			"name": "Health",
@@ -286,86 +322,6 @@
 			]
 		},
 		{
-			"name": "Claude",
-			"item": [
-				{
-					"name": "web-claude/claude-opus",
-					"item": [
-						{
-							"name": "Non-Streaming",
-							"request": {
-								"name": "Claude Opus - Non-Streaming",
-								"url": "{{baseUrl}}/v1/chat/completions",
-								"method": "POST",
-								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-opus\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
-							}
-						},
-						{
-							"name": "Streaming",
-							"request": {
-								"name": "Claude Opus - Streaming",
-								"url": "{{baseUrl}}/v1/chat/completions",
-								"method": "POST",
-								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-opus\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
-							}
-						}
-					]
-				},
-				{
-					"name": "web-claude/claude-sonnet",
-					"item": [
-						{
-							"name": "Non-Streaming",
-							"request": {
-								"name": "Claude Sonnet - Non-Streaming",
-								"url": "{{baseUrl}}/v1/chat/completions",
-								"method": "POST",
-								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-sonnet\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
-							}
-						},
-						{
-							"name": "Streaming",
-							"request": {
-								"name": "Claude Sonnet - Streaming",
-								"url": "{{baseUrl}}/v1/chat/completions",
-								"method": "POST",
-								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-sonnet\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
-							}
-						}
-					]
-				},
-				{
-					"name": "web-claude/claude-haiku",
-					"item": [
-						{
-							"name": "Non-Streaming",
-							"request": {
-								"name": "Claude Haiku - Non-Streaming",
-								"url": "{{baseUrl}}/v1/chat/completions",
-								"method": "POST",
-								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-haiku\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
-							}
-						},
-						{
-							"name": "Streaming",
-							"request": {
-								"name": "Claude Haiku - Streaming",
-								"url": "{{baseUrl}}/v1/chat/completions",
-								"method": "POST",
-								"header": [{ "key": "Content-Type", "value": "application/json" }],
-								"body": { "mode": "raw", "raw": "{\n  \"model\": \"web-claude/claude-haiku\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{defaultPrompt}}\" }\n  ],\n  \"stream\": true,\n  \"temperature\": {{defaultTemp}},\n  \"max_tokens\": {{defaultMaxTokens}}\n}" }
-							}
-						}
-					]
-				}
-			]
-		},
-		{
 			"name": "Gemini",
 			"item": [
 				{
@@ -446,83 +402,111 @@
 			]
 		},
 		{
-			"name": "Login",
+			"name": "Admin Auth",
 			"item": [
 				{
-					"name": "ChatGPT",
+					"name": "Login",
 					"request": {
-						"name": "Login ChatGPT",
-						"url": "{{baseUrl}}/v1/login/chatgpt",
+						"name": "Admin Login",
+						"url": "{{baseUrl}}/api/auth/login",
 						"method": "POST",
-						"header": []
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}" }
 					}
 				},
 				{
-					"name": "Grok",
+					"name": "Me",
 					"request": {
-						"name": "Login Grok",
-						"url": "{{baseUrl}}/v1/login/grok",
-						"method": "POST",
-						"header": []
+						"name": "Get Current Admin",
+						"url": "{{baseUrl}}/api/auth/me",
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
 					}
 				},
 				{
-					"name": "Claude",
+					"name": "Logout",
 					"request": {
-						"name": "Login Claude",
-						"url": "{{baseUrl}}/v1/login/claude",
+						"name": "Admin Logout",
+						"url": "{{baseUrl}}/api/auth/logout",
 						"method": "POST",
-						"header": []
-					}
-				},
-				{
-					"name": "Gemini",
-					"request": {
-						"name": "Login Gemini",
-						"url": "{{baseUrl}}/v1/login/gemini",
-						"method": "POST",
-						"header": []
+						"header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
 					}
 				}
 			]
 		},
 		{
-			"name": "Logout",
+			"name": "Provider Sessions (Admin)",
 			"item": [
 				{
-					"name": "ChatGPT",
+					"name": "Status",
 					"request": {
-						"name": "Logout ChatGPT",
-						"url": "{{baseUrl}}/v1/logout/chatgpt",
-						"method": "POST",
-						"header": []
+						"name": "Provider Status",
+						"url": "{{baseUrl}}/api/providers/status",
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
 					}
 				},
 				{
-					"name": "Grok",
+					"name": "Models",
 					"request": {
-						"name": "Logout Grok",
-						"url": "{{baseUrl}}/v1/logout/grok",
-						"method": "POST",
-						"header": []
+						"name": "Provider Models",
+						"url": "{{baseUrl}}/api/providers/models",
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
 					}
 				},
 				{
-					"name": "Claude",
+					"name": "Login ChatGPT",
 					"request": {
-						"name": "Logout Claude",
-						"url": "{{baseUrl}}/v1/logout/claude",
+						"name": "Provider Login ChatGPT",
+						"url": "{{baseUrl}}/api/providers/chatgpt/login",
 						"method": "POST",
-						"header": []
+						"header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
 					}
 				},
 				{
-					"name": "Gemini",
+					"name": "Logout ChatGPT",
 					"request": {
-						"name": "Logout Gemini",
-						"url": "{{baseUrl}}/v1/logout/gemini",
+						"name": "Provider Logout ChatGPT",
+						"url": "{{baseUrl}}/api/providers/chatgpt/logout",
 						"method": "POST",
-						"header": []
+						"header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+					}
+				},
+				{
+					"name": "Login Grok",
+					"request": {
+						"name": "Provider Login Grok",
+						"url": "{{baseUrl}}/api/providers/grok/login",
+						"method": "POST",
+						"header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+					}
+				},
+				{
+					"name": "Logout Grok",
+					"request": {
+						"name": "Provider Logout Grok",
+						"url": "{{baseUrl}}/api/providers/grok/logout",
+						"method": "POST",
+						"header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+					}
+				},
+				{
+					"name": "Login Gemini",
+					"request": {
+						"name": "Provider Login Gemini",
+						"url": "{{baseUrl}}/api/providers/gemini/login",
+						"method": "POST",
+						"header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+					}
+				},
+				{
+					"name": "Logout Gemini",
+					"request": {
+						"name": "Provider Logout Gemini",
+						"url": "{{baseUrl}}/api/providers/gemini/logout",
+						"method": "POST",
+						"header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
 					}
 				}
 			]
