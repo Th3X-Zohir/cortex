@@ -107,7 +107,7 @@ function App() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <img src="/logo.svg" alt="Cortex Admin" className="h-9 w-auto" />
-                <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Conduit Bridge Operations</p>
+                <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">CorteX Operations</p>
               </div>
               <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">Control</span>
             </div>
