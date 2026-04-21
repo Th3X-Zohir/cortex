@@ -30,22 +30,18 @@ export class ChatGPTProvider extends BaseProvider {
       const userMsg = buildUserMessage(req.messages);
       logPromptComposition('chatgpt', req.messages, userMsg);
 
-      const textarea = page.locator('#prompt-textarea, [contenteditable="true"]').first();
-      await textarea.waitFor({ timeout: 15000 });
-      await this._insertPromptText(page, textarea, userMsg);
-
-      await new Promise(r => setTimeout(r, 300));
-      await page.keyboard.press('Enter');
+      await this._submitPromptWithRateLimitRecovery(page, userMsg);
 
       logger.info(`[chatgpt] message sent (${userMsg.length} chars) — non-streaming mode, waiting for DOM...`);
 
       const timeout = 60000;
       const pollInterval = 500;
-      const start = Date.now();
+      let start = Date.now();
       let lastLength = 0;
       let stableCount = 0;
       let matchedSelector = '';
       let targetMsgId = '';
+      let resubmitCount = 0;
 
       const selectors = [
         '[data-message-author-role="assistant"] .markdown',
@@ -59,6 +55,23 @@ export class ChatGPTProvider extends BaseProvider {
 
       while (Date.now() - start < timeout) {
         await new Promise(r => setTimeout(r, pollInterval));
+
+        const rateLimited = await this._dismissTooManyRequestsDialog(page);
+        if (rateLimited && lastLength === 0) {
+          if (resubmitCount >= 2) {
+            throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
+          }
+          resubmitCount += 1;
+          const waitMs = resubmitCount * 4000;
+          logger.warn(`[chatgpt] rate-limit modal while waiting; retrying submit in ${waitMs}ms (retry ${resubmitCount}/2)`);
+          await new Promise(r => setTimeout(r, waitMs));
+          await this._submitPromptWithRateLimitRecovery(page, userMsg);
+          start = Date.now();
+          stableCount = 0;
+          matchedSelector = '';
+          targetMsgId = '';
+          continue;
+        }
 
         if (!targetMsgId) {
           const info = await page.evaluate(`
@@ -170,27 +183,46 @@ export class ChatGPTProvider extends BaseProvider {
         window.__cortexChatGPT = { text:'', done:false, startTime:Date.now(), fetchHits:0 };
       `);
 
-      const textarea = page.locator('#prompt-textarea, [contenteditable="true"]').first();
-      await textarea.waitFor({ timeout: 15000 });
-      await this._insertPromptText(page, textarea, userMsg);
-
-      await new Promise(r => setTimeout(r, 300));
-      await page.keyboard.press('Enter');
+      await this._submitPromptWithRateLimitRecovery(page, userMsg);
 
       logger.info(`[chatgpt] message sent (${userMsg.length} chars)`);
 
       const timeout = 60000;
       const pollInterval = 300;
-      const start = Date.now();
+      let start = Date.now();
       let lastLength = 0;
       let lastCleanedLength = 0;
       let stableCount = 0;
       let hasContent = false;
       let fetchHit = false;
       let firstChunkTime = 0;
+      let resubmitCount = 0;
 
       while (Date.now() - start < timeout) {
         await new Promise(r => setTimeout(r, pollInterval));
+
+        const rateLimited = await this._dismissTooManyRequestsDialog(page);
+        if (rateLimited && !hasContent) {
+          if (resubmitCount >= 2) {
+            throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
+          }
+          resubmitCount += 1;
+          const waitMs = resubmitCount * 4000;
+          logger.warn(`[chatgpt] rate-limit modal while streaming wait; retrying submit in ${waitMs}ms (retry ${resubmitCount}/2)`);
+          await new Promise(r => setTimeout(r, waitMs));
+          await page.evaluate(`
+            window.__cortexChatGPT = { text:'', done:false, startTime:Date.now(), fetchHits:0 };
+          `).catch(() => {});
+          await this._submitPromptWithRateLimitRecovery(page, userMsg);
+          start = Date.now();
+          lastLength = 0;
+          lastCleanedLength = 0;
+          stableCount = 0;
+          hasContent = false;
+          fetchHit = false;
+          firstChunkTime = 0;
+          continue;
+        }
 
         const result = await page.evaluate(`
           window.__cortexChatGPT ? {
@@ -263,6 +295,56 @@ export class ChatGPTProvider extends BaseProvider {
       await page.close().catch(() => {});
       throw err;
     }
+  }
+
+  private async _submitPromptWithRateLimitRecovery(
+    page: import('playwright').Page,
+    userMsg: string,
+  ): Promise<void> {
+    const textarea = page.locator('#prompt-textarea, [contenteditable="true"]').first();
+    const retryDelaysMs = [1200, 3000, 7000];
+
+    for (let attempt = 0; attempt <= retryDelaysMs.length; attempt++) {
+      await textarea.waitFor({ timeout: 15000 });
+      await this._insertPromptText(page, textarea, userMsg);
+      await new Promise(r => setTimeout(r, 300));
+      await page.keyboard.press('Enter');
+      await new Promise(r => setTimeout(r, 900));
+
+      const rateLimited = await this._dismissTooManyRequestsDialog(page);
+      if (!rateLimited) return;
+
+      if (attempt >= retryDelaysMs.length) {
+        throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
+      }
+
+      const waitMs = retryDelaysMs[attempt];
+      logger.warn(`[chatgpt] rate-limit dialog after submit; retrying in ${waitMs}ms (attempt ${attempt + 1}/${retryDelaysMs.length + 1})`);
+      await new Promise(r => setTimeout(r, waitMs));
+    }
+  }
+
+  private async _dismissTooManyRequestsDialog(page: import('playwright').Page): Promise<boolean> {
+    const dialog = page.locator('[role="dialog"]:has-text("Too many requests"), [role="alertdialog"]:has-text("Too many requests")').first();
+    const visible = await dialog.isVisible({ timeout: 250 }).catch(() => false);
+    if (!visible) return false;
+
+    const acknowledge = dialog.locator('button:has-text("Got it"), button:has-text("Okay"), button:has-text("OK"), button:has-text("Dismiss")').first();
+    if (await acknowledge.isVisible({ timeout: 1000 }).catch(() => false)) {
+      try {
+        await acknowledge.click({ timeout: 2000 });
+      } catch {
+        await acknowledge.evaluate((element: any) => {
+          if (typeof element.click === 'function') element.click();
+        }).catch(() => {});
+      }
+    } else {
+      await page.keyboard.press('Escape').catch(() => {});
+    }
+
+    logger.warn('[chatgpt] detected "Too many requests" dialog and dismissed it');
+    await new Promise(r => setTimeout(r, 250));
+    return true;
   }
 
   private async *_pollForResponseDOM(
