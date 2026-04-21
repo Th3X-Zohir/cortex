@@ -40,6 +40,7 @@ const GRAPH_LOG_LIMIT = 1000
 const GRAPH_POINT_LIMIT = 48
 
 const PROVIDER_SERIES_COLORS = ['#2563eb', '#0891b2', '#0f766e']
+const HIDDEN_PROVIDER_NAMES = new Set(['unknown', 'system'])
 
 const EMPTY_STATS: Stats = {
   overview: {
@@ -218,7 +219,7 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
         ...providers.map(provider => provider.name),
         ...stats.byProvider.map(item => item.provider),
       ]),
-    )
+    ).filter(isVisibleProviderName)
 
     return providerNames
       .map(name => {
@@ -256,6 +257,7 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
   const topModels = useMemo<ModelOverviewRow[]>(() => {
     if (catalog?.models.length) {
       return [...catalog.models]
+        .filter(model => isVisibleModelId(model.id) && isVisibleProviderName(model.provider))
         .sort((a, b) => b.usage.requests - a.usage.requests)
         .slice(0, 8)
         .map(model => ({
@@ -269,15 +271,18 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
         }))
     }
 
-    return stats.byModel.slice(0, 8).map(model => ({
-      id: model.model,
-      provider: model.model.split('/')[0] ?? 'unknown',
-      requests: model.count,
-      avgResponseTime: 0,
-      errorCount: 0,
-      totalTokens: model.totalTokens,
-      lastUsed: null,
-    }))
+    return stats.byModel
+      .filter(model => isVisibleModelId(model.model))
+      .slice(0, 8)
+      .map(model => ({
+        id: model.model,
+        provider: model.model.split('/')[0] ?? 'unknown',
+        requests: model.count,
+        avgResponseTime: 0,
+        errorCount: 0,
+        totalTokens: model.totalTokens,
+        lastUsed: null,
+      }))
   }, [catalog?.models, stats.byModel])
 
   const keyUsageRows = useMemo(
@@ -287,7 +292,7 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
     [usage?.keys],
   )
 
-  const mostActiveProvider = stats.byProvider[0]
+  const mostActiveProvider = stats.byProvider.find(item => isVisibleProviderName(item.provider))
   const mostUsedKey = keyUsageRows[0]
   const mostUsedModel = topModels[0]
 
@@ -883,8 +888,12 @@ function buildThroughputAnalytics(logs: RequestLog[]): ThroughputAnalytics {
       aggregate.latencyCount += 1
     }
 
-    incrementCount(aggregate.providers, log.provider || 'unknown')
-    incrementCount(aggregate.models, log.model || 'unknown')
+    if (isVisibleProviderName(log.provider)) {
+      incrementCount(aggregate.providers, log.provider)
+    }
+    if (isVisibleModelId(log.model)) {
+      incrementCount(aggregate.models, log.model)
+    }
     incrementCount(aggregate.apiKeys, log.apiKeyName || log.apiKeyId || 'anonymous')
 
     bucketMap.set(bucket, aggregate)
@@ -976,6 +985,25 @@ function formatBucketLabel(bucket: string): string {
 function toSeriesKey(name: string): string {
   const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
   return key || 'unknown'
+}
+
+function isVisibleProviderName(name: string | null | undefined): name is string {
+  if (!name) return false
+  const normalized = name.trim().toLowerCase()
+  if (!normalized) return false
+  return !HIDDEN_PROVIDER_NAMES.has(normalized)
+}
+
+function isVisibleModelId(modelId: string | null | undefined): modelId is string {
+  if (!modelId) return false
+  const normalized = modelId.trim().toLowerCase()
+  if (!normalized || normalized === 'unknown' || normalized === 'system') return false
+
+  const slashIndex = normalized.indexOf('/')
+  if (slashIndex <= 0 || slashIndex === normalized.length - 1) return false
+
+  const providerFamily = normalized.slice(0, slashIndex)
+  return providerFamily.startsWith('web-') && !HIDDEN_PROVIDER_NAMES.has(providerFamily)
 }
 
 function asNumber(value: number | null | undefined): number {
