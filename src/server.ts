@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, normalize, relative } from 'node:path';
-import type { BridgeConfig } from './types.js';
+import type { BridgeConfig, ModelDefinition, ProviderAdapter } from './types.js';
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
 import { AdminStore } from './admin/store.js';
@@ -192,6 +192,7 @@ export class BridgeServer {
       }
 
       const { model, messages, stream = false, temperature, max_tokens, newConversation = false } = reqData;
+      const isChatGptRequest = typeof model === 'string' && model.startsWith('web-chatgpt/');
       modelName = model ?? 'unknown';
       messagesCount = Array.isArray(messages) ? messages.length : 0;
       streamRequest = Boolean(stream);
@@ -210,17 +211,33 @@ export class BridgeServer {
         json(res, 404, errorPayload);
         return;
       }
-      providerName = provider.name;
+      let activeProvider = provider;
+      let activeModel = model;
+      providerName = activeProvider.name;
+      modelName = activeModel;
 
-      const connected = await provider.ensureConnected();
+      const connected = await activeProvider.ensureConnected();
       if (!connected) {
+        if (isChatGptRequest) {
+          const fallback = await this._selectAutoFallbackProvider(activeProvider.name);
+          if (fallback) {
+            activeProvider = fallback.provider;
+            activeModel = fallback.model.id;
+            providerName = activeProvider.name;
+            modelName = activeModel;
+            logger.warn(`[fallback] chatgpt unavailable, rerouting request to ${providerName}/${modelName}`);
+          }
+        }
+      }
+
+      if (!await activeProvider.ensureConnected()) {
         const errorPayload = {
           error: {
-            message: `${provider.name} is not connected. Use the admin provider controls to connect it.`,
+            message: `${activeProvider.name} is not connected. Use the admin provider controls to connect it.`,
             type: 'provider_unavailable',
           },
         };
-        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 503, startedAt, `${provider.name} is not connected`, req, undefined, reqData, errorPayload);
+        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 503, startedAt, `${activeProvider.name} is not connected`, req, undefined, reqData, errorPayload);
         json(res, 503, errorPayload);
         return;
       }
@@ -239,22 +256,22 @@ export class BridgeServer {
         let usageForLog: TokenUsage = this._estimateTokenUsage(reqData, '');
         let responsePayloadForLog: unknown = null;
         try {
-          for await (const chunk of provider.chatStream({ model, messages, temperature, max_tokens, newConversation })) {
+          for await (const chunk of activeProvider.chatStream({ model: activeModel, messages, temperature, max_tokens, newConversation })) {
             chunks.push(chunk);
-            const meta = 'currentMeta' in provider ? (provider as any).currentMeta : undefined;
+            const meta = 'currentMeta' in activeProvider ? (activeProvider as any).currentMeta : undefined;
             const data = JSON.stringify({
-              id, object: 'chat.completion.chunk', model,
+              id, object: 'chat.completion.chunk', model: activeModel,
               choices: [{ index: 0, delta: { content: chunk }, finish_reason: null }],
               ...(meta ? { cortex_meta: meta } : {}),
             });
             res.write(`data: ${data}\n\n`);
             if ((res as any).flush) (res as any).flush();
           }
-          const finalMeta = 'currentMeta' in provider ? (provider as any).currentMeta : undefined;
-          const usage = this._tokenUsage(provider, reqData, chunks.join(''));
+          const finalMeta = 'currentMeta' in activeProvider ? (activeProvider as any).currentMeta : undefined;
+          const usage = this._tokenUsage(activeProvider, reqData, chunks.join(''));
           usageForLog = usage;
           const doneData = JSON.stringify({
-            id, object: 'chat.completion.chunk', model,
+            id, object: 'chat.completion.chunk', model: activeModel,
             choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
             usage,
             ...(finalMeta ? { cortex_meta: finalMeta } : {}),
@@ -264,7 +281,7 @@ export class BridgeServer {
           responsePayloadForLog = {
             id,
             object: 'chat.completion',
-            model,
+            model: activeModel,
             choices: [{
               index: 0,
               message: { role: 'assistant', content: chunks.join('') },
@@ -274,20 +291,76 @@ export class BridgeServer {
           };
         } catch (err) {
           streamError = (err as Error).message;
-          usageForLog = this._tokenUsage(provider, reqData, chunks.join(''));
-          responsePayloadForLog = {
-            id,
-            object: 'chat.completion',
-            model,
-            choices: [{
-              index: 0,
-              message: { role: 'assistant', content: chunks.join('') },
-              finish_reason: 'error',
-            }],
-            usage: usageForLog,
-            error: { message: streamError, type: 'provider_error' },
-          };
-          res.write(`data: ${JSON.stringify({ error: streamError })}\n\n`);
+          let recoveredByFallback = false;
+
+          if (isChatGptRequest && chunks.length === 0) {
+            const fallback = await this._selectAutoFallbackProvider(activeProvider.name);
+            if (fallback) {
+              activeProvider = fallback.provider;
+              activeModel = fallback.model.id;
+              providerName = activeProvider.name;
+              modelName = activeModel;
+              logger.warn(`[fallback] chatgpt streaming failed, rerouting to ${providerName}/${modelName}: ${streamError}`);
+
+              try {
+                for await (const chunk of activeProvider.chatStream({ model: activeModel, messages, temperature, max_tokens, newConversation })) {
+                  chunks.push(chunk);
+                  const meta = 'currentMeta' in activeProvider ? (activeProvider as any).currentMeta : undefined;
+                  const data = JSON.stringify({
+                    id, object: 'chat.completion.chunk', model: activeModel,
+                    choices: [{ index: 0, delta: { content: chunk }, finish_reason: null }],
+                    ...(meta ? { cortex_meta: meta } : {}),
+                  });
+                  res.write(`data: ${data}\n\n`);
+                  if ((res as any).flush) (res as any).flush();
+                }
+
+                const finalMeta = 'currentMeta' in activeProvider ? (activeProvider as any).currentMeta : undefined;
+                const usage = this._tokenUsage(activeProvider, reqData, chunks.join(''));
+                usageForLog = usage;
+                const doneData = JSON.stringify({
+                  id, object: 'chat.completion.chunk', model: activeModel,
+                  choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+                  usage,
+                  ...(finalMeta ? { cortex_meta: finalMeta } : {}),
+                });
+                res.write(`data: ${doneData}\n\n`);
+                res.write('data: [DONE]\n\n');
+                responsePayloadForLog = {
+                  id,
+                  object: 'chat.completion',
+                  model: activeModel,
+                  choices: [{
+                    index: 0,
+                    message: { role: 'assistant', content: chunks.join('') },
+                    finish_reason: 'stop',
+                  }],
+                  usage,
+                };
+                streamError = null;
+                recoveredByFallback = true;
+              } catch (fallbackErr) {
+                streamError = `Fallback ${providerName} failed: ${(fallbackErr as Error).message}`;
+              }
+            }
+          }
+
+          if (!recoveredByFallback) {
+            usageForLog = this._tokenUsage(activeProvider, reqData, chunks.join(''));
+            responsePayloadForLog = {
+              id,
+              object: 'chat.completion',
+              model: activeModel,
+              choices: [{
+                index: 0,
+                message: { role: 'assistant', content: chunks.join('') },
+                finish_reason: 'error',
+              }],
+              usage: usageForLog,
+              error: { message: streamError, type: 'provider_error' },
+            };
+            res.write(`data: ${JSON.stringify({ error: streamError })}\n\n`);
+          }
         } finally {
           res.end();
           this._logApiRequest(
@@ -307,12 +380,12 @@ export class BridgeServer {
         }
       } else {
         try {
-          const content = await provider.chat({ model, messages, temperature, max_tokens, newConversation });
-          const usage = this._tokenUsage(provider, reqData, content);
+          const content = await activeProvider.chat({ model: activeModel, messages, temperature, max_tokens, newConversation });
+          const usage = this._tokenUsage(activeProvider, reqData, content);
           const responsePayload = {
             id: `chatcmpl-${Date.now()}`,
             object: 'chat.completion',
-            model,
+            model: activeModel,
             choices: [{
               index: 0,
               message: { role: 'assistant', content },
@@ -323,7 +396,40 @@ export class BridgeServer {
           json(res, 200, responsePayload);
           this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 200, startedAt, null, req, usage, reqData, responsePayload);
         } catch (err) {
-          const message = (err as Error).message;
+          let message = (err as Error).message;
+
+          if (isChatGptRequest) {
+            const fallback = await this._selectAutoFallbackProvider(activeProvider.name);
+            if (fallback) {
+              activeProvider = fallback.provider;
+              activeModel = fallback.model.id;
+              providerName = activeProvider.name;
+              modelName = activeModel;
+              logger.warn(`[fallback] chatgpt non-stream failed, rerouting to ${providerName}/${modelName}: ${message}`);
+
+              try {
+                const content = await activeProvider.chat({ model: activeModel, messages, temperature, max_tokens, newConversation });
+                const usage = this._tokenUsage(activeProvider, reqData, content);
+                const responsePayload = {
+                  id: `chatcmpl-${Date.now()}`,
+                  object: 'chat.completion',
+                  model: activeModel,
+                  choices: [{
+                    index: 0,
+                    message: { role: 'assistant', content },
+                    finish_reason: 'stop',
+                  }],
+                  usage,
+                };
+                json(res, 200, responsePayload);
+                this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 200, startedAt, null, req, usage, reqData, responsePayload);
+                return;
+              } catch (fallbackErr) {
+                message = `Primary and fallback providers failed: ${(fallbackErr as Error).message}`;
+              }
+            }
+          }
+
           const usage = this._estimateTokenUsage(reqData, '');
           const errorPayload = { error: { message, type: 'provider_error' } };
           json(res, 503, errorPayload);
@@ -334,6 +440,28 @@ export class BridgeServer {
     }
 
     json(res, 404, { error: { message: `Not found: ${url}`, type: 'not_found' } });
+  }
+
+  private async _selectAutoFallbackProvider(excludedProvider?: string): Promise<{ provider: ProviderAdapter; model: ModelDefinition } | null> {
+    const preferredProviders: Array<'gemini' | 'grok'> = ['gemini', 'grok'];
+    const models = this._registry.allModels();
+
+    for (const providerName of preferredProviders) {
+      if (providerName === excludedProvider) continue;
+
+      const model = models.find(candidate => candidate.provider === providerName);
+      if (!model) continue;
+
+      const provider = this._registry.providerForModel(model.id);
+      if (!provider) continue;
+
+      const connected = await provider.ensureConnected();
+      if (!connected) continue;
+
+      return { provider, model };
+    }
+
+    return null;
   }
 
   private _authenticateApiRequest(
