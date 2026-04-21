@@ -288,7 +288,9 @@ export class ChatGPTProvider extends BaseProvider {
     const page = await this._ctx.newPage();
     try {
       await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
+      await this._clearRateLimitBlockers(page, 'page initialization');
       await page.locator('#prompt-textarea, [contenteditable="true"]').first().waitFor({ timeout: 20000 });
+      await this._clearRateLimitBlockers(page, 'composer readiness');
       logger.debug('[chatgpt] isolated request page ready');
       return page;
     } catch (err) {
@@ -305,6 +307,7 @@ export class ChatGPTProvider extends BaseProvider {
     const retryDelaysMs = [1200, 3000, 7000];
 
     for (let attempt = 0; attempt <= retryDelaysMs.length; attempt++) {
+      await this._clearRateLimitBlockers(page, 'pre-submit check');
       await textarea.waitFor({ timeout: 15000 });
       await this._insertPromptText(page, textarea, userMsg);
       await new Promise(r => setTimeout(r, 300));
@@ -320,6 +323,26 @@ export class ChatGPTProvider extends BaseProvider {
 
       const waitMs = retryDelaysMs[attempt];
       logger.warn(`[chatgpt] rate-limit dialog after submit; retrying in ${waitMs}ms (attempt ${attempt + 1}/${retryDelaysMs.length + 1})`);
+      await new Promise(r => setTimeout(r, waitMs));
+    }
+  }
+
+  private async _clearRateLimitBlockers(
+    page: import('playwright').Page,
+    phase: string,
+  ): Promise<void> {
+    const retryDelaysMs = [1000, 3000, 7000];
+
+    for (let attempt = 0; attempt <= retryDelaysMs.length; attempt++) {
+      const dismissed = await this._dismissTooManyRequestsDialog(page);
+      if (!dismissed) return;
+
+      if (attempt >= retryDelaysMs.length) {
+        throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
+      }
+
+      const waitMs = retryDelaysMs[attempt];
+      logger.warn(`[chatgpt] rate-limit dialog during ${phase}; waiting ${waitMs}ms before retry (attempt ${attempt + 1}/${retryDelaysMs.length + 1})`);
       await new Promise(r => setTimeout(r, waitMs));
     }
   }
@@ -418,6 +441,7 @@ export class ChatGPTProvider extends BaseProvider {
 
   private async _startNewConversation(page: import('playwright').Page): Promise<void> {
     logger.info('[chatgpt] starting new conversation...');
+    await this._clearRateLimitBlockers(page, 'new conversation preflight');
 
     const newChatBtn = page.locator(
       'button:has-text("New chat"), button[aria-label="New chat"], ' +
@@ -431,19 +455,23 @@ export class ChatGPTProvider extends BaseProvider {
           else element.dispatchEvent(new (globalThis as any).MouseEvent('click', { bubbles: true, cancelable: true }));
         });
         await new Promise(r => setTimeout(r, 1500));
+        await this._clearRateLimitBlockers(page, 'new conversation start');
         logger.info('[chatgpt] new conversation started');
       } catch (err) {
         logger.warn(`[chatgpt] new chat button click failed, using direct navigation: ${(err as Error).message}`);
         await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
         await new Promise(r => setTimeout(r, 2000));
+        await this._clearRateLimitBlockers(page, 'new conversation navigation fallback');
       }
     } else {
       logger.info('[chatgpt] new chat button not found — trying direct navigation');
       await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
       await new Promise(r => setTimeout(r, 2000));
+      await this._clearRateLimitBlockers(page, 'new conversation direct navigation');
     }
 
     await page.locator('#prompt-textarea, [contenteditable="true"]').waitFor({ timeout: 15000 });
+    await this._clearRateLimitBlockers(page, 'new conversation post-ready');
   }
 
 private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
