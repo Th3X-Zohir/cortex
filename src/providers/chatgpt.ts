@@ -1,5 +1,4 @@
 import type { BridgeConfig, ChatRequest, ModelDefinition } from '../types.js';
-import type { BrowserContext } from 'playwright';
 import { BaseProvider } from './base.js';
 import { logger } from '../logger.js';
 import { buildUserMessage, logPromptComposition } from './grok.js';
@@ -22,112 +21,118 @@ export class ChatGPTProvider extends BaseProvider {
   async chat(req: ChatRequest): Promise<string> {
     if (!this._ctx) throw new Error('ChatGPT: not connected. Run login first.');
 
-    const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
-
-    let _onChatGptPage = false;
-    try { const _p = new URL(page.url()); _onChatGptPage = _p.hostname === 'chatgpt.com' || _p.hostname.endsWith('.chatgpt.com'); } catch { _onChatGptPage = false; }
-    if (!_onChatGptPage) {
-      await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
-      await new Promise(r => setTimeout(r, 2000));
-    }
-
-    if (req.newConversation) {
-      await this._startNewConversation(page);
-    }
-
-    const userMsg = buildUserMessage(req.messages);
-    logPromptComposition('chatgpt', req.messages, userMsg);
-
-    const textarea = page.locator('#prompt-textarea, [contenteditable="true"]').first();
-    await textarea.waitFor({ timeout: 15000 });
-    await this._insertPromptText(page, textarea, userMsg);
-
-    await new Promise(r => setTimeout(r, 300));
-    await page.keyboard.press('Enter');
-
-    logger.info(`[chatgpt] message sent (${userMsg.length} chars) — non-streaming mode, waiting for DOM...`);
-
-    const timeout = 60000;
-    const pollInterval = 500;
-    const start = Date.now();
-    let lastLength = 0;
-    let stableCount = 0;
-    let matchedSelector = '';
-    let lastAssistantId = '';
-    let targetMsgId = '';
-
-    const selectors = [
-      '[data-message-author-role="assistant"] .markdown',
-      '[data-message-author-role="assistant"]',
-      'article[data-testid*="conversation-turn"] .markdown',
-      '.agent-turn .markdown',
-      '.text-message .markdown',
-      '.group\\/conversation-turn:last-child .markdown',
-      'article:last-of-type .markdown',
-    ];
-
-    while (Date.now() - start < timeout) {
-      await new Promise(r => setTimeout(r, pollInterval));
-
-      if (!targetMsgId) {
-        const info = await page.evaluate(`
-          (() => {
-            const userMsgs = document.querySelectorAll('[data-message-author-role="user"]');
-            if (!userMsgs.length) return { userMsgId: '', assistantId: '' };
-            const lastUser = userMsgs[userMsgs.length - 1];
-            const uid = lastUser.getAttribute('data-message-id') || '';
-            const parent = lastUser.closest('article[data-testid*="conversation-turn"], div[data-testid*="conversation-turn"]');
-            if (!parent) return { userMsgId: uid, assistantId: '' };
-            const nextSiblings = [];
-            let sibling = parent.nextElementSibling;
-            while (sibling) {
-              nextSiblings.push(sibling);
-              sibling = sibling.nextElementSibling;
-            }
-            let assistantId = '';
-            for (const s of nextSiblings) {
-              if (s.querySelector('[data-message-author-role="assistant"]')) {
-                const el = s.querySelector('[data-message-author-role="assistant"]');
-                assistantId = el?.getAttribute('data-message-id') || '';
-                break;
-              }
-            }
-            return { userMsgId: uid, assistantId };
-          })()
-        `) as { userMsgId: string; assistantId: string };
-        if (info.assistantId) {
-          targetMsgId = info.assistantId;
-          logger.info(`[chatgpt] non-streaming target assistant msg id: ${targetMsgId}`);
-        }
+    const page = await this._createIsolatedRequestPage();
+    try {
+      if (req.newConversation) {
+        await this._startNewConversation(page);
       }
 
-      if (!matchedSelector) {
-        for (const sel of selectors) {
-          const count = await page.locator(sel).count().catch(() => 0);
-          if (count > 0) {
-            matchedSelector = sel;
-            logger.info(`[chatgpt] non-streaming DOM matched: ${sel} (${count} elements)`);
-            break;
+      const userMsg = buildUserMessage(req.messages);
+      logPromptComposition('chatgpt', req.messages, userMsg);
+
+      const textarea = page.locator('#prompt-textarea, [contenteditable="true"]').first();
+      await textarea.waitFor({ timeout: 15000 });
+      await this._insertPromptText(page, textarea, userMsg);
+
+      await new Promise(r => setTimeout(r, 300));
+      await page.keyboard.press('Enter');
+
+      logger.info(`[chatgpt] message sent (${userMsg.length} chars) — non-streaming mode, waiting for DOM...`);
+
+      const timeout = 60000;
+      const pollInterval = 500;
+      const start = Date.now();
+      let lastLength = 0;
+      let stableCount = 0;
+      let matchedSelector = '';
+      let targetMsgId = '';
+
+      const selectors = [
+        '[data-message-author-role="assistant"] .markdown',
+        '[data-message-author-role="assistant"]',
+        'article[data-testid*="conversation-turn"] .markdown',
+        '.agent-turn .markdown',
+        '.text-message .markdown',
+        '.group\\/conversation-turn:last-child .markdown',
+        'article:last-of-type .markdown',
+      ];
+
+      while (Date.now() - start < timeout) {
+        await new Promise(r => setTimeout(r, pollInterval));
+
+        if (!targetMsgId) {
+          const info = await page.evaluate(`
+            (() => {
+              const userMsgs = document.querySelectorAll('[data-message-author-role="user"]');
+              if (!userMsgs.length) return { userMsgId: '', assistantId: '' };
+              const lastUser = userMsgs[userMsgs.length - 1];
+              const uid = lastUser.getAttribute('data-message-id') || '';
+              const parent = lastUser.closest('article[data-testid*="conversation-turn"], div[data-testid*="conversation-turn"]');
+              if (!parent) return { userMsgId: uid, assistantId: '' };
+              const nextSiblings = [];
+              let sibling = parent.nextElementSibling;
+              while (sibling) {
+                nextSiblings.push(sibling);
+                sibling = sibling.nextElementSibling;
+              }
+              let assistantId = '';
+              for (const s of nextSiblings) {
+                if (s.querySelector('[data-message-author-role="assistant"]')) {
+                  const el = s.querySelector('[data-message-author-role="assistant"]');
+                  assistantId = el?.getAttribute('data-message-id') || '';
+                  break;
+                }
+              }
+              return { userMsgId: uid, assistantId };
+            })()
+          `) as { userMsgId: string; assistantId: string };
+          if (info.assistantId) {
+            targetMsgId = info.assistantId;
+            logger.info(`[chatgpt] non-streaming target assistant msg id: ${targetMsgId}`);
           }
         }
-        if (!matchedSelector) continue;
-      }
 
-      const elements = page.locator(matchedSelector);
-      const count = await elements.count().catch(() => 0);
-      if (count === 0) continue;
+        if (!matchedSelector) {
+          for (const sel of selectors) {
+            const count = await page.locator(sel).count().catch(() => 0);
+            if (count > 0) {
+              matchedSelector = sel;
+              logger.info(`[chatgpt] non-streaming DOM matched: ${sel} (${count} elements)`);
+              break;
+            }
+          }
+          if (!matchedSelector) continue;
+        }
 
-      const lastEl = elements.last();
-      const text = await lastEl.textContent().catch(() => '');
-      if (!text) continue;
+        const elements = page.locator(matchedSelector);
+        const count = await elements.count().catch(() => 0);
+        if (count === 0) continue;
 
-      if (targetMsgId) {
-        const targetEl = page.locator(`[data-message-id="${targetMsgId}"] .markdown`).first();
-        const targetText = await targetEl.textContent().catch(() => '');
-        if (targetText) {
-          const cleaned = cleanGenuiPrefix(targetText);
+        const lastEl = elements.last();
+        const text = await lastEl.textContent().catch(() => '');
+        if (!text) continue;
+
+        if (targetMsgId) {
+          const targetEl = page.locator(`[data-message-id="${targetMsgId}"] .markdown`).first();
+          const targetText = await targetEl.textContent().catch(() => '');
+          if (targetText) {
+            const cleaned = cleanGenuiPrefix(targetText);
+            if (cleaned.length > lastLength) {
+              logger.info(`[chatgpt] non-streaming target DOM growing: ${cleaned.length - lastLength} chars (total: ${cleaned.length})`);
+              lastLength = cleaned.length;
+              stableCount = 0;
+            } else {
+              stableCount++;
+              if (stableCount >= 4 && lastLength > 0) {
+                logger.info(`[chatgpt] non-streaming complete (${lastLength} chars)`);
+                return cleaned;
+              }
+            }
+          }
+        } else {
+          const cleaned = cleanGenuiPrefix(text);
           if (cleaned.length > lastLength) {
-            logger.info(`[chatgpt] non-streaming target DOM growing: ${cleaned.length - lastLength} chars (total: ${cleaned.length})`);
+            logger.info(`[chatgpt] non-streaming DOM growing: ${cleaned.length - lastLength} chars (total: ${cleaned.length})`);
             lastLength = cleaned.length;
             stableCount = 0;
           } else {
@@ -138,126 +143,125 @@ export class ChatGPTProvider extends BaseProvider {
             }
           }
         }
-      } else {
-        const cleaned = cleanGenuiPrefix(text);
-        if (cleaned.length > lastLength) {
-          logger.info(`[chatgpt] non-streaming DOM growing: ${cleaned.length - lastLength} chars (total: ${cleaned.length})`);
-          lastLength = cleaned.length;
-          stableCount = 0;
-        } else {
-          stableCount++;
-          if (stableCount >= 4 && lastLength > 0) {
-            logger.info(`[chatgpt] non-streaming complete (${lastLength} chars)`);
-            return cleaned;
-          }
-        }
       }
-    }
 
-    const finalText = await page.locator(matchedSelector).last().textContent().catch(() => '') ?? '';
-    return cleanGenuiPrefix(finalText);
+      const finalText = await page.locator(matchedSelector).last().textContent().catch(() => '') ?? '';
+      return cleanGenuiPrefix(finalText);
+    } finally {
+      await page.close().catch(() => {});
+    }
   }
 
   async *chatStream(req: ChatRequest): AsyncGenerator<string> {
     if (!this._ctx) throw new Error('ChatGPT: not connected. Run login first.');
 
-    const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
-
-    let _onChatGptPage = false;
-    try { const _p = new URL(page.url()); _onChatGptPage = _p.hostname === 'chatgpt.com' || _p.hostname.endsWith('.chatgpt.com'); } catch { _onChatGptPage = false; }
-    if (!_onChatGptPage) {
-      await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
-      await new Promise(r => setTimeout(r, 2000));
-    }
-
-    if (req.newConversation) {
-      await this._startNewConversation(page);
-    }
-
-    await this._injectInterceptor(page);
-
-    const userMsg = buildUserMessage(req.messages);
-    logPromptComposition('chatgpt', req.messages, userMsg);
-
-    await page.evaluate(`
-      window.__cortexChatGPT = { text:'', done:false, startTime:Date.now(), fetchHits:0 };
-    `);
-
-    const textarea = page.locator('#prompt-textarea, [contenteditable="true"]').first();
-    await textarea.waitFor({ timeout: 15000 });
-    await this._insertPromptText(page, textarea, userMsg);
-
-    await new Promise(r => setTimeout(r, 300));
-    await page.keyboard.press('Enter');
-
-    logger.info(`[chatgpt] message sent (${userMsg.length} chars)`);
-
-    const timeout = 60000;
-    const pollInterval = 300;
-    const start = Date.now();
-    let lastLength = 0;
-    let lastCleanedLength = 0;
-    let stableCount = 0;
-    let hasContent = false;
-    let fetchHit = false;
-    let firstChunkTime = 0;
-
-    while (Date.now() - start < timeout) {
-      await new Promise(r => setTimeout(r, pollInterval));
-
-      const result = await page.evaluate(`
-        window.__cortexChatGPT ? {
-          text: window.__cortexChatGPT.text || '',
-          done: !!window.__cortexChatGPT.done,
-          fetchHits: window.__cortexChatGPT.fetchHits || 0
-        } : { text:'', done:false, fetchHits:0 }
-      `) as { text: string; done: boolean; fetchHits: number };
-
-      if (result.fetchHits > 0 && !fetchHit) {
-        fetchHit = true;
-        logger.info(`[chatgpt] fetch interception ACTIVE (${result.fetchHits} hits)`);
+    const page = await this._createIsolatedRequestPage();
+    try {
+      if (req.newConversation) {
+        await this._startNewConversation(page);
       }
 
-      if (!result.text && !hasContent) {
-        const elapsed = Date.now() - start;
-        if (elapsed > 8000 && !fetchHit) {
-          logger.info(`[chatgpt] no fetch intercept after ${elapsed}ms — will fallback to DOM soon`);
+      await this._injectInterceptor(page);
+
+      const userMsg = buildUserMessage(req.messages);
+      logPromptComposition('chatgpt', req.messages, userMsg);
+
+      await page.evaluate(`
+        window.__cortexChatGPT = { text:'', done:false, startTime:Date.now(), fetchHits:0 };
+      `);
+
+      const textarea = page.locator('#prompt-textarea, [contenteditable="true"]').first();
+      await textarea.waitFor({ timeout: 15000 });
+      await this._insertPromptText(page, textarea, userMsg);
+
+      await new Promise(r => setTimeout(r, 300));
+      await page.keyboard.press('Enter');
+
+      logger.info(`[chatgpt] message sent (${userMsg.length} chars)`);
+
+      const timeout = 60000;
+      const pollInterval = 300;
+      const start = Date.now();
+      let lastLength = 0;
+      let lastCleanedLength = 0;
+      let stableCount = 0;
+      let hasContent = false;
+      let fetchHit = false;
+      let firstChunkTime = 0;
+
+      while (Date.now() - start < timeout) {
+        await new Promise(r => setTimeout(r, pollInterval));
+
+        const result = await page.evaluate(`
+          window.__cortexChatGPT ? {
+            text: window.__cortexChatGPT.text || '',
+            done: !!window.__cortexChatGPT.done,
+            fetchHits: window.__cortexChatGPT.fetchHits || 0
+          } : { text:'', done:false, fetchHits:0 }
+        `) as { text: string; done: boolean; fetchHits: number };
+
+        if (result.fetchHits > 0 && !fetchHit) {
+          fetchHit = true;
+          logger.info(`[chatgpt] fetch interception ACTIVE (${result.fetchHits} hits)`);
         }
-        if (elapsed > 15000) {
-          logger.info('[chatgpt] fetch intercept timeout, starting DOM fallback...');
-          yield* this._pollForResponseDOM(page, true);
+
+        if (!result.text && !hasContent) {
+          const elapsed = Date.now() - start;
+          if (elapsed > 8000 && !fetchHit) {
+            logger.info(`[chatgpt] no fetch intercept after ${elapsed}ms — will fallback to DOM soon`);
+          }
+          if (elapsed > 15000) {
+            logger.info('[chatgpt] fetch intercept timeout, starting DOM fallback...');
+            yield* this._pollForResponseDOM(page, true);
+            return;
+          }
+          continue;
+        }
+
+        if (result.text.length > lastLength) {
+          if (!firstChunkTime) firstChunkTime = Date.now() - start;
+          const fullCleaned = cleanGenuiPrefix(result.text);
+          const newContent = fullCleaned.slice(lastCleanedLength > 0 ? lastCleanedLength : 0);
+          if (newContent) yield newContent;
+          lastCleanedLength = fullCleaned.length;
+          lastLength = result.text.length;
+          stableCount = 0;
+          hasContent = true;
+        } else if (result.done) {
+          logger.info(`[chatgpt] stream complete (${lastLength} chars, ${firstChunkTime}ms to first chunk)`);
           return;
+        } else {
+          stableCount++;
+          if (stableCount >= 5 && lastLength > 0) {
+            logger.info(`[chatgpt] response stable (${lastLength} chars)`);
+            return;
+          }
         }
-        continue;
       }
 
-      if (result.text.length > lastLength) {
-        if (!firstChunkTime) firstChunkTime = Date.now() - start;
-        const fullCleaned = cleanGenuiPrefix(result.text);
-        const lastYieldedFull = lastCleanedLength > 0 ? cleanGenuiPrefix(result.text.slice(0, lastLength)) : '';
-        const newContent = fullCleaned.slice(lastCleanedLength > 0 ? lastCleanedLength : 0);
-        if (newContent) yield newContent;
-        lastCleanedLength = fullCleaned.length;
-        lastLength = result.text.length;
-        stableCount = 0;
-        hasContent = true;
-      } else if (result.done) {
-        logger.info(`[chatgpt] stream complete (${lastLength} chars, ${firstChunkTime}ms to first chunk)`);
-        return;
+      if (lastLength === 0) {
+        logger.warn('[chatgpt] response polling timed out, falling back to DOM...');
+        yield* this._pollForResponseDOM(page, false);
       } else {
-        stableCount++;
-        if (stableCount >= 5 && lastLength > 0) {
-          logger.info(`[chatgpt] response stable (${lastLength} chars)`);
-          return;
-        }
+        logger.warn(`[chatgpt] response timeout after ${lastLength} chars`);
       }
+    } finally {
+      await page.close().catch(() => {});
     }
+  }
 
-    if (lastLength === 0) {
-      logger.warn('[chatgpt] response polling timed out, falling back to DOM...');
-      yield* this._pollForResponseDOM(page, false);
-    } else {
-      logger.warn(`[chatgpt] response timeout after ${lastLength} chars`);
+  private async _createIsolatedRequestPage(): Promise<import('playwright').Page> {
+    if (!this._ctx) throw new Error('ChatGPT: not connected. Run login first.');
+
+    const page = await this._ctx.newPage();
+    try {
+      await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
+      await page.locator('#prompt-textarea, [contenteditable="true"]').first().waitFor({ timeout: 20000 });
+      logger.debug('[chatgpt] isolated request page ready');
+      return page;
+    } catch (err) {
+      await page.close().catch(() => {});
+      throw err;
     }
   }
 
