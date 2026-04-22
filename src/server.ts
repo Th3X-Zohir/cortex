@@ -219,7 +219,7 @@ export class BridgeServer {
       const connected = await activeProvider.ensureConnected();
       if (!connected) {
         if (isChatGptRequest) {
-          const fallback = await this._selectAutoFallbackProvider(activeProvider.name);
+          const fallback = await this._selectAutoFallbackProvider([activeProvider.name]);
           if (fallback) {
             activeProvider = fallback.provider;
             activeModel = fallback.model.id;
@@ -294,7 +294,7 @@ export class BridgeServer {
           let recoveredByFallback = false;
 
           if (isChatGptRequest && chunks.length === 0) {
-            const fallback = await this._selectAutoFallbackProvider(activeProvider.name);
+            const fallback = await this._selectAutoFallbackProvider([activeProvider.name]);
             if (fallback) {
               activeProvider = fallback.provider;
               activeModel = fallback.model.id;
@@ -379,62 +379,57 @@ export class BridgeServer {
           );
         }
       } else {
-        try {
-          const content = await activeProvider.chat({ model: activeModel, messages, temperature, max_tokens, newConversation });
-          const usage = this._tokenUsage(activeProvider, reqData, content);
-          const responsePayload = {
-            id: `chatcmpl-${Date.now()}`,
-            object: 'chat.completion',
-            model: activeModel,
-            choices: [{
-              index: 0,
-              message: { role: 'assistant', content },
-              finish_reason: 'stop',
-            }],
-            usage,
-          };
-          json(res, 200, responsePayload);
-          this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 200, startedAt, null, req, usage, reqData, responsePayload);
-        } catch (err) {
-          let message = (err as Error).message;
+        const triedProviders = new Set<string>([activeProvider.name]);
+        let lastError = '';
 
-          if (isChatGptRequest) {
-            const fallback = await this._selectAutoFallbackProvider(activeProvider.name);
-            if (fallback) {
-              activeProvider = fallback.provider;
-              activeModel = fallback.model.id;
-              providerName = activeProvider.name;
-              modelName = activeModel;
-              logger.warn(`[fallback] chatgpt non-stream failed, rerouting to ${providerName}/${modelName}: ${message}`);
+        // Keep the same API request alive while rerouting failed ChatGPT attempts to random Gemini/Grok providers.
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          try {
+            const content = await activeProvider.chat({ model: activeModel, messages, temperature, max_tokens, newConversation });
 
-              try {
-                const content = await activeProvider.chat({ model: activeModel, messages, temperature, max_tokens, newConversation });
-                const usage = this._tokenUsage(activeProvider, reqData, content);
-                const responsePayload = {
-                  id: `chatcmpl-${Date.now()}`,
-                  object: 'chat.completion',
-                  model: activeModel,
-                  choices: [{
-                    index: 0,
-                    message: { role: 'assistant', content },
-                    finish_reason: 'stop',
-                  }],
-                  usage,
-                };
-                json(res, 200, responsePayload);
-                this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 200, startedAt, null, req, usage, reqData, responsePayload);
-                return;
-              } catch (fallbackErr) {
-                message = `Primary and fallback providers failed: ${(fallbackErr as Error).message}`;
-              }
+            if (this._isProviderBlockerContent(content)) {
+              throw new Error(`${activeProvider.name} returned platform blocker content`);
             }
-          }
 
-          const usage = this._estimateTokenUsage(reqData, '');
-          const errorPayload = { error: { message, type: 'provider_error' } };
-          json(res, 503, errorPayload);
-          this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 503, startedAt, message, req, usage, reqData, errorPayload);
+            const usage = this._tokenUsage(activeProvider, reqData, content);
+            const responsePayload = {
+              id: `chatcmpl-${Date.now()}`,
+              object: 'chat.completion',
+              model: activeModel,
+              choices: [{
+                index: 0,
+                message: { role: 'assistant', content },
+                finish_reason: 'stop',
+              }],
+              usage,
+            };
+            json(res, 200, responsePayload);
+            this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 200, startedAt, null, req, usage, reqData, responsePayload);
+            return;
+          } catch (err) {
+            lastError = (err as Error).message;
+
+            if (!isChatGptRequest) break;
+
+            const fallback = await this._selectAutoFallbackProvider([...triedProviders]);
+            if (!fallback) break;
+
+            activeProvider = fallback.provider;
+            activeModel = fallback.model.id;
+            providerName = activeProvider.name;
+            modelName = activeModel;
+            triedProviders.add(activeProvider.name);
+            logger.warn(`[fallback] chatgpt non-stream failed, rerouting to ${providerName}/${modelName}: ${lastError}`);
+          }
         }
+
+        const usage = this._estimateTokenUsage(reqData, '');
+        const message = isChatGptRequest
+          ? `Primary and fallback providers failed: ${lastError || 'No connected fallback provider available'}`
+          : lastError || 'Provider request failed';
+        const errorPayload = { error: { message, type: 'provider_error' } };
+        json(res, 503, errorPayload);
+        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 503, startedAt, message, req, usage, reqData, errorPayload);
       }
       return;
     }
@@ -442,10 +437,11 @@ export class BridgeServer {
     json(res, 404, { error: { message: `Not found: ${url}`, type: 'not_found' } });
   }
 
-  private async _selectAutoFallbackProvider(excludedProvider?: string): Promise<{ provider: ProviderAdapter; model: ModelDefinition } | null> {
+  private async _selectAutoFallbackProvider(excludedProviders: string[] = []): Promise<{ provider: ProviderAdapter; model: ModelDefinition } | null> {
+    const excluded = new Set(excludedProviders.map(value => value.toLowerCase()));
     const candidates = this._registry
       .allModels()
-      .filter(model => (model.provider === 'gemini' || model.provider === 'grok') && model.provider !== excludedProvider);
+      .filter(model => (model.provider === 'gemini' || model.provider === 'grok') && !excluded.has(model.provider.toLowerCase()));
 
     if (candidates.length === 0) return null;
 
@@ -467,6 +463,16 @@ export class BridgeServer {
     }
 
     return null;
+  }
+
+  private _isProviderBlockerContent(content: string): boolean {
+    const normalized = content.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!normalized) return false;
+
+    if (normalized.includes('our systems have detected unusual activity coming from your system')) return true;
+    if (normalized.includes('unusual activity') && normalized.includes('please try again later')) return true;
+    if (normalized.includes('too many requests') && normalized.includes('please wait a few minutes')) return true;
+    return false;
   }
 
   private _authenticateApiRequest(
