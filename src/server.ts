@@ -441,7 +441,7 @@ export class BridgeServer {
     const excluded = new Set(excludedProviders.map(value => value.toLowerCase()));
     const candidates = this._registry
       .allModels()
-      .filter(model => (model.provider === 'gemini' || model.provider === 'grok') && !excluded.has(model.provider.toLowerCase()));
+      .filter(model => model.provider === 'gemini' && !excluded.has(model.provider.toLowerCase()));
 
     if (candidates.length === 0) return null;
 
