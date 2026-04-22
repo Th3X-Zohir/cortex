@@ -443,15 +443,20 @@ export class BridgeServer {
   }
 
   private async _selectAutoFallbackProvider(excludedProvider?: string): Promise<{ provider: ProviderAdapter; model: ModelDefinition } | null> {
-    const preferredProviders: Array<'gemini' | 'grok'> = ['gemini', 'grok'];
-    const models = this._registry.allModels();
+    const candidates = this._registry
+      .allModels()
+      .filter(model => (model.provider === 'gemini' || model.provider === 'grok') && model.provider !== excludedProvider);
 
-    for (const providerName of preferredProviders) {
-      if (providerName === excludedProvider) continue;
+    if (candidates.length === 0) return null;
 
-      const model = models.find(candidate => candidate.provider === providerName);
-      if (!model) continue;
+    // Randomize candidate order so each failed ChatGPT request can reroute to a different fallback model/provider.
+    const shuffled = [...candidates];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
 
+    for (const model of shuffled) {
       const provider = this._registry.providerForModel(model.id);
       if (!provider) continue;
 
