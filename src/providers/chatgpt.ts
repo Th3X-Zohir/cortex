@@ -73,6 +73,13 @@ export class ChatGPTProvider extends BaseProvider {
           continue;
         }
 
+        if (lastLength === 0) {
+          const unusualActivity = await this._detectUnusualActivityBlocker(page)
+          if (unusualActivity) {
+            throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
+          }
+        }
+
         if (!targetMsgId) {
           const info = await page.evaluate(`
             (() => {
@@ -224,6 +231,13 @@ export class ChatGPTProvider extends BaseProvider {
           continue;
         }
 
+        if (!hasContent) {
+          const unusualActivity = await this._detectUnusualActivityBlocker(page)
+          if (unusualActivity) {
+            throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
+          }
+        }
+
         const result = await page.evaluate(`
           window.__cortexChatGPT ? {
             text: window.__cortexChatGPT.text || '',
@@ -315,6 +329,11 @@ export class ChatGPTProvider extends BaseProvider {
       await new Promise(r => setTimeout(r, 900));
 
       const rateLimited = await this._dismissTooManyRequestsDialog(page);
+      const unusualActivity = await this._detectUnusualActivityBlocker(page)
+      if (unusualActivity) {
+        throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
+      }
+
       if (!rateLimited) return;
 
       if (attempt >= retryDelaysMs.length) {
@@ -370,6 +389,32 @@ export class ChatGPTProvider extends BaseProvider {
     return true;
   }
 
+  private async _detectUnusualActivityBlocker(page: import('playwright').Page): Promise<string | null> {
+    const inlineBanner = page.locator(
+      'div:has(button:has-text("Retry")):has-text("unusual activity"), ' +
+      '[role="alert"]:has-text("unusual activity"), ' +
+      '[role="status"]:has-text("unusual activity")'
+    ).first()
+
+    const bannerVisible = await inlineBanner.isVisible({ timeout: 250 }).catch(() => false)
+    if (bannerVisible) {
+      const bannerText = normalizeStatusText(await inlineBanner.textContent().catch(() => ''))
+      if (isUnusualActivityMessage(bannerText)) {
+        logger.warn('[chatgpt] detected unusual-activity inline blocker')
+        return bannerText
+      }
+    }
+
+    const retryVisible = await page.locator('button:has-text("Retry")').first().isVisible({ timeout: 250 }).catch(() => false)
+    if (!retryVisible) return null
+
+    const bodyText = normalizeStatusText(await page.locator('body').textContent().catch(() => ''))
+    if (!isUnusualActivityMessage(bodyText)) return null
+
+    logger.warn('[chatgpt] detected unusual-activity state with retry action')
+    return 'Our systems have detected unusual activity. Please try again later.'
+  }
+
   private async *_pollForResponseDOM(
     page: import('playwright').Page,
     immediateFallback = false,
@@ -400,6 +445,13 @@ export class ChatGPTProvider extends BaseProvider {
 
     while (Date.now() - start < timeout) {
       await new Promise(r => setTimeout(r, pollInterval));
+
+      if (lastLength === 0) {
+        const unusualActivity = await this._detectUnusualActivityBlocker(page)
+        if (unusualActivity) {
+          throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
+        }
+      }
 
       if (!matchedSelector) {
         for (const sel of selectors) {
@@ -629,4 +681,17 @@ function cleanGenuiPrefix(text: string): string {
     t = t.slice(0, -1);
   }
   return t;
+}
+
+function normalizeStatusText(value: string | null | undefined): string {
+  return (value ?? '').replace(/\s+/g, ' ').trim()
+}
+
+function isUnusualActivityMessage(value: string): boolean {
+  const text = normalizeStatusText(value).toLowerCase()
+  if (!text) return false
+
+  if (text.includes('our systems have detected unusual activity')) return true
+  if (text.includes('unusual activity') && text.includes('please try again later')) return true
+  return false
 }
