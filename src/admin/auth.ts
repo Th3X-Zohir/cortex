@@ -2,7 +2,7 @@ import { createHmac, createHash, randomBytes, scryptSync, timingSafeEqual } from
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
-import type { AdminRecord } from './store.js';
+import type { AdminRecord, UserRecord } from './store.js';
 import type { BridgeConfig } from '../types.js';
 
 const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 };
@@ -111,6 +111,63 @@ export function verifyAdminToken(token: string, cfg: BridgeConfig): AdminTokenPa
   try {
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8')) as AdminTokenPayload;
     if (!data.sub || !data.username || !data.role || !data.exp) return null;
+    if (data.exp <= Math.floor(Date.now() / 1000)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export interface UserTokenPayload {
+  sub: string;
+  username: string;
+  email: string;
+  type: 'user';
+  iat: number;
+  exp: number;
+}
+
+export function publicUser(user: UserRecord | Omit<UserRecord, 'password_hash'>) {
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    status: user.status,
+    createdAt: user.created_at,
+    lastLogin: user.last_login,
+  };
+}
+
+export function signUserToken(user: UserRecord, cfg: BridgeConfig): { token: string; expiresAt: string; expiresIn: string } {
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + cfg.admin.tokenTtlSeconds;
+  const header = jsonB64({ alg: 'HS256', typ: 'JWT' });
+  const payload = jsonB64({
+    sub: user.id,
+    username: user.username,
+    email: user.email,
+    type: 'user',
+    iat: now,
+    exp,
+  } satisfies UserTokenPayload);
+  const body = `${header}.${payload}`;
+  const signature = createHmac('sha256', getJwtSecret(cfg)).update(body).digest('base64url');
+  return {
+    token: `${body}.${signature}`,
+    expiresAt: new Date(exp * 1000).toISOString(),
+    expiresIn: `${cfg.admin.tokenTtlSeconds}s`,
+  };
+}
+
+export function verifyUserToken(token: string, cfg: BridgeConfig): UserTokenPayload | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [header, payload, signature] = parts;
+  const expected = createHmac('sha256', getJwtSecret(cfg)).update(`${header}.${payload}`).digest('base64url');
+  if (!safeEqualString(signature, expected)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8')) as UserTokenPayload;
+    if (!data.sub || !data.username || data.type !== 'user' || !data.exp) return null;
     if (data.exp <= Math.floor(Date.now() / 1000)) return null;
     return data;
   } catch {

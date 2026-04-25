@@ -87,6 +87,31 @@ export interface CreateApiKeyResult {
   keyPrefix: string;
 }
 
+export interface UserRecord {
+  id: string;
+  username: string;
+  email: string;
+  password_hash: string;
+  status: 'active' | 'suspended';
+  created_at: string;
+  last_login: string | null;
+}
+
+export interface UserKeyRequestRecord {
+  id: string;
+  user_id: string;
+  user_username: string;
+  name: string;
+  reason: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  api_key_id: string | null;
+  revealed_key: string | null;
+  reviewed_by_admin_id: string | null;
+  review_note: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS admins (
   id TEXT PRIMARY KEY,
@@ -161,6 +186,35 @@ CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_api_keys_active ON api_keys(active);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_id ON audit_logs(admin_id);
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_login TEXT
+);
+
+CREATE TABLE IF NOT EXISTS user_key_requests (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  user_username TEXT NOT NULL,
+  name TEXT NOT NULL,
+  reason TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  api_key_id TEXT,
+  revealed_key TEXT,
+  reviewed_by_admin_id TEXT,
+  review_note TEXT,
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_user_key_requests_user_id ON user_key_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_key_requests_status ON user_key_requests(status);
 `;
 
 export class AdminStore {
@@ -577,5 +631,195 @@ export class AdminStore {
     const logs = this.db.prepare(`SELECT * FROM audit_logs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as AuditLogRecord[];
 
     return { logs, total: totalRow.total };
+  }
+
+  // ── User CRUD ────────────────────────────────────────────────────────
+
+  getUserByUsername(username: string): UserRecord | undefined {
+    return this.db.prepare('SELECT * FROM users WHERE username = ?').get(username) as UserRecord | undefined;
+  }
+
+  getUserByEmail(email: string): UserRecord | undefined {
+    return this.db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRecord | undefined;
+  }
+
+  getUserById(id: string): UserRecord | undefined {
+    return this.db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord | undefined;
+  }
+
+  createUser(username: string, email: string, password: string): UserRecord {
+    const id = randomUUID();
+    const pwHash = hashPassword(password);
+    this.db.prepare(
+      'INSERT INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)'
+    ).run(id, username, email.toLowerCase(), pwHash);
+    return this.getUserById(id)!;
+  }
+
+  updateUserLastLogin(id: string): void {
+    this.db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(id);
+  }
+
+  updateUserStatus(id: string, status: 'active' | 'suspended'): void {
+    this.db.prepare('UPDATE users SET status = ? WHERE id = ?').run(status, id);
+  }
+
+  listUsers(): Omit<UserRecord, 'password_hash'>[] {
+    return this.db.prepare(
+      'SELECT id, username, email, status, created_at, last_login FROM users ORDER BY created_at DESC'
+    ).all() as Omit<UserRecord, 'password_hash'>[];
+  }
+
+  // ── User Key Requests ────────────────────────────────────────────────
+
+  createUserKeyRequest(userId: string, userUsername: string, name: string, reason: string | null): UserKeyRequestRecord {
+    const id = randomUUID();
+    this.db.prepare(
+      'INSERT INTO user_key_requests (id, user_id, user_username, name, reason) VALUES (?, ?, ?, ?, ?)'
+    ).run(id, userId, userUsername, name, reason ?? null);
+    return this.getKeyRequestById(id)!;
+  }
+
+  getUserKeyRequests(userId: string): UserKeyRequestRecord[] {
+    return this.db.prepare(
+      'SELECT * FROM user_key_requests WHERE user_id = ? ORDER BY created_at DESC'
+    ).all(userId) as UserKeyRequestRecord[];
+  }
+
+  getAllKeyRequests(filters: { status?: string; limit?: number; offset?: number } = {}): { requests: UserKeyRequestRecord[]; total: number } {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (filters.status) { conditions.push('status = ?'); params.push(filters.status); }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limit = filters.limit ?? 50;
+    const offset = filters.offset ?? 0;
+    const totalRow = this.db.prepare(`SELECT COUNT(*) as total FROM user_key_requests ${where}`).get(...params) as { total: number };
+    const requests = this.db.prepare(`SELECT * FROM user_key_requests ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as UserKeyRequestRecord[];
+    return { requests, total: totalRow.total };
+  }
+
+  getKeyRequestById(id: string): UserKeyRequestRecord | undefined {
+    return this.db.prepare('SELECT * FROM user_key_requests WHERE id = ?').get(id) as UserKeyRequestRecord | undefined;
+  }
+
+  approveKeyRequest(
+    id: string,
+    adminId: string,
+    dailyLimit: number,
+    rateLimitPerMin: number,
+    reviewNote: string | null,
+  ): { request: UserKeyRequestRecord; rawKey: string } {
+    const req = this.getKeyRequestById(id);
+    if (!req) throw new Error('Request not found');
+    if (req.status !== 'pending') throw new Error('Request is not pending');
+
+    const created = this.createApiKey(req.name, dailyLimit, rateLimitPerMin, adminId);
+    this.db.prepare(
+      `UPDATE user_key_requests
+       SET status = 'approved', api_key_id = ?, revealed_key = ?, reviewed_by_admin_id = ?,
+           review_note = ?, reviewed_at = datetime('now')
+       WHERE id = ?`
+    ).run(created.id, created.key, adminId, reviewNote ?? null, id);
+
+    return { request: this.getKeyRequestById(id)!, rawKey: created.key };
+  }
+
+  rejectKeyRequest(id: string, adminId: string, reviewNote: string | null): void {
+    const req = this.getKeyRequestById(id);
+    if (!req) throw new Error('Request not found');
+    if (req.status !== 'pending') throw new Error('Request is not pending');
+    this.db.prepare(
+      `UPDATE user_key_requests
+       SET status = 'rejected', reviewed_by_admin_id = ?, review_note = ?, reviewed_at = datetime('now')
+       WHERE id = ?`
+    ).run(adminId, reviewNote ?? null, id);
+  }
+
+  getUserApprovedKeys(userId: string): Array<ApiKeyRecord & { request_id: string; daily_usage: number }> {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = this.db.prepare(
+      `SELECT ak.*, ukr.id as request_id
+       FROM api_keys ak
+       JOIN user_key_requests ukr ON ukr.api_key_id = ak.id
+       WHERE ukr.user_id = ? AND ukr.status = 'approved'
+       ORDER BY ak.created_at DESC`
+    ).all(userId) as Array<ApiKeyRecord & { request_id: string }>;
+    return rows.map(row => ({
+      ...row,
+      daily_usage: this.getDailyUsage(row.id, today),
+    }));
+  }
+
+  getUserKeyStats(userId: string): { totalRequests: number; requestsToday: number; totalTokens: number; tokensToday: number } {
+    const keyIds = this.getUserApprovedKeys(userId).map(k => k.id);
+    if (keyIds.length === 0) return { totalRequests: 0, requestsToday: 0, totalTokens: 0, tokensToday: 0 };
+    const placeholders = keyIds.map(() => '?').join(',');
+    const row = this.db.prepare(
+      `SELECT
+         COUNT(*) as totalRequests,
+         SUM(CASE WHEN date(created_at) = date('now') THEN 1 ELSE 0 END) as requestsToday,
+         COALESCE(SUM(total_tokens), 0) as totalTokens,
+         COALESCE(SUM(CASE WHEN date(created_at) = date('now') THEN total_tokens ELSE 0 END), 0) as tokensToday
+       FROM request_logs WHERE api_key_id IN (${placeholders})`
+    ).get(...keyIds) as { totalRequests: number; requestsToday: number; totalTokens: number; tokensToday: number };
+    return row;
+  }
+
+  getUserRequestLogs(userId: string, filters: LogFilters = {}): { logs: RequestLogRecord[]; total: number } {
+    const keyIds = this.getUserApprovedKeys(userId).map(k => k.id);
+    if (keyIds.length === 0) return { logs: [], total: 0 };
+    const placeholders = keyIds.map(() => '?').join(',');
+    const conditions: string[] = [`api_key_id IN (${placeholders})`];
+    const params: unknown[] = [...keyIds];
+    if (filters.provider) { conditions.push('provider = ?'); params.push(filters.provider); }
+    if (filters.search) {
+      conditions.push('(model LIKE ? OR api_key_name LIKE ? OR error LIKE ?)');
+      const term = `%${filters.search}%`;
+      params.push(term, term, term);
+    }
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const limit = filters.limit ?? 50;
+    const offset = filters.offset ?? 0;
+    const totalRow = this.db.prepare(`SELECT COUNT(*) as total FROM request_logs ${where}`).get(...params) as { total: number };
+    const logs = this.db.prepare(`SELECT * FROM request_logs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as RequestLogRecord[];
+    return { logs, total: totalRow.total };
+  }
+
+  getUserDetail(id: string): {
+    user: Omit<UserRecord, 'password_hash'>;
+    requests: UserKeyRequestRecord[];
+    keys: Array<ApiKeyRecord & { request_id: string; daily_usage: number }>;
+    stats: { totalRequests: number; requestsToday: number; totalTokens: number; tokensToday: number };
+  } | undefined {
+    const user = this.db.prepare(
+      'SELECT id, username, email, status, created_at, last_login FROM users WHERE id = ?'
+    ).get(id) as Omit<UserRecord, 'password_hash'> | undefined;
+    if (!user) return undefined;
+    const requests = this.getUserKeyRequests(id);
+    const keys = this.getUserApprovedKeys(id);
+    const stats = this.getUserKeyStats(id);
+    return { user, requests, keys, stats };
+  }
+
+  deleteUser(id: string): void {
+    const keys = this.getUserApprovedKeys(id);
+    for (const k of keys) {
+      this.db.prepare('UPDATE api_keys SET active = 0 WHERE id = ?').run(k.id);
+    }
+    this.db.prepare('DELETE FROM user_key_requests WHERE user_id = ?').run(id);
+    this.db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  }
+
+  resetUserPassword(id: string, newPassword: string): void {
+    const pwHash = hashPassword(newPassword);
+    this.db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(pwHash, id);
+  }
+
+  issueKeyToUser(userId: string, userUsername: string, name: string, dailyLimit: number, rateLimitPerMin: number, adminId: string): { request: UserKeyRequestRecord; rawKey: string } {
+    const reqId = randomUUID();
+    this.db.prepare(
+      "INSERT INTO user_key_requests (id, user_id, user_username, name, reason, status) VALUES (?, ?, ?, ?, 'Issued directly by admin', 'pending')"
+    ).run(reqId, userId, userUsername, name);
+    return this.approveKeyRequest(reqId, adminId, dailyLimit, rateLimitPerMin, 'Issued directly by admin');
   }
 }

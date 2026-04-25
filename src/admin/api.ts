@@ -8,8 +8,12 @@ import {
   verifyAdminToken,
   verifyPassword,
   type AdminTokenPayload,
+  publicUser,
+  signUserToken,
+  verifyUserToken,
+  type UserTokenPayload,
 } from './auth.js';
-import type { AdminRecord, AdminStore, ApiKeyRecord, RequestLogRecord, AuditLogRecord } from './store.js';
+import type { AdminRecord, AdminStore, ApiKeyRecord, RequestLogRecord, AuditLogRecord, UserRecord, UserKeyRequestRecord } from './store.js';
 
 type Permission =
   | 'dashboard:read'
@@ -53,6 +57,24 @@ export class AdminApi {
     try {
       if (url.pathname === '/api/auth/login' && req.method === 'POST') {
         await this.login(req, res);
+        return true;
+      }
+
+      if (url.pathname === '/api/user/register' && req.method === 'POST') {
+        await this.userRegister(req, res);
+        return true;
+      }
+
+      if (url.pathname === '/api/user/login' && req.method === 'POST') {
+        await this.userLogin(req, res);
+        return true;
+      }
+
+      // User-authenticated routes
+      if (url.pathname.startsWith('/api/user/')) {
+        const userCtx = this.requireUser(req, res);
+        if (!userCtx) return true;
+        await this.handleUserRoute(req, res, url, userCtx);
         return true;
       }
 
@@ -193,6 +215,131 @@ export class AdminApi {
         this.store.deleteApiKey(keyMatch[1]);
         this.audit(req, ctx, 'delete_api_key', 'api_key', keyMatch[1], { name: current.name });
         json(res, 200, { ok: true });
+        return true;
+      }
+
+      if (url.pathname === '/api/admin/users' && req.method === 'GET') {
+        if (!this.has(ctx, 'admins:manage')) return forbidden(res);
+        const search = url.searchParams.get('search') || undefined;
+        const statusFilter = url.searchParams.get('status') || undefined;
+        let users = this.store.listUsers();
+        if (search) {
+          const term = search.toLowerCase();
+          users = users.filter(u => u.username.toLowerCase().includes(term) || u.email.toLowerCase().includes(term));
+        }
+        if (statusFilter) users = users.filter(u => u.status === statusFilter);
+        json(res, 200, users);
+        return true;
+      }
+
+      const userDetailMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+      if (userDetailMatch && req.method === 'GET') {
+        if (!this.has(ctx, 'admins:manage')) return forbidden(res);
+        const detail = this.store.getUserDetail(userDetailMatch[1]);
+        if (!detail) return notFound(res);
+        json(res, 200, {
+          ...detail,
+          requests: detail.requests.map(mapUserKeyRequest),
+          keys: detail.keys.map(k => ({
+            id: k.id, requestId: k.request_id, keyPrefix: k.key_prefix, name: k.name,
+            dailyLimit: k.daily_limit, rateLimitPerMin: k.rate_limit_per_min,
+            requestsToday: k.daily_usage, totalRequests: k.total_requests,
+            lastUsed: k.last_used, createdAt: k.created_at, active: k.active === 1,
+            usagePercent: k.daily_limit > 0 ? Math.round((k.daily_usage / k.daily_limit) * 100) : 0,
+          })),
+        });
+        return true;
+      }
+
+      if (userDetailMatch && req.method === 'DELETE') {
+        if (!this.has(ctx, 'admins:manage')) return forbidden(res);
+        const target = this.store.getUserById(userDetailMatch[1]);
+        if (!target) return notFound(res);
+        this.store.deleteUser(target.id);
+        this.audit(req, ctx, 'delete_portal_user', 'user', target.id, { username: target.username });
+        json(res, 200, { ok: true });
+        return true;
+      }
+
+      const userStatusMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/status$/);
+      if (userStatusMatch && req.method === 'PATCH') {
+        if (!this.has(ctx, 'admins:manage')) return forbidden(res);
+        const body = await readJson(req);
+        const status = body.status === 'suspended' ? 'suspended' : 'active';
+        const target = this.store.getUserById(userStatusMatch[1]);
+        if (!target) return notFound(res);
+        this.store.updateUserStatus(target.id, status);
+        this.audit(req, ctx, `user_status_${status}`, 'user', target.id, { username: target.username });
+        json(res, 200, publicUser(this.store.getUserById(target.id)!));
+        return true;
+      }
+
+      const userPasswordMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/password$/);
+      if (userPasswordMatch && req.method === 'PATCH') {
+        if (!this.has(ctx, 'admins:manage')) return forbidden(res);
+        const body = await readJson(req);
+        const password = requireString(body.password, 'password');
+        if (password.length < 8) {
+          json(res, 400, { error: 'Password must be at least 8 characters', code: 'WEAK_PASSWORD' });
+          return true;
+        }
+        const target = this.store.getUserById(userPasswordMatch[1]);
+        if (!target) return notFound(res);
+        this.store.resetUserPassword(target.id, password);
+        this.audit(req, ctx, 'reset_user_password', 'user', target.id, { username: target.username });
+        json(res, 200, { ok: true });
+        return true;
+      }
+
+      const userIssueKeyMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/keys$/);
+      if (userIssueKeyMatch && req.method === 'POST') {
+        if (!this.has(ctx, 'keys:manage')) return forbidden(res);
+        const body = await readJson(req);
+        const name = requireString(body.name, 'name');
+        const dailyLimit = asPositiveInteger(body.dailyLimit ?? 1000, 'dailyLimit');
+        const rateLimitPerMin = asPositiveInteger(body.rateLimitPerMin ?? 60, 'rateLimitPerMin');
+        const target = this.store.getUserById(userIssueKeyMatch[1]);
+        if (!target) return notFound(res);
+        const { request, rawKey } = this.store.issueKeyToUser(target.id, target.username, name, dailyLimit, rateLimitPerMin, ctx.admin.id);
+        this.audit(req, ctx, 'issue_key_to_user', 'user', target.id, { username: target.username, keyName: name });
+        json(res, 201, { request: mapUserKeyRequest(request), rawKey });
+        return true;
+      }
+
+      if (url.pathname === '/api/admin/user-requests' && req.method === 'GET') {
+        if (!this.has(ctx, 'keys:manage')) return forbidden(res);
+        const statusFilter = url.searchParams.get('status') || undefined;
+        const result = this.store.getAllKeyRequests({
+          status: statusFilter,
+          limit: getNumberParam(url, 'limit', 50),
+          offset: getNumberParam(url, 'offset', 0),
+        });
+        json(res, 200, { requests: result.requests.map(mapUserKeyRequest), pagination: { total: result.total } });
+        return true;
+      }
+
+      const requestApproveMatch = url.pathname.match(/^\/api\/admin\/user-requests\/([^/]+)\/approve$/);
+      if (requestApproveMatch && req.method === 'POST') {
+        if (!this.has(ctx, 'keys:manage')) return forbidden(res);
+        const body = await readJson(req);
+        const dailyLimit = asPositiveInteger(body.dailyLimit ?? 1000, 'dailyLimit');
+        const rateLimitPerMin = asPositiveInteger(body.rateLimitPerMin ?? 60, 'rateLimitPerMin');
+        const reviewNote = typeof body.reviewNote === 'string' ? body.reviewNote.trim() || null : null;
+        const { request, rawKey } = this.store.approveKeyRequest(requestApproveMatch[1], ctx.admin.id, dailyLimit, rateLimitPerMin, reviewNote);
+        this.audit(req, ctx, 'approve_user_key_request', 'user_key_request', request.id, { userId: request.user_id, keyName: request.name });
+        json(res, 200, { request: mapUserKeyRequest(request), rawKey });
+        return true;
+      }
+
+      const requestRejectMatch = url.pathname.match(/^\/api\/admin\/user-requests\/([^/]+)\/reject$/);
+      if (requestRejectMatch && req.method === 'POST') {
+        if (!this.has(ctx, 'keys:manage')) return forbidden(res);
+        const body = await readJson(req);
+        const reviewNote = typeof body.reviewNote === 'string' ? body.reviewNote.trim() || null : null;
+        this.store.rejectKeyRequest(requestRejectMatch[1], ctx.admin.id, reviewNote);
+        const request = this.store.getKeyRequestById(requestRejectMatch[1])!;
+        this.audit(req, ctx, 'reject_user_key_request', 'user_key_request', request.id, { userId: request.user_id, keyName: request.name });
+        json(res, 200, { request: mapUserKeyRequest(request) });
         return true;
       }
 
@@ -732,6 +879,183 @@ export class AdminApi {
       url: `${path}?autoconnect=1&resize=scale&reconnect=1&path=websockify`,
     };
   }
+
+  private requireUser(req: IncomingMessage, res: ServerResponse): { token: UserTokenPayload; user: UserRecord } | null {
+    const token = extractBearer(req);
+    if (!token) {
+      json(res, 401, { error: 'Authentication required', code: 'AUTH_REQUIRED' });
+      return null;
+    }
+    const payload = verifyUserToken(token, this.cfg);
+    if (!payload) {
+      json(res, 401, { error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
+      return null;
+    }
+    const user = this.store.getUserById(payload.sub);
+    if (!user) {
+      json(res, 401, { error: 'User account not found', code: 'USER_NOT_FOUND' });
+      return null;
+    }
+    if (user.status === 'suspended') {
+      json(res, 403, { error: 'Account suspended', code: 'ACCOUNT_SUSPENDED' });
+      return null;
+    }
+    return { token: payload, user };
+  }
+
+  private async userRegister(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const body = await readJson(req);
+    const username = requireString(body.username, 'username');
+    const email = requireString(body.email, 'email');
+    const password = requireString(body.password, 'password');
+
+    if (!/^[a-zA-Z0-9_]{3,32}$/.test(username)) {
+      json(res, 400, { error: 'Username must be 3-32 alphanumeric characters or underscores', code: 'INVALID_USERNAME' });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      json(res, 400, { error: 'Invalid email address', code: 'INVALID_EMAIL' });
+      return;
+    }
+    if (password.length < 8) {
+      json(res, 400, { error: 'Password must be at least 8 characters', code: 'WEAK_PASSWORD' });
+      return;
+    }
+    if (this.store.getUserByUsername(username)) {
+      json(res, 409, { error: 'Username already taken', code: 'USERNAME_TAKEN' });
+      return;
+    }
+    if (this.store.getUserByEmail(email)) {
+      json(res, 409, { error: 'Email already registered', code: 'EMAIL_TAKEN' });
+      return;
+    }
+
+    const user = this.store.createUser(username, email, password);
+    const signed = signUserToken(user, this.cfg);
+    json(res, 201, {
+      token: signed.token,
+      user: publicUser(user),
+      expiresAt: signed.expiresAt,
+      expiresIn: signed.expiresIn,
+    });
+  }
+
+  private async userLogin(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const body = await readJson(req);
+    const login = requireString(body.login, 'login');
+    const password = requireString(body.password, 'password');
+
+    const user = this.store.getUserByUsername(login) ?? this.store.getUserByEmail(login);
+    if (!user || !verifyPassword(password, user.password_hash)) {
+      json(res, 401, { error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
+      return;
+    }
+    if (user.status === 'suspended') {
+      json(res, 403, { error: 'Account suspended', code: 'ACCOUNT_SUSPENDED' });
+      return;
+    }
+
+    this.store.updateUserLastLogin(user.id);
+    const refreshed = this.store.getUserById(user.id)!;
+    const signed = signUserToken(refreshed, this.cfg);
+    json(res, 200, {
+      token: signed.token,
+      user: publicUser(refreshed),
+      expiresAt: signed.expiresAt,
+      expiresIn: signed.expiresIn,
+    });
+  }
+
+  private async handleUserRoute(
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: URL,
+    ctx: { token: UserTokenPayload; user: UserRecord },
+  ): Promise<void> {
+    const { user } = ctx;
+
+    if (url.pathname === '/api/user/me' && req.method === 'GET') {
+      json(res, 200, publicUser(user));
+      return;
+    }
+
+    if (url.pathname === '/api/user/logout' && req.method === 'POST') {
+      json(res, 200, { ok: true });
+      return;
+    }
+
+    if (url.pathname === '/api/user/keys' && req.method === 'GET') {
+      const keys = this.store.getUserApprovedKeys(user.id);
+      json(res, 200, keys.map(k => ({
+        id: k.id,
+        requestId: k.request_id,
+        keyPrefix: k.key_prefix,
+        name: k.name,
+        dailyLimit: k.daily_limit,
+        rateLimitPerMin: k.rate_limit_per_min,
+        requestsToday: k.daily_usage,
+        totalRequests: k.total_requests,
+        lastUsed: k.last_used,
+        createdAt: k.created_at,
+        active: k.active === 1,
+        usagePercent: k.daily_limit > 0 ? Math.round((k.daily_usage / k.daily_limit) * 100) : 0,
+      })));
+      return;
+    }
+
+    if (url.pathname === '/api/user/keys/request' && req.method === 'POST') {
+      const body = await readJson(req);
+      const name = requireString(body.name, 'name');
+      const reason = typeof body.reason === 'string' ? body.reason.trim() || null : null;
+
+      const pending = this.store.getUserKeyRequests(user.id).filter(r => r.status === 'pending');
+      if (pending.length >= 3) {
+        json(res, 429, { error: 'You already have 3 pending requests', code: 'TOO_MANY_PENDING' });
+        return;
+      }
+
+      const request = this.store.createUserKeyRequest(user.id, user.username, name, reason);
+      json(res, 201, mapUserKeyRequest(request));
+      return;
+    }
+
+    if (url.pathname === '/api/user/keys/requests' && req.method === 'GET') {
+      const requests = this.store.getUserKeyRequests(user.id);
+      json(res, 200, requests.map(mapUserKeyRequest));
+      return;
+    }
+
+    if (url.pathname === '/api/user/usage' && req.method === 'GET') {
+      const stats = this.store.getUserKeyStats(user.id);
+      const keys = this.store.getUserApprovedKeys(user.id);
+      json(res, 200, {
+        stats,
+        keys: keys.map(k => ({
+          id: k.id,
+          name: k.name,
+          requestsToday: k.daily_usage,
+          totalRequests: k.total_requests,
+          dailyLimit: k.daily_limit,
+          usagePercent: k.daily_limit > 0 ? Math.round((k.daily_usage / k.daily_limit) * 100) : 0,
+          active: k.active === 1,
+        })),
+      });
+      return;
+    }
+
+    if (url.pathname === '/api/user/logs' && req.method === 'GET') {
+      const result = this.store.getUserRequestLogs(user.id, {
+        limit: getNumberParam(url, 'limit', 50),
+        offset: getNumberParam(url, 'offset', 0),
+        provider: url.searchParams.get('provider') || undefined,
+        search: url.searchParams.get('search') || undefined,
+      });
+      json(res, 200, { logs: result.logs.map(mapRequestLog), pagination: { total: result.total } });
+      return;
+    }
+
+    notFound(res);
+  }
 }
 
 function extractBearer(req: IncomingMessage): string | null {
@@ -835,6 +1159,23 @@ function parseJsonPayload(payload: string | null): unknown | null {
   } catch {
     return { raw: payload };
   }
+}
+
+function mapUserKeyRequest(req: UserKeyRequestRecord) {
+  return {
+    id: req.id,
+    userId: req.user_id,
+    userUsername: req.user_username,
+    name: req.name,
+    reason: req.reason,
+    status: req.status,
+    apiKeyId: req.api_key_id,
+    revealedKey: req.revealed_key,
+    reviewedByAdminId: req.reviewed_by_admin_id,
+    reviewNote: req.review_note,
+    reviewedAt: req.reviewed_at,
+    createdAt: req.created_at,
+  };
 }
 
 function mapAuditLog(log: AuditLogRecord) {

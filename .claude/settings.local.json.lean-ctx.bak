@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(docker build:*)",
+      "Bash(curl -s http://localhost:31339)",
+      "Bash(curl -s http://localhost:31339/admin)",
+      "Bash(python3:*)",
+      "Bash(npm run:*)"
+    ]
+  }
+}

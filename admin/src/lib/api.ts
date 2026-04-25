@@ -12,12 +12,20 @@ import type {
   RequestLog,
   Stats,
   UsageSummary,
+  User,
+  UserLoginResponse,
+  UserKeyRequest,
+  UserApiKey,
 } from '@/types'
 
 const API_BASE = '/api'
 
 function adminToken() {
   return sessionStorage.getItem('cortex_admin_token') || localStorage.getItem('cortex_admin_token')
+}
+
+function userToken() {
+  return sessionStorage.getItem('cortex_user_token') || localStorage.getItem('cortex_user_token')
 }
 
 class ApiError extends Error {
@@ -33,9 +41,10 @@ class ApiError extends Error {
 
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  tokenFn: () => string | null = adminToken,
 ): Promise<T> {
-  const token = adminToken()
+  const token = tokenFn()
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -117,6 +126,58 @@ export const api = {
           body: JSON.stringify({ password }),
         }),
       delete: (id: string) => request(`/admin/admins/${id}`, { method: 'DELETE' }),
+    },
+
+    userRequests: {
+      list: (status?: string) => {
+        const params = new URLSearchParams()
+        if (status) params.set('status', status)
+        return request<{ requests: UserKeyRequest[]; pagination: { total: number } }>(
+          `/admin/user-requests?${params}`,
+        )
+      },
+      approve: (id: string, data: { dailyLimit: number; rateLimitPerMin: number; reviewNote?: string }) =>
+        request<{ request: UserKeyRequest; rawKey: string }>(`/admin/user-requests/${id}/approve`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      reject: (id: string, reviewNote?: string) =>
+        request<{ request: UserKeyRequest }>(`/admin/user-requests/${id}/reject`, {
+          method: 'POST',
+          body: JSON.stringify({ reviewNote }),
+        }),
+    },
+
+    portalUsers: {
+      list: (params?: { search?: string; status?: string }) => {
+        const p = new URLSearchParams()
+        if (params?.search) p.set('search', params.search)
+        if (params?.status) p.set('status', params.status)
+        return request<User[]>(`/admin/users?${p}`)
+      },
+      detail: (id: string) =>
+        request<{
+          user: User
+          requests: UserKeyRequest[]
+          keys: UserApiKey[]
+          stats: { totalRequests: number; requestsToday: number; totalTokens: number; tokensToday: number }
+        }>(`/admin/users/${id}`),
+      delete: (id: string) => request(`/admin/users/${id}`, { method: 'DELETE' }),
+      setStatus: (id: string, status: 'active' | 'suspended') =>
+        request<User>(`/admin/users/${id}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status }),
+        }),
+      resetPassword: (id: string, password: string) =>
+        request(`/admin/users/${id}/password`, {
+          method: 'PATCH',
+          body: JSON.stringify({ password }),
+        }),
+      issueKey: (id: string, data: { name: string; dailyLimit: number; rateLimitPerMin: number }) =>
+        request<{ request: UserKeyRequest; rawKey: string }>(`/admin/users/${id}/keys`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
     },
   },
 
@@ -254,6 +315,53 @@ export const api = {
       request(`/providers/${provider}/login`, { method: 'POST' }),
     logout: (provider: string) =>
       request(`/providers/${provider}/logout`, { method: 'POST' }),
+  },
+
+  user: {
+    register: (username: string, email: string, password: string) =>
+      request<UserLoginResponse>('/user/register', {
+        method: 'POST',
+        body: JSON.stringify({ username, email, password }),
+      }),
+
+    login: (login: string, password: string) =>
+      request<UserLoginResponse>('/user/login', {
+        method: 'POST',
+        body: JSON.stringify({ login, password }),
+      }),
+
+    me: () => request<User>('/user/me', {}, userToken),
+
+    logout: () => request('/user/logout', { method: 'POST' }, userToken),
+
+    keys: () => request<unknown[]>('/user/keys', {}, userToken),
+
+    keyRequests: () => request<UserKeyRequest[]>('/user/keys/requests', {}, userToken),
+
+    requestKey: (name: string, reason?: string | null) =>
+      request<UserKeyRequest>('/user/keys/request', {
+        method: 'POST',
+        body: JSON.stringify({ name, reason }),
+      }, userToken),
+
+    usage: () =>
+      request<{
+        stats: { totalRequests: number; requestsToday: number; totalTokens: number; tokensToday: number }
+        keys: unknown[]
+      }>('/user/usage', {}, userToken),
+
+    logs: (params?: { limit?: number; offset?: number; provider?: string; search?: string }) => {
+      const searchParams = new URLSearchParams()
+      if (params?.limit) searchParams.set('limit', String(params.limit))
+      if (params?.offset) searchParams.set('offset', String(params.offset))
+      if (params?.provider) searchParams.set('provider', params.provider)
+      if (params?.search) searchParams.set('search', params.search)
+      return request<{ logs: RequestLog[]; pagination: { total: number } }>(
+        `/user/logs?${searchParams}`,
+        {},
+        userToken,
+      )
+    },
   },
 }
 

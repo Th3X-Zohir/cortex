@@ -279,3 +279,49 @@ export interface BridgeStatus {
   providers: ProviderStatus[]
   uptime: number
 }
+
+export interface User {
+  id: string
+  username: string
+  email: string
+  status: 'active' | 'suspended'
+  createdAt: string
+  lastLogin: string | null
+}
+
+export interface UserLoginResponse {
+  token: string
+  user: User
+  expiresAt: string
+  expiresIn: string
+}
+
+export interface UserApiKey {
+  id: string
+  requestId: string
+  keyPrefix: string
+  name: string
+  dailyLimit: number
+  rateLimitPerMin: number
+  requestsToday: number
+  totalRequests: number
+  lastUsed: string | null
+  createdAt: string
+  active: boolean
+  usagePercent: number
+}
+
+export interface UserKeyRequest {
+  id: string
+  userId: string
+  userUsername: string
+  name: string
+  reason: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  apiKeyId: string | null
+  revealedKey: string | null
+  reviewedByAdminId: string | null
+  reviewNote: string | null
+  reviewedAt: string | null
+  createdAt: string
+}
