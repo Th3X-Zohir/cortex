@@ -208,9 +208,10 @@ export class ChatGPTProvider extends BaseProvider {
           window.__cortexChatGPT ? {
             text: window.__cortexChatGPT.text || '',
             done: !!window.__cortexChatGPT.done,
-            fetchHits: window.__cortexChatGPT.fetchHits || 0
-          } : { text:'', done:false, fetchHits:0 }
-        `) as { text: string; done: boolean; fetchHits: number };
+            fetchHits: window.__cortexChatGPT.fetchHits || 0,
+            started: !!window.__cortexChatGPT.started
+          } : { text:'', done:false, fetchHits:0, started:false }
+        `) as { text: string; done: boolean; fetchHits: number; started: boolean };
 
         if (result.fetchHits > 0 && !fetchHit) {
           fetchHit = true;
@@ -218,7 +219,7 @@ export class ChatGPTProvider extends BaseProvider {
         }
 
         const rateLimited = await this._dismissTooManyRequestsDialog(page);
-        if (rateLimited && !hasContent && !result.text && !result.done) {
+        if (rateLimited && !hasContent && !result.text && !result.done && !result.started) {
           if (resubmitCount >= 2) {
             throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
           }
@@ -227,7 +228,7 @@ export class ChatGPTProvider extends BaseProvider {
           logger.warn(`[chatgpt] rate-limit modal while streaming wait; retrying submit in ${waitMs}ms (retry ${resubmitCount}/2)`);
           await new Promise(r => setTimeout(r, waitMs));
           await page.evaluate(`
-            window.__cortexChatGPT = { text:'', done:false, startTime:Date.now(), fetchHits:0 };
+            window.__cortexChatGPT = { text:'', done:false, startTime:Date.now(), fetchHits:0, started:false };
           `).catch(() => {});
           await this._submitPromptWithRateLimitRecovery(page, userMsg);
           start = Date.now();
@@ -240,7 +241,7 @@ export class ChatGPTProvider extends BaseProvider {
           continue;
         }
 
-        if (!hasContent && !result.text) {
+        if (!hasContent && !result.text && !result.started) {
           const unusualActivity = await this._detectUnusualActivityBlocker(page)
           if (unusualActivity) {
             throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
@@ -538,7 +539,7 @@ private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
         if (window.__cortexChatGPTPatched) return true;
         window.__cortexChatGPTPatched = true;
 
-        window.__cortexChatGPT = { text: '', done: false, startTime: 0, fetchHits: 0 };
+        window.__cortexChatGPT = { text: '', done: false, startTime: 0, fetchHits: 0, started: false };
 
         function __cleanGenui(t) {
           if (!t) return '';
@@ -548,6 +549,32 @@ private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
           if (t.startsWith('genui')) { const i = t.indexOf(' '); if (i > 0) t = t.slice(i + 1); }
           while (t.length > 0 && (t.charCodeAt(t.length - 1) === 0x200B || t.charCodeAt(t.length - 1) === 0x00 || t.charCodeAt(t.length - 1) === 0x200E)) t = t.slice(0, -1);
           return t;
+        }
+
+        function __isTextPatchPath(path) {
+          return path.includes('/message/content/parts/') ||
+                 path.includes('/text/') ||
+                 path.includes('/message/content/-') ||
+                 path.endsWith('/content');
+        }
+
+        function __appendTextChunk(rawValue, opLabel) {
+          const patchVal = __cleanGenui(String(rawValue ?? ''));
+          if (!patchVal) return false;
+          if (patchVal === 'finished_successfully') {
+            console.log('[CORTEX-REJECT-STATUS]', patchVal);
+            return false;
+          }
+          if (/^(true|false|null|undefined)$/i.test(patchVal)) return false;
+
+          const prevLen = window.__cortexChatGPT.text.length;
+          window.__cortexChatGPT.text += patchVal;
+          window.__cortexChatGPT.started = true;
+          if (window.__cortexChatGPT.text.length > prevLen) {
+            console.log('[CORTEX-ACCEPT]', opLabel ?? 'patch', patchVal.length, 'chars, total:', window.__cortexChatGPT.text.length, 'val:', patchVal.slice(0, 40));
+            return true;
+          }
+          return false;
         }
 
         const _fetch = window.fetch;
@@ -561,6 +588,7 @@ private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
             window.__cortexChatGPT.fetchHits = (window.__cortexChatGPT.fetchHits || 0) + 1;
             window.__cortexChatGPT.text = '';
             window.__cortexChatGPT.done = false;
+            window.__cortexChatGPT.started = false;
 
             const clone = res.clone();
             (async () => {
@@ -569,6 +597,8 @@ private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
                 const decoder = new TextDecoder();
                 let buffer = '';
                 let seq = 0;
+                let lastTextPatchPath = '';
+                let lastTextPatchOp = '';
                 while (true) {
                   const { done, value } = await reader.read();
                   if (done) { window.__cortexChatGPT.done = true; break; }
@@ -583,6 +613,7 @@ private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
                     try {
                       const d = JSON.parse(raw);
                       seq++;
+                      let consumedDirectString = false;
 
                       // Log all events for diagnostics
                       console.log('[CORTEX-SEQ]', seq, JSON.stringify(d).slice(0, 200));
@@ -594,6 +625,30 @@ private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
                         continue;
                       }
 
+                      if (d.type === 'message_marker' && d.marker === 'user_visible_token') {
+                        window.__cortexChatGPT.started = true;
+                      }
+
+                      if (d.v?.message?.author?.role === 'assistant') {
+                        window.__cortexChatGPT.started = true;
+                      }
+
+                      if (d.p && d.v !== undefined && typeof d.v !== 'object') {
+                        const patchPath = String(d.p);
+                        const patchOp = d.o;
+                        const isTextPatch = __isTextPatchPath(patchPath);
+                        if (isTextPatch) {
+                          lastTextPatchPath = patchPath;
+                          lastTextPatchOp = patchOp ?? 'patch';
+                          __appendTextChunk(d.v, patchOp ?? 'patch');
+                          consumedDirectString = true;
+                        }
+                      }
+
+                      if (!consumedDirectString && typeof d.v === 'string' && lastTextPatchPath && __isTextPatchPath(lastTextPatchPath)) {
+                        __appendTextChunk(d.v, lastTextPatchOp || 'append');
+                      }
+
                       // Format: {"v":[{"p":"/message/content/parts/0","o":"append","v":"Hello"}]}
                       if (Array.isArray(d.v)) {
                         for (const patch of d.v) {
@@ -602,28 +657,11 @@ private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
                           const patchOp = patch.o;
 
                           // Only accept text patches on message content paths
-                          const isTextPatch = patchPath.includes('/message/content/parts/') ||
-                                             patchPath.includes('/text/') ||
-                                             patchPath.includes('/message/content/-') ||
-                                             patchPath.endsWith('/content');
+                          const isTextPatch = __isTextPatchPath(patchPath);
                           if (!isTextPatch) continue;
-
-                          // Clean BEFORE appending — removes genui prefix from the patch itself
-                          const rawPatchVal = String(patch.v);
-                          const patchVal = __cleanGenui(rawPatchVal);
-
-                          // Block ChatGPT's status/control strings that appear on content paths
-                          if (patchVal === 'finished_successfully') {
-                            console.log('[CORTEX-REJECT-STATUS]', patchVal);
-                            continue;
-                          }
-                          if (/^(true|false|null|undefined)$/i.test(patchVal)) continue;
-
-                          const prevLen = window.__cortexChatGPT.text.length;
-                          window.__cortexChatGPT.text += patchVal;
-                          if (window.__cortexChatGPT.text.length > prevLen) {
-                            console.log('[CORTEX-ACCEPT]', patchOp ?? 'patch', patchVal.length, 'chars, total:', window.__cortexChatGPT.text.length, 'val:', patchVal.slice(0, 40));
-                          }
+                          lastTextPatchPath = patchPath;
+                          lastTextPatchOp = patchOp ?? 'patch';
+                          __appendTextChunk(patch.v, patchOp ?? 'patch');
                         }
                       }
 
@@ -632,6 +670,7 @@ private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
                         const joined = d.v.message.content.parts.join('');
                         if (joined && joined.length > window.__cortexChatGPT.text.length) {
                           window.__cortexChatGPT.text = joined;
+                          window.__cortexChatGPT.started = true;
                           console.log('[CORTEX-REPLACE]', joined.length, 'chars');
                         }
                       }
