@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import {
-  Activity, BookOpen, CheckCircle2, Clock, Copy, KeyRound, Loader2,
-  LogOut, Plus, Send, TerminalSquare, XCircle,
+  Activity, BookOpen, CheckCircle2, ChevronDown, ChevronRight, Clock,
+  Copy, KeyRound, Loader2, LogOut, Plus, Search, Send, TerminalSquare, XCircle,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, formatNumber } from '@/lib/utils'
@@ -362,12 +362,15 @@ function LogsSection() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
-  const limit = 25
+  const [search, setSearch] = useState('')
+  const [provider, setProvider] = useState('')
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const limit = 50
 
   async function load(offset = 0) {
     setLoading(true)
     try {
-      const result = await api.user.logs({ limit, offset })
+      const result = await api.user.logs({ limit, offset, search: search || undefined, provider: provider || undefined })
       setLogs(result.logs)
       setTotal(result.pagination.total)
     } finally {
@@ -377,20 +380,53 @@ function LogsSection() {
 
   useEffect(() => { void load(page * limit) }, [page])
 
+  function applyFilters() {
+    setPage(0)
+    void load(0)
+  }
+
+  function toggleRow(id: string) {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Request Logs</h1>
-        <button type="button" className="ui-btn-secondary" onClick={() => void load(page * limit)}>
-          Refresh
-        </button>
+        <button type="button" className="ui-btn-secondary" onClick={() => void load(page * limit)}>Refresh</button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            className="ui-input pl-8"
+            placeholder="Search model, error…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && applyFilters()}
+          />
+        </div>
+        <input
+          className="ui-input w-36"
+          placeholder="Provider"
+          value={provider}
+          onChange={e => setProvider(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && applyFilters()}
+        />
+        <button type="button" className="ui-btn-primary" onClick={applyFilters}>Apply</button>
       </div>
 
       {loading ? (
         <Busy />
       ) : logs.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
-          <p className="text-sm text-slate-600">No request logs yet.</p>
+          <p className="text-sm text-slate-600">No request logs found.</p>
         </div>
       ) : (
         <>
@@ -404,57 +440,151 @@ function LogsSection() {
                   <th className="px-4 py-2 text-left">Status</th>
                   <th className="px-4 py-2 text-right">Tokens</th>
                   <th className="px-4 py-2 text-right">Latency</th>
+                  <th className="px-4 py-2 text-right">Details</th>
                 </tr>
               </thead>
               <tbody>
                 {logs.map(log => (
-                  <tr key={log.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2 text-xs text-slate-500">{formatDate(log.createdAt)}</td>
-                    <td className="px-4 py-2 font-medium">{log.provider}</td>
-                    <td className="px-4 py-2 text-xs text-slate-600">{log.model}</td>
-                    <td className="px-4 py-2">
-                      <span className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                        log.statusCode && log.statusCode < 400
-                          ? 'bg-green-50 text-green-700'
-                          : 'bg-red-50 text-red-700'
-                      }`}>
-                        {log.statusCode ?? '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-right text-xs">{log.totalTokens ?? '—'}</td>
-                    <td className="px-4 py-2 text-right text-xs">
-                      {log.responseTimeMs ? `${log.responseTimeMs}ms` : '—'}
-                    </td>
-                  </tr>
+                  <UserLogRow
+                    key={log.id}
+                    log={log}
+                    expanded={expandedIds.has(log.id)}
+                    onToggle={() => toggleRow(log.id)}
+                  />
                 ))}
               </tbody>
             </table>
           </div>
           <div className="flex items-center justify-between text-sm text-slate-500">
-            <span>{total} total</span>
+            <span>{total} total · page {page + 1} of {Math.max(1, Math.ceil(total / limit))}</span>
             <div className="flex gap-2">
-              <button
-                type="button"
-                className="ui-btn-secondary"
-                disabled={page === 0}
-                onClick={() => setPage(p => p - 1)}
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                className="ui-btn-secondary"
-                disabled={(page + 1) * limit >= total}
-                onClick={() => setPage(p => p + 1)}
-              >
-                Next
-              </button>
+              <button type="button" className="ui-btn-secondary" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Prev</button>
+              <button type="button" className="ui-btn-secondary" disabled={(page + 1) * limit >= total} onClick={() => setPage(p => p + 1)}>Next</button>
             </div>
           </div>
         </>
       )}
     </div>
   )
+}
+
+function UserLogRow({ log, expanded, onToggle }: { log: RequestLog; expanded: boolean; onToggle: () => void }) {
+  const statusColor =
+    !log.statusCode ? 'bg-slate-100 text-slate-500'
+    : log.statusCode >= 500 ? 'bg-red-50 text-red-700'
+    : log.statusCode >= 400 ? 'bg-amber-50 text-amber-700'
+    : 'bg-green-50 text-green-700'
+
+  return (
+    <Fragment>
+      <tr className="border-t border-slate-100 hover:bg-slate-50/50">
+        <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">{formatDate(log.createdAt)}</td>
+        <td className="px-4 py-2.5 font-medium text-slate-800">{log.provider}</td>
+        <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{log.model}</td>
+        <td className="px-4 py-2.5">
+          <span className={`rounded px-2 py-0.5 text-xs font-semibold ${statusColor}`}>
+            {log.statusCode ?? '—'}
+          </span>
+        </td>
+        <td className="px-4 py-2.5 text-right text-xs tabular-nums text-slate-600">
+          {log.totalTokens != null ? formatNumber(log.totalTokens) : '—'}
+        </td>
+        <td className="px-4 py-2.5 text-right text-xs tabular-nums text-slate-600">
+          {log.responseTimeMs ? `${log.responseTimeMs} ms` : '—'}
+        </td>
+        <td className="px-4 py-2.5 text-right">
+          <button type="button" className="ui-btn-secondary min-h-7 px-2.5 text-xs" onClick={onToggle}>
+            {expanded ? 'Hide' : 'View'}
+          </button>
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="border-t border-slate-100 bg-slate-50/60">
+          <td colSpan={7} className="px-4 py-3">
+            <div className="space-y-3">
+              {/* Metadata grid */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                <LogDetail label="Log ID" value={log.id} mono />
+                <LogDetail label="Stream" value={log.stream ? 'Yes' : 'No'} />
+                <LogDetail label="Messages" value={String(log.messagesCount ?? '—')} />
+                <LogDetail label="Prompt tokens" value={formatNumber(log.promptTokens ?? 0)} />
+                <LogDetail label="Completion tokens" value={formatNumber(log.completionTokens ?? 0)} />
+                <LogDetail label="Total tokens" value={formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)} />
+                {log.error && <LogDetail label="Error" value={log.error} wide />}
+              </div>
+              {/* Payloads */}
+              {log.requestPayload != null && <LogPayloadPanel label="Request payload" value={log.requestPayload} defaultExpanded />}
+              {log.responsePayload != null && <LogPayloadPanel label="Response payload" value={log.responsePayload} />}
+            </div>
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  )
+}
+
+function LogDetail({ label, value, mono = false, wide = false }: { label: string; value: string; mono?: boolean; wide?: boolean }) {
+  return (
+    <div className={wide ? 'col-span-full' : ''}>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+      <p className={`mt-0.5 break-all text-sm text-slate-700 ${mono ? 'font-mono text-xs' : ''}`}>{value}</p>
+    </div>
+  )
+}
+
+function LogPayloadPanel({ label, value, defaultExpanded = false }: { label: string; value: unknown; defaultExpanded?: boolean }) {
+  const [open, setOpen] = useState(defaultExpanded)
+  const [copied, setCopied] = useState(false)
+
+  const { formatted, preview, kind, characters, lines } = logFormatPayload(value)
+
+  function copy() {
+    navigator.clipboard.writeText(formatted).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white">
+      <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <button type="button" className="flex min-w-0 items-center gap-2 text-left" onClick={() => setOpen(o => !o)}>
+          {open
+            ? <ChevronDown size={14} className="shrink-0 text-slate-400" />
+            : <ChevronRight size={14} className="shrink-0 text-slate-400" />}
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-700">{label}</p>
+            <p className="text-[10px] text-slate-400">{kind} · {formatNumber(characters)} chars · {formatNumber(lines)} lines</p>
+          </div>
+        </button>
+        <button type="button" className="ui-btn-secondary min-h-7 shrink-0 px-2.5 text-xs" onClick={copy}>
+          <Copy size={11} /> {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      {open ? (
+        <div className="border-t border-slate-100 p-3">
+          <pre className="max-h-[28rem] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100">{formatted}</pre>
+        </div>
+      ) : (
+        <div className="border-t border-slate-100 px-3 pb-3 pt-2">
+          <pre className="max-h-24 overflow-hidden rounded-lg border border-slate-100 bg-slate-50 p-2.5 text-xs text-slate-500">{preview}</pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function logFormatPayload(value: unknown) {
+  let kind = 'text'
+  let formatted = ''
+  if (typeof value === 'string') {
+    try { formatted = JSON.stringify(JSON.parse(value), null, 2); kind = 'json' } catch { formatted = value }
+  } else {
+    formatted = JSON.stringify(value, null, 2)
+    kind = typeof value === 'object' && value !== null ? 'json' : 'value'
+  }
+  const safe = formatted || 'No data'
+  const lineArr = safe.split('\n')
+  return { kind, formatted: safe, preview: lineArr.length > 6 ? lineArr.slice(0, 6).join('\n') + '\n…' : safe, characters: safe.length, lines: lineArr.length }
 }
 
 // ── API Docs ──────────────────────────────────────────────────────────────────
@@ -625,6 +755,16 @@ console.log(response.choices[0].message.content)`} />
 
 interface PlayKey { id: string; name: string; revealedKey: string }
 
+interface ResponseMeta {
+  id: string
+  object: string
+  model: string
+  usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null
+  finish_reason: string | null
+}
+
+type ResponseTab = 'output' | 'json' | 'request'
+
 function PlaygroundSection() {
   const [keys, setKeys] = useState<PlayKey[]>([])
   const [loadingKeys, setLoadingKeys] = useState(true)
@@ -632,10 +772,19 @@ function PlaygroundSection() {
   const [models, setModels] = useState<string[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
   const [model, setModel] = useState('')
+  const [systemPrompt, setSystemPrompt] = useState('')
+  const [showSystem, setShowSystem] = useState(false)
+  const [temperature, setTemperature] = useState(1)
+  const [maxTokens, setMaxTokens] = useState('')
+  const [streamEnabled, setStreamEnabled] = useState(true)
   const [userMsg, setUserMsg] = useState('')
-  const [response, setResponse] = useState('')
+  const [responseText, setResponseText] = useState('')
+  const [responseMeta, setResponseMeta] = useState<ResponseMeta | null>(null)
+  const [sentPayload, setSentPayload] = useState<object | null>(null)
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [responseTab, setResponseTab] = useState<ResponseTab>('output')
+  const [copied, setCopied] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -664,65 +813,121 @@ function PlaygroundSection() {
         setModels(ids)
         setModel(prev => (ids.includes(prev) ? prev : (ids[0] ?? '')))
       })
-      .catch(() => { /* silently fall back to manual entry */ })
+      .catch(() => {})
       .finally(() => setLoadingModels(false))
   }, [selectedKey])
 
+  function buildPayload(withStream = streamEnabled) {
+    const messages: Array<{ role: string; content: string }> = []
+    if (systemPrompt.trim()) messages.push({ role: 'system', content: systemPrompt.trim() })
+    messages.push({ role: 'user', content: userMsg.trim() })
+    const payload: Record<string, unknown> = { model, stream: withStream, messages, temperature }
+    if (maxTokens && Number(maxTokens) > 0) payload.max_tokens = Number(maxTokens)
+    return payload
+  }
+
+  function copyText(text: string, id: string) {
+    navigator.clipboard.writeText(text).catch(() => {})
+    setCopied(id)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
   async function send() {
     if (!selectedKey || !userMsg.trim()) return
-    setResponse('')
+    const payload = buildPayload()
+    setSentPayload(payload)
+    setResponseText('')
+    setResponseMeta(null)
     setError(null)
     setStreaming(true)
+    setResponseTab('output')
     abortRef.current = new AbortController()
 
     try {
       const res = await fetch('/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${selectedKey}`,
-        },
-        body: JSON.stringify({ model, stream: true, messages: [{ role: 'user', content: userMsg }] }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${selectedKey}` },
+        body: JSON.stringify(payload),
         signal: abortRef.current.signal,
       })
 
       if (!res.ok) {
-        const payload = await res.json().catch(() => ({}))
-        const msg = typeof payload.error === 'string' ? payload.error : payload.error?.message
+        const p = await res.json().catch(() => ({}))
+        const msg = typeof p.error === 'string' ? p.error : p.error?.message
         throw new Error(msg || `HTTP ${res.status}`)
       }
 
-      const reader = res.body!.getReader()
-      const decoder = new TextDecoder()
-      let buf = ''
+      if (!streamEnabled) {
+        // Non-streaming: parse full JSON response
+        const data = await res.json()
+        const content = data.choices?.[0]?.message?.content ?? ''
+        setResponseText(content)
+        setResponseMeta({
+          id: data.id ?? '',
+          object: data.object ?? 'chat.completion',
+          model: data.model ?? model,
+          usage: data.usage ?? null,
+          finish_reason: data.choices?.[0]?.finish_reason ?? 'stop',
+        })
+      } else {
+        // Streaming: consume SSE chunks
+        let accText = ''
+        const meta: ResponseMeta = { id: '', object: 'chat.completion', model, usage: null, finish_reason: null }
+        const reader = res.body!.getReader()
+        const decoder = new TextDecoder()
+        let buf = ''
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buf += decoder.decode(value, { stream: true })
-        const parts = buf.split('\n\n')
-        buf = parts.pop() || ''
-        for (const part of parts) {
-          for (const line of part.split('\n')) {
-            if (!line.startsWith('data: ')) continue
-            const raw = line.slice(6).trim()
-            if (!raw || raw === '[DONE]') continue
-            try {
-              const chunk = JSON.parse(raw)
-              const delta = chunk.choices?.[0]?.delta?.content
-              if (delta) setResponse(prev => prev + delta)
-            } catch { /* ignore parse errors */ }
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          const parts = buf.split('\n\n')
+          buf = parts.pop() || ''
+          for (const part of parts) {
+            for (const line of part.split('\n')) {
+              if (!line.startsWith('data: ')) continue
+              const raw = line.slice(6).trim()
+              if (!raw || raw === '[DONE]') continue
+              try {
+                const chunk = JSON.parse(raw)
+                if (chunk.id) meta.id = chunk.id
+                if (chunk.model) meta.model = chunk.model
+                if (chunk.usage) meta.usage = chunk.usage
+                const choice = chunk.choices?.[0]
+                if (choice?.delta?.content) {
+                  accText += choice.delta.content
+                  setResponseText(accText)
+                }
+                if (choice?.finish_reason) meta.finish_reason = choice.finish_reason
+              } catch { /* ignore */ }
+            }
           }
         }
+        setResponseMeta(meta)
       }
     } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        setError(err.message)
-      }
+      if (err instanceof Error && err.name !== 'AbortError') setError(err.message)
     } finally {
       setStreaming(false)
     }
   }
+
+  // Build final JSON response object for display
+  const responseJson = responseMeta
+    ? {
+        id: responseMeta.id,
+        object: responseMeta.object,
+        model: responseMeta.model,
+        choices: [{
+          index: 0,
+          message: { role: 'assistant', content: responseText },
+          finish_reason: responseMeta.finish_reason ?? 'stop',
+        }],
+        usage: responseMeta.usage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      }
+    : null
+
+  const liveRequestJson = JSON.stringify(buildPayload(), null, 2)
 
   if (loadingKeys) return <Busy />
 
@@ -742,23 +947,22 @@ function PlaygroundSection() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold text-slate-900">Playground</h1>
-      <p className="text-sm text-slate-500">Test the API directly using one of your approved keys.</p>
+      <p className="text-sm text-slate-500">Test the API directly. Switch to JSON view to inspect the raw request and response structure.</p>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-        {/* Config + input */}
+      <div className="grid gap-4 lg:grid-cols-[420px_minmax(0,1fr)]">
+
+        {/* ── Left: Input panel ── */}
         <div className="space-y-3">
+
+          {/* Key */}
           <div>
             <label className="ui-label">API Key</label>
-            <select
-              className="ui-input"
-              value={selectedKey}
-              onChange={e => setSelectedKey(e.target.value)}
-            >
-              {keys.map(k => (
-                <option key={k.id} value={k.revealedKey}>{k.name}</option>
-              ))}
+            <select className="ui-input" value={selectedKey} onChange={e => setSelectedKey(e.target.value)}>
+              {keys.map(k => <option key={k.id} value={k.revealedKey}>{k.name}</option>)}
             </select>
           </div>
+
+          {/* Model */}
           <div>
             <label className="ui-label">Model</label>
             {loadingModels ? (
@@ -771,56 +975,189 @@ function PlaygroundSection() {
                 {models.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             ) : (
+              <input className="ui-input" value={model} onChange={e => setModel(e.target.value)} placeholder="e.g. gpt-4o" />
+            )}
+          </div>
+
+          {/* Parameters row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="ui-label">Temperature <span className="text-slate-400">{temperature}</span></label>
+              <input
+                type="range" min="0" max="2" step="0.1"
+                className="w-full accent-teal-600"
+                value={temperature}
+                onChange={e => setTemperature(Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <label className="ui-label">Max tokens</label>
               <input
                 className="ui-input"
-                value={model}
-                onChange={e => setModel(e.target.value)}
-                placeholder="e.g. gpt-4o"
+                type="number"
+                min="1"
+                value={maxTokens}
+                onChange={e => setMaxTokens(e.target.value)}
+                placeholder="unlimited"
+              />
+            </div>
+          </div>
+
+          {/* System prompt toggle */}
+          <div>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700"
+              onClick={() => setShowSystem(s => !s)}
+            >
+              <span className={`transition-transform ${showSystem ? 'rotate-90' : ''}`}>▶</span>
+              System prompt {showSystem ? '' : '(optional)'}
+            </button>
+            {showSystem && (
+              <textarea
+                className="ui-input mt-1.5 min-h-[72px] resize-none font-mono text-xs"
+                value={systemPrompt}
+                onChange={e => setSystemPrompt(e.target.value)}
+                placeholder="You are a helpful assistant…"
               />
             )}
           </div>
+
+          {/* User message */}
           <div>
-            <label className="ui-label">Message</label>
+            <label className="ui-label">User message</label>
             <textarea
-              className="ui-input min-h-[140px] resize-none"
+              className="ui-input min-h-[140px] resize-y"
               value={userMsg}
               onChange={e => setUserMsg(e.target.value)}
-              placeholder="Enter your message..."
+              placeholder="Enter your message…"
               onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void send() }}
             />
             <p className="mt-1 text-xs text-slate-400">Ctrl+Enter to send</p>
           </div>
-          <div className="flex gap-2">
+
+          {/* Stream toggle + Send / Stop */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              className="ui-btn-primary flex-1"
-              onClick={send}
-              disabled={streaming || !userMsg.trim()}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                streamEnabled
+                  ? 'border-teal-200 bg-teal-50 text-teal-700'
+                  : 'border-slate-200 bg-white text-slate-500'
+              }`}
+              onClick={() => setStreamEnabled(s => !s)}
+              title="Toggle streaming mode"
             >
+              <span className={`h-2 w-2 rounded-full ${streamEnabled ? 'bg-teal-500 animate-pulse' : 'bg-slate-300'}`} />
+              Stream
+            </button>
+            <button type="button" className="ui-btn-primary flex-1" onClick={send} disabled={streaming || !userMsg.trim()}>
               {streaming ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
               {streaming ? 'Generating…' : 'Send'}
             </button>
             {streaming && (
-              <button
-                type="button"
-                className="ui-btn-secondary"
-                onClick={() => abortRef.current?.abort()}
-              >
-                Stop
-              </button>
+              <button type="button" className="ui-btn-secondary" onClick={() => abortRef.current?.abort()}>Stop</button>
             )}
           </div>
+
+          {/* Live request JSON preview */}
+          <details className="group rounded-xl border border-slate-200">
+            <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700">
+              Request JSON preview
+            </summary>
+            <div className="relative">
+              <button
+                type="button"
+                className="absolute right-2 top-2 flex items-center gap-1 rounded-md bg-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-600"
+                onClick={() => copyText(liveRequestJson, 'req-preview')}
+              >
+                <Copy size={10} /> {copied === 'req-preview' ? 'Copied!' : 'Copy'}
+              </button>
+              <pre className="overflow-x-auto rounded-b-xl bg-slate-900 p-3 text-xs text-slate-300">{liveRequestJson}</pre>
+            </div>
+          </details>
         </div>
 
-        {/* Response */}
-        <div className="ui-surface rounded-2xl p-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Response</p>
-          {error ? (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
-          ) : response ? (
-            <pre className="whitespace-pre-wrap text-sm text-slate-800">{response}{streaming ? '▌' : ''}</pre>
-          ) : (
-            <p className="text-sm text-slate-400">Response will appear here…</p>
+        {/* ── Right: Response panel ── */}
+        <div className="flex flex-col gap-3">
+
+          {/* Tab bar */}
+          <div className="flex items-center justify-between">
+            <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 gap-1">
+              {(['output', 'json', 'request'] as ResponseTab[]).map(tab => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={`rounded-lg px-3 py-1 text-xs font-semibold capitalize transition ${
+                    responseTab === tab
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  onClick={() => setResponseTab(tab)}
+                >
+                  {tab === 'json' ? 'JSON' : tab === 'request' ? 'Request' : 'Output'}
+                </button>
+              ))}
+            </div>
+
+            {/* Usage badge */}
+            {responseMeta?.usage && (
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono">
+                  ↑ {responseMeta.usage.prompt_tokens} / ↓ {responseMeta.usage.completion_tokens} / Σ {responseMeta.usage.total_tokens} tok
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Tab content */}
+          <div className="relative min-h-[320px] rounded-2xl border border-slate-200 bg-slate-900">
+
+            {/* Copy button */}
+            {(responseTab === 'output' ? responseText : responseTab === 'json' ? responseJson : sentPayload) && (
+              <button
+                type="button"
+                className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md bg-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-600"
+                onClick={() => {
+                  const txt =
+                    responseTab === 'output' ? responseText
+                    : responseTab === 'json' ? JSON.stringify(responseJson, null, 2)
+                    : JSON.stringify(sentPayload, null, 2)
+                  copyText(txt ?? '', 'resp')
+                }}
+              >
+                <Copy size={10} /> {copied === 'resp' ? 'Copied!' : 'Copy'}
+              </button>
+            )}
+
+            <div className="overflow-auto p-4 text-xs">
+              {error ? (
+                <div className="rounded-xl border border-rose-800 bg-rose-950 px-3 py-2 text-sm text-rose-300">{error}</div>
+              ) : responseTab === 'output' ? (
+                responseText
+                  ? <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-100">{responseText}{streaming ? '▌' : ''}</pre>
+                  : <p className="text-slate-500">{streaming ? 'Generating…' : 'Output will appear here'}</p>
+              ) : responseTab === 'json' ? (
+                responseJson
+                  ? <pre className="text-teal-300">{JSON.stringify(responseJson, null, 2)}</pre>
+                  : streaming
+                    ? <p className="text-slate-500">Building response…</p>
+                    : <p className="text-slate-500">Send a request to see the JSON response</p>
+              ) : /* request tab */ (
+                sentPayload
+                  ? <pre className="text-blue-300">{JSON.stringify(sentPayload, null, 2)}</pre>
+                  : <p className="text-slate-500">Send a request to see what was submitted</p>
+              )}
+            </div>
+          </div>
+
+          {/* Metadata footer */}
+          {responseMeta?.id && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+              <span><span className="font-semibold text-slate-700">id</span> {responseMeta.id}</span>
+              <span><span className="font-semibold text-slate-700">model</span> {responseMeta.model}</span>
+              <span><span className="font-semibold text-slate-700">finish</span> {responseMeta.finish_reason ?? '—'}</span>
+            </div>
           )}
         </div>
       </div>
