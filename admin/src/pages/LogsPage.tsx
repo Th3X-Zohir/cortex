@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { ChevronDown, ChevronRight, Copy, Search } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, formatNumber } from '@/lib/utils'
 import type { ApiKey, AuditLog, RequestLog } from '@/types'
@@ -20,7 +20,8 @@ export function LogsPage() {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [expandedRequestIds, setExpandedRequestIds] = useState<string[]>([])
+  const [expandedAuditIds, setExpandedAuditIds] = useState<string[]>([])
   const [filters, setFilters] = useState({
     search: '',
     provider: '',
@@ -138,7 +139,6 @@ export function LogsPage() {
                 className={tab === 'requests' ? 'ui-btn-primary min-h-8 px-3 text-xs' : 'ui-btn-secondary min-h-8 border-transparent px-3 text-xs'}
                 onClick={() => {
                   setTab('requests')
-                  setExpanded(null)
                 }}
               >
                 Request logs
@@ -148,7 +148,6 @@ export function LogsPage() {
                 className={tab === 'audit' ? 'ui-btn-primary min-h-8 px-3 text-xs' : 'ui-btn-secondary min-h-8 border-transparent px-3 text-xs'}
                 onClick={() => {
                   setTab('audit')
-                  setExpanded(null)
                 }}
               >
                 Audit logs
@@ -178,61 +177,12 @@ export function LogsPage() {
                 </thead>
                 <tbody>
                   {requestLogs.map(log => (
-                    <Fragment key={log.id}>
-                      <tr>
-                        <td>{formatDate(log.createdAt)}</td>
-                        <td>{log.apiKeyName ?? 'Unknown'}</td>
-                        <td>{log.provider}</td>
-                        <td className="font-mono text-xs text-slate-600">{log.model}</td>
-                        <td>
-                          {typeof log.statusCode === 'number' ? (
-                            log.statusCode >= 500 ? (
-                              <Chip tone="bad">{log.statusCode}</Chip>
-                            ) : log.statusCode >= 400 ? (
-                              <Chip tone="warn">{log.statusCode}</Chip>
-                            ) : (
-                              <Chip tone="good">{log.statusCode}</Chip>
-                            )
-                          ) : (
-                            <Chip tone="default">Pending</Chip>
-                          )}
-                        </td>
-                        <td>{log.responseTimeMs ?? 0} ms</td>
-                        <td>{formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)}</td>
-                        <td className="max-w-[320px] truncate text-slate-600">
-                          {log.error ? log.error : `${log.messagesCount} messages${log.stream ? ' • stream' : ''}`}
-                        </td>
-                        <td>
-                          <button type="button" className="ui-btn-secondary min-h-8 px-3 text-xs" onClick={() => setExpanded(expanded === log.id ? null : log.id)}>
-                            {expanded === log.id ? 'Hide' : 'View'}
-                          </button>
-                        </td>
-                      </tr>
-                      {expanded === log.id ? (
-                        <tr>
-                          <td colSpan={9}>
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                              <div className="grid gap-3 md:grid-cols-3">
-                                <Detail label="Log ID" value={log.id} mono />
-                                <Detail label="API Key ID" value={log.apiKeyId ?? 'None'} mono />
-                                <Detail label="IP Address" value={log.ipAddress ?? 'Unknown'} mono />
-                                <Detail label="Prompt Tokens" value={formatNumber(log.promptTokens ?? 0)} />
-                                <Detail label="Completion Tokens" value={formatNumber(log.completionTokens ?? 0)} />
-                                <Detail label="Total Tokens" value={formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)} />
-                                <Detail label="User Agent" value={log.userAgent ?? 'Unknown'} wide />
-                              </div>
-                              {log.error ? (
-                                <pre className="mt-3 overflow-auto rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
-                                  {log.error}
-                                </pre>
-                              ) : null}
-                              {log.requestPayload ? <JsonDetail label="Request JSON" value={log.requestPayload} /> : null}
-                              {log.responsePayload ? <JsonDetail label="Response JSON" value={log.responsePayload} /> : null}
-                            </div>
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
+                    <RequestLogRow
+                      key={log.id}
+                      log={log}
+                      expanded={expandedRequestIds.includes(log.id)}
+                      onToggle={() => toggleExpanded(log.id, setExpandedRequestIds)}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -255,38 +205,12 @@ export function LogsPage() {
               </thead>
               <tbody>
                 {auditLogs.map(log => (
-                  <Fragment key={log.id}>
-                    <tr>
-                      <td>{formatDate(log.createdAt)}</td>
-                      <td>{log.adminUsername ?? 'System'}</td>
-                      <td>
-                        <Chip tone="default">{log.action.replace(/_/g, ' ')}</Chip>
-                      </td>
-                      <td>{log.entityType}{log.entityId ? ` • ${log.entityId.slice(0, 8)}` : ''}</td>
-                      <td>{log.ipAddress ?? 'Unknown'}</td>
-                      <td>
-                        <button type="button" className="ui-btn-secondary min-h-8 px-3 text-xs" onClick={() => setExpanded(expanded === log.id ? null : log.id)}>
-                          {expanded === log.id ? 'Hide' : 'View'}
-                        </button>
-                      </td>
-                    </tr>
-                    {expanded === log.id ? (
-                      <tr>
-                        <td colSpan={6}>
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                            <div className="grid gap-3 md:grid-cols-3">
-                              <Detail label="Audit ID" value={log.id} mono />
-                              <Detail label="Admin ID" value={log.adminId ?? 'None'} mono />
-                              <Detail label="User Agent" value={log.userAgent ?? 'Unknown'} wide />
-                            </div>
-                            <pre className="mt-3 overflow-auto rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
-                              {log.metadata ? JSON.stringify(log.metadata, null, 2) : 'No metadata'}
-                            </pre>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
+                  <AuditLogRow
+                    key={log.id}
+                    log={log}
+                    expanded={expandedAuditIds.includes(log.id)}
+                    onToggle={() => toggleExpanded(log.id, setExpandedAuditIds)}
+                  />
                 ))}
               </tbody>
             </table>
@@ -299,6 +223,119 @@ export function LogsPage() {
   )
 }
 
+function toggleExpanded(id: string, setter: React.Dispatch<React.SetStateAction<string[]>>) {
+  setter(current => (current.includes(id) ? current.filter(item => item !== id) : [...current, id]))
+}
+
+function RequestLogRow({
+  log,
+  expanded,
+  onToggle,
+}: {
+  log: RequestLog
+  expanded: boolean
+  onToggle: () => void
+}) {
+  return (
+    <Fragment>
+      <tr>
+        <td>{formatDate(log.createdAt)}</td>
+        <td>{log.apiKeyName ?? 'Unknown'}</td>
+        <td>{log.provider}</td>
+        <td className="font-mono text-xs text-slate-600">{log.model}</td>
+        <td>
+          {typeof log.statusCode === 'number' ? (
+            log.statusCode >= 500 ? (
+              <Chip tone="bad">{log.statusCode}</Chip>
+            ) : log.statusCode >= 400 ? (
+              <Chip tone="warn">{log.statusCode}</Chip>
+            ) : (
+              <Chip tone="good">{log.statusCode}</Chip>
+            )
+          ) : (
+            <Chip tone="default">Pending</Chip>
+          )}
+        </td>
+        <td>{log.responseTimeMs ?? 0} ms</td>
+        <td>{formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)}</td>
+        <td className="max-w-[320px] truncate text-slate-600">
+          {log.error ? log.error : `${log.messagesCount} messages${log.stream ? ' • stream' : ''}`}
+        </td>
+        <td>
+          <button type="button" className="ui-btn-secondary min-h-8 px-3 text-xs" onClick={onToggle}>
+            {expanded ? 'Hide' : 'View'}
+          </button>
+        </td>
+      </tr>
+      {expanded ? (
+        <tr>
+          <td colSpan={9}>
+            <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="grid gap-3 md:grid-cols-3">
+                <Detail label="Log ID" value={log.id} mono />
+                <Detail label="API Key ID" value={log.apiKeyId ?? 'None'} mono />
+                <Detail label="IP Address" value={log.ipAddress ?? 'Unknown'} mono />
+                <Detail label="Prompt Tokens" value={formatNumber(log.promptTokens ?? 0)} />
+                <Detail label="Completion Tokens" value={formatNumber(log.completionTokens ?? 0)} />
+                <Detail label="Total Tokens" value={formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)} />
+                <Detail label="User Agent" value={log.userAgent ?? 'Unknown'} wide />
+              </div>
+              {log.error ? (
+                <PayloadPanel label="Error" value={log.error} tone="error" defaultExpanded />
+              ) : null}
+              {log.requestPayload ? <PayloadPanel label="Request Payload" value={log.requestPayload} defaultExpanded /> : null}
+              {log.responsePayload ? <PayloadPanel label="Response Payload" value={log.responsePayload} /> : null}
+            </div>
+          </td>
+        </tr>
+      ) : null}
+    </Fragment>
+  )
+}
+
+function AuditLogRow({
+  log,
+  expanded,
+  onToggle,
+}: {
+  log: AuditLog
+  expanded: boolean
+  onToggle: () => void
+}) {
+  return (
+    <Fragment>
+      <tr>
+        <td>{formatDate(log.createdAt)}</td>
+        <td>{log.adminUsername ?? 'System'}</td>
+        <td>
+          <Chip tone="default">{log.action.replace(/_/g, ' ')}</Chip>
+        </td>
+        <td>{log.entityType}{log.entityId ? ` • ${log.entityId.slice(0, 8)}` : ''}</td>
+        <td>{log.ipAddress ?? 'Unknown'}</td>
+        <td>
+          <button type="button" className="ui-btn-secondary min-h-8 px-3 text-xs" onClick={onToggle}>
+            {expanded ? 'Hide' : 'View'}
+          </button>
+        </td>
+      </tr>
+      {expanded ? (
+        <tr>
+          <td colSpan={6}>
+            <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="grid gap-3 md:grid-cols-3">
+                <Detail label="Audit ID" value={log.id} mono />
+                <Detail label="Admin ID" value={log.adminId ?? 'None'} mono />
+                <Detail label="User Agent" value={log.userAgent ?? 'Unknown'} wide />
+              </div>
+              <PayloadPanel label="Metadata" value={log.metadata ?? 'No metadata'} defaultExpanded />
+            </div>
+          </td>
+        </tr>
+      ) : null}
+    </Fragment>
+  )
+}
+
 function Detail({ label, value, mono = false, wide = false }: { label: string; value: string | number; mono?: boolean; wide?: boolean }) {
   return (
     <div className={wide ? 'md:col-span-3' : ''}>
@@ -308,17 +345,104 @@ function Detail({ label, value, mono = false, wide = false }: { label: string; v
   )
 }
 
-function JsonDetail({ label, value }: { label: string; value: unknown }) {
-  const formatted = typeof value === 'string'
-    ? value
-    : JSON.stringify(value, null, 2)
+function PayloadPanel({
+  label,
+  value,
+  defaultExpanded = false,
+  tone = 'default',
+}: {
+  label: string
+  value: unknown
+  defaultExpanded?: boolean
+  tone?: 'default' | 'error'
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
+  const [copied, setCopied] = useState(false)
+  const payload = useMemo(() => formatPayload(value), [value])
+
+  async function copyPayload() {
+    await navigator.clipboard.writeText(payload.formatted)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1500)
+  }
+
+  const shellClass = tone === 'error'
+    ? 'border-rose-200 bg-rose-50/70'
+    : 'border-slate-200 bg-white'
+  const previewClass = tone === 'error'
+    ? 'border-rose-200 bg-rose-50 text-rose-700'
+    : 'border-slate-200 bg-slate-50 text-slate-600'
 
   return (
-    <div className="mt-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">{label}</p>
-      <pre className="ui-scroll mt-1 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
-        {formatted}
-      </pre>
+    <div className={`rounded-xl border ${shellClass}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+        <button
+          type="button"
+          className="flex min-w-0 items-center gap-2 text-left"
+          onClick={() => setExpanded(current => !current)}
+        >
+          {expanded ? <ChevronDown size={16} className="text-slate-500" /> : <ChevronRight size={16} className="text-slate-500" />}
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">{label}</p>
+            <p className="truncate text-xs text-slate-500">
+              {payload.kind} • {formatNumber(payload.characters)} chars • {formatNumber(payload.lines)} lines
+            </p>
+          </div>
+        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" className="ui-btn-secondary min-h-8 px-3 text-xs" onClick={copyPayload}>
+            <Copy size={14} />
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      </div>
+      {expanded ? (
+        <div className="border-t border-slate-200/80 p-3">
+          <pre className="ui-scroll max-h-[32rem] overflow-auto rounded-xl border border-slate-200 bg-slate-950 p-4 text-xs leading-6 text-slate-100">
+            {payload.formatted}
+          </pre>
+        </div>
+      ) : (
+        <div className="px-3 pb-3">
+          <div className={`ui-scroll overflow-auto rounded-xl border p-3 font-mono text-xs leading-5 ${previewClass}`}>
+            {payload.preview}
+          </div>
+        </div>
+      ) }
     </div>
   )
+}
+
+function formatPayload(value: unknown) {
+  let kind = 'text'
+  let formatted = ''
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed) {
+      try {
+        formatted = JSON.stringify(JSON.parse(trimmed), null, 2)
+        kind = 'json'
+      } catch {
+        formatted = value
+      }
+    } else {
+      formatted = value
+    }
+  } else {
+    formatted = JSON.stringify(value, null, 2)
+    kind = Array.isArray(value) || (value && typeof value === 'object') ? 'json' : 'value'
+  }
+
+  const safeFormatted = formatted || 'No data'
+  const lines = safeFormatted.split('\n')
+  const preview = lines.slice(0, 8).join('\n')
+
+  return {
+    kind,
+    formatted: safeFormatted,
+    preview: lines.length > 8 ? `${preview}\n...` : preview,
+    characters: safeFormatted.length,
+    lines: lines.length,
+  }
 }
