@@ -55,30 +55,7 @@ export class ChatGPTProvider extends BaseProvider {
 
       while (Date.now() - start < timeout) {
         await new Promise(r => setTimeout(r, pollInterval));
-
-        const rateLimited = await this._dismissTooManyRequestsDialog(page);
-        if (rateLimited && lastLength === 0) {
-          if (resubmitCount >= 2) {
-            throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
-          }
-          resubmitCount += 1;
-          const waitMs = resubmitCount * 4000;
-          logger.warn(`[chatgpt] rate-limit modal while waiting; retrying submit in ${waitMs}ms (retry ${resubmitCount}/2)`);
-          await new Promise(r => setTimeout(r, waitMs));
-          await this._submitPromptWithRateLimitRecovery(page, userMsg);
-          start = Date.now();
-          stableCount = 0;
-          matchedSelector = '';
-          targetMsgId = '';
-          continue;
-        }
-
-        if (lastLength === 0) {
-          const unusualActivity = await this._detectUnusualActivityBlocker(page)
-          if (unusualActivity) {
-            throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
-          }
-        }
+        let observedText = '';
 
         if (!targetMsgId) {
           const info = await page.evaluate(`
@@ -121,46 +98,65 @@ export class ChatGPTProvider extends BaseProvider {
               break;
             }
           }
-          if (!matchedSelector) continue;
         }
 
-        const elements = page.locator(matchedSelector);
-        const count = await elements.count().catch(() => 0);
-        if (count === 0) continue;
+        if (matchedSelector) {
+          const elements = page.locator(matchedSelector);
+          const count = await elements.count().catch(() => 0);
 
-        const lastEl = elements.last();
-        const text = await lastEl.textContent().catch(() => '');
-        if (!text) continue;
+          if (count > 0) {
+            const lastEl = elements.last();
+            const text = await lastEl.textContent().catch(() => '');
 
-        if (targetMsgId) {
-          const targetEl = page.locator(`[data-message-id="${targetMsgId}"] .markdown`).first();
-          const targetText = await targetEl.textContent().catch(() => '');
-          if (targetText) {
-            const cleaned = cleanGenuiPrefix(targetText);
-            if (cleaned.length > lastLength) {
-              logger.info(`[chatgpt] non-streaming target DOM growing: ${cleaned.length - lastLength} chars (total: ${cleaned.length})`);
-              lastLength = cleaned.length;
-              stableCount = 0;
-            } else {
-              stableCount++;
-              if (stableCount >= 4 && lastLength > 0) {
-                logger.info(`[chatgpt] non-streaming complete (${lastLength} chars)`);
-                return cleaned;
+            if (targetMsgId) {
+              const targetEl = page.locator(`[data-message-id="${targetMsgId}"] .markdown`).first();
+              const targetText = await targetEl.textContent().catch(() => '');
+              if (targetText) {
+                observedText = cleanGenuiPrefix(targetText);
               }
+            } else if (text) {
+              observedText = cleanGenuiPrefix(text);
             }
           }
+        }
+
+        const rateLimited = await this._dismissTooManyRequestsDialog(page);
+        if (rateLimited && lastLength === 0 && !observedText) {
+          if (resubmitCount >= 2) {
+            throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
+          }
+          resubmitCount += 1;
+          const waitMs = resubmitCount * 4000;
+          logger.warn(`[chatgpt] rate-limit modal while waiting; retrying submit in ${waitMs}ms (retry ${resubmitCount}/2)`);
+          await new Promise(r => setTimeout(r, waitMs));
+          await this._submitPromptWithRateLimitRecovery(page, userMsg);
+          start = Date.now();
+          stableCount = 0;
+          matchedSelector = '';
+          targetMsgId = '';
+          continue;
+        }
+
+        if (lastLength === 0 && !observedText) {
+          const unusualActivity = await this._detectUnusualActivityBlocker(page)
+          if (unusualActivity) {
+            throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
+          }
+        }
+
+        if (!observedText) continue;
+
+        if (observedText.length > lastLength) {
+          const growth = observedText.length - lastLength;
+          const logLabel = targetMsgId ? 'non-streaming target DOM growing' : 'non-streaming DOM growing';
+          logger.info(`[chatgpt] ${logLabel}: ${growth} chars (total: ${observedText.length})`);
+          lastLength = observedText.length;
+          stableCount = 0;
         } else {
-          const cleaned = cleanGenuiPrefix(text);
-          if (cleaned.length > lastLength) {
-            logger.info(`[chatgpt] non-streaming DOM growing: ${cleaned.length - lastLength} chars (total: ${cleaned.length})`);
-            lastLength = cleaned.length;
-            stableCount = 0;
-          } else {
-            stableCount++;
-            if (stableCount >= 4 && lastLength > 0) {
-              logger.info(`[chatgpt] non-streaming complete (${lastLength} chars)`);
-              return cleaned;
-            }
+          stableCount++;
+          if (stableCount >= 4 && lastLength > 0) {
+            logger.info(`[chatgpt] non-streaming complete (${lastLength} chars)`);
+            return observedText;
           }
         }
       }
@@ -208,8 +204,21 @@ export class ChatGPTProvider extends BaseProvider {
       while (Date.now() - start < timeout) {
         await new Promise(r => setTimeout(r, pollInterval));
 
+        const result = await page.evaluate(`
+          window.__cortexChatGPT ? {
+            text: window.__cortexChatGPT.text || '',
+            done: !!window.__cortexChatGPT.done,
+            fetchHits: window.__cortexChatGPT.fetchHits || 0
+          } : { text:'', done:false, fetchHits:0 }
+        `) as { text: string; done: boolean; fetchHits: number };
+
+        if (result.fetchHits > 0 && !fetchHit) {
+          fetchHit = true;
+          logger.info(`[chatgpt] fetch interception ACTIVE (${result.fetchHits} hits)`);
+        }
+
         const rateLimited = await this._dismissTooManyRequestsDialog(page);
-        if (rateLimited && !hasContent) {
+        if (rateLimited && !hasContent && !result.text && !result.done) {
           if (resubmitCount >= 2) {
             throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
           }
@@ -231,24 +240,11 @@ export class ChatGPTProvider extends BaseProvider {
           continue;
         }
 
-        if (!hasContent) {
+        if (!hasContent && !result.text) {
           const unusualActivity = await this._detectUnusualActivityBlocker(page)
           if (unusualActivity) {
             throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
           }
-        }
-
-        const result = await page.evaluate(`
-          window.__cortexChatGPT ? {
-            text: window.__cortexChatGPT.text || '',
-            done: !!window.__cortexChatGPT.done,
-            fetchHits: window.__cortexChatGPT.fetchHits || 0
-          } : { text:'', done:false, fetchHits:0 }
-        `) as { text: string; done: boolean; fetchHits: number };
-
-        if (result.fetchHits > 0 && !fetchHit) {
-          fetchHit = true;
-          logger.info(`[chatgpt] fetch interception ACTIVE (${result.fetchHits} hits)`);
         }
 
         if (!result.text && !hasContent) {
