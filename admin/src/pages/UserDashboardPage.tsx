@@ -629,7 +629,9 @@ function PlaygroundSection() {
   const [keys, setKeys] = useState<PlayKey[]>([])
   const [loadingKeys, setLoadingKeys] = useState(true)
   const [selectedKey, setSelectedKey] = useState('')
-  const [model, setModel] = useState('gpt-4o')
+  const [models, setModels] = useState<string[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
+  const [model, setModel] = useState('')
   const [userMsg, setUserMsg] = useState('')
   const [response, setResponse] = useState('')
   const [streaming, setStreaming] = useState(false)
@@ -650,6 +652,21 @@ function PlaygroundSection() {
       })
       .finally(() => setLoadingKeys(false))
   }, [])
+
+  useEffect(() => {
+    if (!selectedKey) return
+    setLoadingModels(true)
+    setModels([])
+    fetch('/v1/models', { headers: { Authorization: `Bearer ${selectedKey}` } })
+      .then(r => r.json())
+      .then((data: { data?: Array<{ id: string }> }) => {
+        const ids = (data.data ?? []).map(m => m.id).filter(Boolean)
+        setModels(ids)
+        setModel(prev => (ids.includes(prev) ? prev : (ids[0] ?? '')))
+      })
+      .catch(() => { /* silently fall back to manual entry */ })
+      .finally(() => setLoadingModels(false))
+  }, [selectedKey])
 
   async function send() {
     if (!selectedKey || !userMsg.trim()) return
@@ -744,12 +761,23 @@ function PlaygroundSection() {
           </div>
           <div>
             <label className="ui-label">Model</label>
-            <input
-              className="ui-input"
-              value={model}
-              onChange={e => setModel(e.target.value)}
-              placeholder="gpt-4o"
-            />
+            {loadingModels ? (
+              <div className="ui-input flex items-center gap-2 text-slate-400">
+                <Loader2 size={14} className="animate-spin" />
+                <span className="text-sm">Loading models…</span>
+              </div>
+            ) : models.length > 0 ? (
+              <select className="ui-input" value={model} onChange={e => setModel(e.target.value)}>
+                {models.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            ) : (
+              <input
+                className="ui-input"
+                value={model}
+                onChange={e => setModel(e.target.value)}
+                placeholder="e.g. gpt-4o"
+              />
+            )}
           </div>
           <div>
             <label className="ui-label">Message</label>
