@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  Activity, CheckCircle2, Clock, Copy, KeyRound, Loader2,
-  LogOut, Plus, Send, XCircle,
+  Activity, BookOpen, CheckCircle2, Clock, Copy, KeyRound, Loader2,
+  LogOut, Plus, Send, TerminalSquare, XCircle,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, formatNumber } from '@/lib/utils'
 import type { User, UserKeyRequest, RequestLog } from '@/types'
 
-type Section = 'overview' | 'keys' | 'request' | 'logs'
+type Section = 'overview' | 'keys' | 'request' | 'logs' | 'docs' | 'playground'
 
 export function UserDashboardPage({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [section, setSection] = useState<Section>('overview')
@@ -17,6 +17,8 @@ export function UserDashboardPage({ user, onLogout }: { user: User; onLogout: ()
     { id: 'keys', label: 'My Keys', icon: KeyRound },
     { id: 'request', label: 'Request Key', icon: Plus },
     { id: 'logs', label: 'Request Logs', icon: Activity },
+    { id: 'docs', label: 'API Docs', icon: BookOpen },
+    { id: 'playground', label: 'Playground', icon: TerminalSquare },
   ]
 
   return (
@@ -76,6 +78,8 @@ export function UserDashboardPage({ user, onLogout }: { user: User; onLogout: ()
           {section === 'keys' && <KeysSection />}
           {section === 'request' && <RequestSection onSuccess={() => setSection('keys')} />}
           {section === 'logs' && <LogsSection />}
+          {section === 'docs' && <DocsSection />}
+          {section === 'playground' && <PlaygroundSection />}
         </main>
       </div>
     </div>
@@ -449,6 +453,349 @@ function LogsSection() {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+// ── API Docs ──────────────────────────────────────────────────────────────────
+
+function DocsSection() {
+  const base = window.location.origin
+  const [copied, setCopied] = useState<string | null>(null)
+
+  function copy(text: string, id: string) {
+    navigator.clipboard.writeText(text).catch(() => {})
+    setCopied(id)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  function CodeBlock({ id, code }: { id: string; code: string }) {
+    return (
+      <div className="relative mt-2 rounded-xl border border-slate-200 bg-slate-900 p-4">
+        <button
+          type="button"
+          className="absolute right-3 top-3 flex items-center gap-1 rounded-lg bg-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-600"
+          onClick={() => copy(code, id)}
+        >
+          <Copy size={11} />
+          {copied === id ? 'Copied!' : 'Copy'}
+        </button>
+        <pre className="overflow-x-auto text-xs text-slate-300">{code}</pre>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">API Documentation</h1>
+        <p className="mt-1 text-sm text-slate-500">Integrate with Cortex using the OpenAI-compatible REST API.</p>
+      </div>
+
+      {/* Base URL */}
+      <section className="ui-surface rounded-2xl p-5 space-y-2">
+        <h2 className="text-base font-semibold text-slate-800">Base URL</h2>
+        <CodeBlock id="base" code={`${base}/v1`} />
+      </section>
+
+      {/* Authentication */}
+      <section className="ui-surface rounded-2xl p-5 space-y-3">
+        <h2 className="text-base font-semibold text-slate-800">Authentication</h2>
+        <p className="text-sm text-slate-600">
+          Pass your API key in the <code className="rounded bg-slate-100 px-1 py-0.5 text-xs font-mono">Authorization</code> header as a Bearer token on every request.
+        </p>
+        <CodeBlock id="auth" code={`Authorization: Bearer cx-your-api-key-here`} />
+      </section>
+
+      {/* Chat completions */}
+      <section className="ui-surface rounded-2xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700">POST</span>
+          <h2 className="text-base font-semibold text-slate-800">/v1/chat/completions</h2>
+        </div>
+        <p className="text-sm text-slate-600">Create a chat completion. Compatible with the OpenAI Chat Completions API.</p>
+
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 pt-2">Request body</h3>
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Parameter</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Type</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Required</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Description</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {[
+                ['model', 'string', 'Yes', 'Model ID (e.g. gpt-4o, claude-3-5-sonnet, gemini-2.0-flash)'],
+                ['messages', 'array', 'Yes', 'Array of message objects with role and content'],
+                ['stream', 'boolean', 'No', 'Enable server-sent event streaming (default: false)'],
+                ['temperature', 'number', 'No', 'Sampling temperature 0–2 (default: 1)'],
+                ['max_tokens', 'number', 'No', 'Maximum tokens in the completion'],
+              ].map(([p, t, r, d]) => (
+                <tr key={p} className="bg-white">
+                  <td className="px-3 py-2 font-mono font-semibold text-slate-800">{p}</td>
+                  <td className="px-3 py-2 text-slate-500">{t}</td>
+                  <td className="px-3 py-2">
+                    <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${r === 'Yes' ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'}`}>{r}</span>
+                  </td>
+                  <td className="px-3 py-2 text-slate-600">{d}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 pt-2">Example request</h3>
+        <CodeBlock id="chat-curl" code={`curl ${base}/v1/chat/completions \\
+  -H "Authorization: Bearer cx-your-api-key-here" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gpt-4o",
+    "messages": [
+      { "role": "user", "content": "Hello!" }
+    ]
+  }'`} />
+
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 pt-2">Example response</h3>
+        <CodeBlock id="chat-resp" code={`{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "model": "gpt-4o",
+  "choices": [{
+    "index": 0,
+    "message": { "role": "assistant", "content": "Hi there! How can I help?" },
+    "finish_reason": "stop"
+  }],
+  "usage": { "prompt_tokens": 10, "completion_tokens": 9, "total_tokens": 19 }
+}`} />
+      </section>
+
+      {/* Models */}
+      <section className="ui-surface rounded-2xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700">GET</span>
+          <h2 className="text-base font-semibold text-slate-800">/v1/models</h2>
+        </div>
+        <p className="text-sm text-slate-600">List all available models.</p>
+        <CodeBlock id="models-curl" code={`curl ${base}/v1/models \\
+  -H "Authorization: Bearer cx-your-api-key-here"`} />
+      </section>
+
+      {/* SDK examples */}
+      <section className="ui-surface rounded-2xl p-5 space-y-3">
+        <h2 className="text-base font-semibold text-slate-800">SDK Usage</h2>
+        <p className="text-sm text-slate-600">Use any OpenAI-compatible SDK by pointing it at this base URL.</p>
+
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Python</h3>
+        <CodeBlock id="py" code={`from openai import OpenAI
+
+client = OpenAI(
+    api_key="cx-your-api-key-here",
+    base_url="${base}/v1"
+)
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+print(response.choices[0].message.content)`} />
+
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 pt-2">JavaScript / TypeScript</h3>
+        <CodeBlock id="js" code={`import OpenAI from 'openai'
+
+const client = new OpenAI({
+  apiKey: 'cx-your-api-key-here',
+  baseURL: '${base}/v1',
+  dangerouslyAllowBrowser: true,
+})
+
+const response = await client.chat.completions.create({
+  model: 'gpt-4o',
+  messages: [{ role: 'user', content: 'Hello!' }],
+})
+console.log(response.choices[0].message.content)`} />
+      </section>
+    </div>
+  )
+}
+
+// ── Playground ────────────────────────────────────────────────────────────────
+
+interface PlayKey { id: string; name: string; revealedKey: string }
+
+function PlaygroundSection() {
+  const [keys, setKeys] = useState<PlayKey[]>([])
+  const [loadingKeys, setLoadingKeys] = useState(true)
+  const [selectedKey, setSelectedKey] = useState('')
+  const [model, setModel] = useState('gpt-4o')
+  const [userMsg, setUserMsg] = useState('')
+  const [response, setResponse] = useState('')
+  const [streaming, setStreaming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    Promise.all([api.user.keys(), api.user.keyRequests()])
+      .then(([ks, reqs]) => {
+        const approved = (reqs as UserKeyRequest[]).filter(r => r.status === 'approved' && r.revealedKey)
+        const playKeys = (ks as Array<{ id: string; name: string }>).flatMap(k => {
+          const req = approved.find(r => r.apiKeyId === k.id)
+          if (!req?.revealedKey) return []
+          return [{ id: k.id, name: k.name, revealedKey: req.revealedKey }]
+        })
+        setKeys(playKeys)
+        if (playKeys.length > 0) setSelectedKey(playKeys[0].revealedKey)
+      })
+      .finally(() => setLoadingKeys(false))
+  }, [])
+
+  async function send() {
+    if (!selectedKey || !userMsg.trim()) return
+    setResponse('')
+    setError(null)
+    setStreaming(true)
+    abortRef.current = new AbortController()
+
+    try {
+      const res = await fetch('/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${selectedKey}`,
+        },
+        body: JSON.stringify({ model, stream: true, messages: [{ role: 'user', content: userMsg }] }),
+        signal: abortRef.current.signal,
+      })
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}))
+        const msg = typeof payload.error === 'string' ? payload.error : payload.error?.message
+        throw new Error(msg || `HTTP ${res.status}`)
+      }
+
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const parts = buf.split('\n\n')
+        buf = parts.pop() || ''
+        for (const part of parts) {
+          for (const line of part.split('\n')) {
+            if (!line.startsWith('data: ')) continue
+            const raw = line.slice(6).trim()
+            if (!raw || raw === '[DONE]') continue
+            try {
+              const chunk = JSON.parse(raw)
+              const delta = chunk.choices?.[0]?.delta?.content
+              if (delta) setResponse(prev => prev + delta)
+            } catch { /* ignore parse errors */ }
+          }
+        }
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        setError(err.message)
+      }
+    } finally {
+      setStreaming(false)
+    }
+  }
+
+  if (loadingKeys) return <Busy />
+
+  if (keys.length === 0) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-semibold text-slate-900">Playground</h1>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+          <TerminalSquare className="mx-auto mb-3 h-10 w-10 text-amber-400" />
+          <p className="text-sm font-semibold text-amber-800">No active API keys</p>
+          <p className="mt-1 text-sm text-amber-700">You need at least one approved API key to use the playground.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-semibold text-slate-900">Playground</h1>
+      <p className="text-sm text-slate-500">Test the API directly using one of your approved keys.</p>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+        {/* Config + input */}
+        <div className="space-y-3">
+          <div>
+            <label className="ui-label">API Key</label>
+            <select
+              className="ui-input"
+              value={selectedKey}
+              onChange={e => setSelectedKey(e.target.value)}
+            >
+              {keys.map(k => (
+                <option key={k.id} value={k.revealedKey}>{k.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="ui-label">Model</label>
+            <input
+              className="ui-input"
+              value={model}
+              onChange={e => setModel(e.target.value)}
+              placeholder="gpt-4o"
+            />
+          </div>
+          <div>
+            <label className="ui-label">Message</label>
+            <textarea
+              className="ui-input min-h-[140px] resize-none"
+              value={userMsg}
+              onChange={e => setUserMsg(e.target.value)}
+              placeholder="Enter your message..."
+              onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void send() }}
+            />
+            <p className="mt-1 text-xs text-slate-400">Ctrl+Enter to send</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="ui-btn-primary flex-1"
+              onClick={send}
+              disabled={streaming || !userMsg.trim()}
+            >
+              {streaming ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              {streaming ? 'Generating…' : 'Send'}
+            </button>
+            {streaming && (
+              <button
+                type="button"
+                className="ui-btn-secondary"
+                onClick={() => abortRef.current?.abort()}
+              >
+                Stop
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Response */}
+        <div className="ui-surface rounded-2xl p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Response</p>
+          {error ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+          ) : response ? (
+            <pre className="whitespace-pre-wrap text-sm text-slate-800">{response}{streaming ? '▌' : ''}</pre>
+          ) : (
+            <p className="text-sm text-slate-400">Response will appear here…</p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

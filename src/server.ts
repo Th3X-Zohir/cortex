@@ -116,6 +116,18 @@ export class BridgeServer {
       return;
     }
 
+    // Public docs — serve the admin SPA bundle; it detects /docs path and renders the public page
+    if (method === 'GET' && (pathname === '/docs' || pathname.startsWith('/docs/'))) {
+      const adminRoot = join(__dirname, '..', 'admin', 'dist');
+      if (!existsSync(adminRoot)) {
+        json(res, 503, { error: { message: 'Admin UI not built.', type: 'ui_unavailable' } });
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      createReadStream(join(adminRoot, 'index.html')).pipe(res);
+      return;
+    }
+
     if (url === '/health' && method === 'GET') {
       json(res, 200, { status: 'ok', service: 'cortex', version: PKG_VERSION });
       return;

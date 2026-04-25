@@ -274,7 +274,13 @@ function App() {
 
   // Landing page — choose admin or user portal
   return (
-    <div className="grid min-h-screen grid-cols-1 bg-transparent lg:grid-cols-2">
+    <div className="relative grid min-h-screen grid-cols-1 bg-transparent lg:grid-cols-2">
+      <a
+        href="/docs"
+        className="absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur hover:bg-white/20"
+      >
+        API Docs ↗
+      </a>
       {/* Admin side */}
       <button
         type="button"
