@@ -8,7 +8,7 @@
 
   <rect width="1280" height="760" rx="28" fill="url(#bg)"/>
   <text x="68" y="92" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="40" font-weight="800">Provider sessions and API governance</text>
-  <text x="68" y="128" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="18">`cortex` separates operator duties from consumer access: admins manage providers, consumers use keys.</text>
+  <text x="68" y="128" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="17">Admins manage providers. Consumers use API keys.</text>
 
   <rect x="68" y="174" width="544" height="520" rx="24" fill="#0C1625" stroke="#1E3A5F"/>
   <text x="96" y="216" fill="#93C5FD" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700">Operator-managed provider sessions</text>
@@ -16,21 +16,36 @@
   <rect x="96" y="252" width="488" height="86" rx="18" fill="#102031"/>
   <circle cx="126" cy="295" r="8" fill="#22C55E"/>
   <text x="148" y="292" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">chatgpt</text>
-  <text x="148" y="320" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Persistent browser profile, admin-controlled login, runtime health visible</text>
+  <text x="148" y="318" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+    <tspan x="148" dy="0">Persistent profile,</tspan>
+    <tspan x="148" dy="18">admin login, health visible</tspan>
+  </text>
 
   <rect x="96" y="356" width="488" height="86" rx="18" fill="#102031"/>
   <circle cx="126" cy="399" r="8" fill="#22C55E"/>
   <text x="148" y="396" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">gemini</text>
-  <text x="148" y="424" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Session restored on boot when profile exists and browser auth remains valid</text>
+  <text x="148" y="422" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+    <tspan x="148" dy="0">Restores on boot when</tspan>
+    <tspan x="148" dy="18">profile and auth survive.</tspan>
+  </text>
 
   <rect x="96" y="460" width="488" height="86" rx="18" fill="#102031"/>
   <circle cx="126" cy="503" r="8" fill="#22C55E"/>
   <text x="148" y="500" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">grok</text>
-  <text x="148" y="528" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Browser-driven runtime path for streaming and non-streaming completions</text>
+  <text x="148" y="526" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+    <tspan x="148" dy="0">Browser-driven path for</tspan>
+    <tspan x="148" dy="18">stream and non-stream.</tspan>
+  </text>
 
   <rect x="96" y="574" width="488" height="86" rx="18" fill="#0E1C2D"/>
-  <text x="124" y="610" fill="#FDE68A" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Public login/logout is blocked intentionally</text>
-  <text x="124" y="636" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="16">Use /admin or authenticated /api/providers/:provider/login for operator flows.</text>
+  <text x="124" y="606" fill="#FDE68A" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">
+    <tspan x="124" dy="0">Public login and logout</tspan>
+    <tspan x="124" dy="20">is blocked on purpose</tspan>
+  </text>
+  <text x="124" y="642" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+    <tspan x="124" dy="0">Use admin routes for</tspan>
+    <tspan x="124" dy="18">operator session control.</tspan>
+  </text>
 
   <rect x="668" y="174" width="544" height="520" rx="24" fill="#0C1625" stroke="#1E3A5F"/>
   <text x="696" y="216" fill="#A7F3D0" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700">Consumer access with API keys</text>
@@ -43,9 +58,16 @@
 
   <rect x="696" y="400" width="488" height="118" rx="18" fill="#102031"/>
   <text x="724" y="436" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Observability</text>
-  <text x="724" y="468" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="17">Every request can be tracked with provider, model, timing, usage estimate, payload snapshot, and status.</text>
+  <text x="724" y="466" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+    <tspan x="724" dy="0">Track provider, model, timing,</tspan>
+    <tspan x="724" dy="18">usage estimate, payload, status.</tspan>
+  </text>
 
   <rect x="696" y="538" width="488" height="122" rx="18" fill="#102031"/>
   <text x="724" y="574" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Team-friendly control surface</text>
-  <text x="724" y="606" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="17">Admins can issue keys directly, users can request keys, and all high-impact actions are audit-visible.</text>
+  <text x="724" y="604" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+    <tspan x="724" dy="0">Admins can issue keys directly.</tspan>
+    <tspan x="724" dy="18">Users can request access.</tspan>
+    <tspan x="724" dy="18">High-impact actions are audited.</tspan>
+  </text>
 </svg>

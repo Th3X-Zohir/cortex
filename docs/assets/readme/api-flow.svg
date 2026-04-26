@@ -23,28 +23,49 @@
   <rect x="92" y="498" width="276" height="88" rx="16" fill="#0F1C2E"/>
   <text x="112" y="528" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">Authorization: Bearer ctx_...</text>
   <text x="112" y="554" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">or X-API-Key: ctx_...</text>
-  <text x="92" y="626" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="17">Clients can be OpenAI SDKs, custom scripts, internal tools, or gateways.</text>
+  <text x="92" y="626" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="15">
+    <tspan x="92" dy="0">Clients can be SDKs, scripts,</tspan>
+    <tspan x="92" dy="18">internal tools, or gateways.</tspan>
+  </text>
 
   <rect x="474" y="184" width="332" height="548" rx="22" fill="#0D1727" stroke="#1E3A5F"/>
   <text x="502" y="226" fill="#FDE68A" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">cortex processing</text>
   <rect x="502" y="256" width="276" height="64" rx="16" fill="#0F1C2E"/>
   <text x="526" y="296" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">1. Validate API key</text>
   <rect x="502" y="336" width="276" height="64" rx="16" fill="#0F1C2E"/>
-  <text x="526" y="376" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">2. Resolve provider by model</text>
+  <text x="526" y="370" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">
+    <tspan x="526" dy="0">2. Resolve provider</tspan>
+    <tspan x="526" dy="20">by model</tspan>
+  </text>
   <rect x="502" y="416" width="276" height="64" rx="16" fill="#0F1C2E"/>
-  <text x="526" y="456" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">3. Ensure provider connected</text>
+  <text x="526" y="450" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">
+    <tspan x="526" dy="0">3. Ensure provider</tspan>
+    <tspan x="526" dy="20">is connected</tspan>
+  </text>
   <rect x="502" y="496" width="276" height="64" rx="16" fill="#0F1C2E"/>
-  <text x="526" y="536" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">4. Stream or collect response</text>
+  <text x="526" y="530" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">
+    <tspan x="526" dy="0">4. Stream or collect</tspan>
+    <tspan x="526" dy="20">the response</tspan>
+  </text>
   <rect x="502" y="576" width="276" height="100" rx="16" fill="#0F1C2E"/>
   <text x="526" y="612" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">5. Log request metadata</text>
-  <text x="526" y="642" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">provider, model, timing, payload snapshot,</text>
-  <text x="526" y="664" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">token estimate, status code, error state</text>
+  <text x="526" y="640" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+    <tspan x="526" dy="0">provider, model, timing,</tspan>
+    <tspan x="526" dy="18">payload snapshot, tokens,</tspan>
+    <tspan x="526" dy="18">status, and error state</tspan>
+  </text>
 
   <rect x="884" y="184" width="332" height="548" rx="22" fill="#0D1727" stroke="#1E3A5F"/>
   <text x="912" y="226" fill="#7DD3FC" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">Provider session layer</text>
   <rect x="912" y="256" width="276" height="90" rx="16" fill="#0F1C2E"/>
-  <text x="936" y="290" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="700">Persistent Playwright profiles</text>
-  <text x="936" y="320" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Browser-backed provider sessions live under ~/.cortex/profiles</text>
+  <text x="936" y="288" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="19" font-weight="700">
+    <tspan x="936" dy="0">Persistent Playwright</tspan>
+    <tspan x="936" dy="20">profiles</tspan>
+  </text>
+  <text x="936" y="326" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+    <tspan x="936" dy="0">Browser-backed sessions live</tspan>
+    <tspan x="936" dy="18">under ~/.cortex/profiles</tspan>
+  </text>
   <rect x="912" y="370" width="276" height="58" rx="16" fill="#13253A"/>
   <text x="936" y="406" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">chatgpt.com</text>
   <rect x="912" y="442" width="276" height="58" rx="16" fill="#13253A"/>
@@ -52,8 +73,14 @@
   <rect x="912" y="514" width="276" height="58" rx="16" fill="#13253A"/>
   <text x="936" y="550" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">grok.com</text>
   <rect x="912" y="598" width="276" height="78" rx="16" fill="#0F1C2E"/>
-  <text x="936" y="632" fill="#A7F3D0" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">OpenAI-style response back out</text>
-  <text x="936" y="660" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">SSE for streaming, JSON for non-streaming</text>
+  <text x="936" y="628" fill="#A7F3D0" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">
+    <tspan x="936" dy="0">OpenAI-style response</tspan>
+    <tspan x="936" dy="20">back out</tspan>
+  </text>
+  <text x="936" y="666" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+    <tspan x="936" dy="0">SSE for streaming,</tspan>
+    <tspan x="936" dy="18">JSON otherwise</tspan>
+  </text>
 
   <path d="M396 458H474" stroke="#38BDF8" stroke-width="5" stroke-linecap="round"/>
   <path d="M806 458H884" stroke="#2DD4BF" stroke-width="5" stroke-linecap="round"/>

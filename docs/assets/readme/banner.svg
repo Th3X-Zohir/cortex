@@ -65,16 +65,19 @@
     <rect x="744" y="252" width="168" height="108" rx="18" fill="#0E1A2B"/>
     <text x="768" y="284" fill="#7DD3FC" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">PROVIDER HEALTH</text>
     <circle cx="772" cy="314" r="6" fill="#22C55E"/>
-    <text x="788" y="319" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">chatgpt connected</text>
+    <text x="788" y="319" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">chatgpt ok</text>
     <circle cx="772" cy="340" r="6" fill="#22C55E"/>
-    <text x="788" y="345" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">gemini connected</text>
+    <text x="788" y="345" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">gemini ok</text>
     <circle cx="772" cy="366" r="6" fill="#22C55E"/>
-    <text x="788" y="371" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">grok connected</text>
+    <text x="788" y="371" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">grok ok</text>
 
     <rect x="928" y="252" width="208" height="108" rx="18" fill="#0E1A2B"/>
     <text x="952" y="284" fill="#A7F3D0" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">API GOVERNANCE</text>
     <text x="952" y="320" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700">12 active keys</text>
-    <text x="952" y="348" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Daily limits, rate limits, logs, audit trail</text>
+    <text x="952" y="346" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+      <tspan x="952" dy="0">Limits, logs,</tspan>
+      <tspan x="952" dy="16">audit trail</tspan>
+    </text>
 
     <rect x="744" y="388" width="392" height="174" rx="18" fill="#0E1A2B"/>
     <text x="768" y="420" fill="#FDE68A" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">OPENAI-COMPATIBLE TRAFFIC</text>
@@ -86,7 +89,10 @@
     <path d="M768 538H1112" stroke="#203449"/>
     <path d="M768 488H1112" stroke="#203449"/>
     <path d="M768 464H1112" stroke="#203449"/>
-    <text x="768" y="554" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="15">Streaming responses, request logging, session-backed providers</text>
+    <text x="768" y="550" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+      <tspan x="768" dy="0">Streaming, logs,</tspan>
+      <tspan x="768" dy="16">session-backed providers</tspan>
+    </text>
   </g>
 
   <g>
