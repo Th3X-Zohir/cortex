@@ -27,6 +27,10 @@
 
 ![cortex banner](./docs/assets/readme/banner.svg)
 
+<p align="center">
+  <img src="./docs/assets/readme/boot-walkthrough.svg" alt="Animated setup walkthrough" width="100%">
+</p>
+
 ---
 
 ## Overview
@@ -147,15 +151,15 @@ flowchart TB
 
 ```mermaid
 flowchart TD
-    A[Client Apps / SDKs] --> B[OpenAI-Compatible HTTP Layer]
+    A["Client Apps and SDKs"] --> B["OpenAI-Compatible HTTP Layer"]
     B --> C[cortex Server]
-    C --> D[Provider Registry]
-    C --> E[Admin API]
-    C --> F[Request Logging + API Key Validation]
-    E --> G[SQLite Admin Store]
-    D --> H[Grok Browser Session]
-    D --> I[Gemini Browser Session]
-    D --> J[ChatGPT Browser Session]
+    C --> D["Provider Registry"]
+    C --> E["Admin API"]
+    C --> F["Request Logging and API Key Validation"]
+    E --> G["SQLite Admin Store"]
+    D --> H["Grok Browser Session"]
+    D --> I["Gemini Browser Session"]
+    D --> J["ChatGPT Browser Session"]
     H --> K[grok.com]
     I --> L[gemini.google.com]
     J --> M[chatgpt.com]
@@ -185,25 +189,25 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    A[Start cortex] --> B[Open /admin]
-    B --> C[Admin Login]
-    C --> D[Connect Provider]
-    D --> E[Create API Key]
-    E --> F[Call /v1 endpoints]
-    F --> G[Monitor Logs / Stats / Usage]
+    A["Start cortex"] --> B["Open admin panel"]
+    B --> C["Admin Login"]
+    C --> D["Connect Provider"]
+    D --> E["Create API Key"]
+    E --> F["Call public v1 endpoints"]
+    F --> G["Monitor logs stats and usage"]
 ```
 
 ### Infrastructure Topology
 
 ```mermaid
 flowchart TB
-    U[Users / Internal Apps] --> RP[Reverse Proxy / TLS]
-    RP --> CX[cortex Container]
-    CX --> UI[/admin + /docs + /]
-    CX --> API[/v1/*]
-    CX --> ADM[/api/*]
-    CX --> DB[(SQLite admin.db)]
-    CX --> PF[(Persistent ~/.cortex profiles)]
+    U["Users and Internal Apps"] --> RP["Reverse Proxy and TLS"]
+    RP --> CX["cortex Container"]
+    CX --> UI["admin docs and landing routes"]
+    CX --> API["public v1 routes"]
+    CX --> ADM["admin api routes"]
+    CX --> DB["SQLite admin db"]
+    CX --> PF["Persistent cortex profiles"]
     CX --> LG[(Logs)]
     CX --> VNC[noVNC / VNC]
     CX --> CG[chatgpt.com]
@@ -218,18 +222,18 @@ flowchart LR
     subgraph Control Plane
       A1[Admin UI]
       A2[Admin JWT]
-      A3[Provider Login/Logout]
-      A4[API Key Issuance]
-      A5[Audit Logs]
+      A3["Provider Login and Logout"]
+      A4["API Key Issuance"]
+      A5["Audit Logs"]
     end
 
     subgraph Data Plane
-      B1[Client Apps]
-      B2[X-API-Key / Bearer ctx_...]
-      B3[/v1/chat/completions]
-      B4[Provider Registry]
-      B5[Browser Sessions]
-      B6[Request Logs]
+      B1["Client Apps"]
+      B2["X-API-Key or Bearer ctx key"]
+      B3["v1 chat completions"]
+      B4["Provider Registry"]
+      B5["Browser Sessions"]
+      B6["Request Logs"]
     end
 
     A1 --> A2 --> A3
@@ -412,7 +416,7 @@ If you want to make the repository look even more premium after this pass, the b
 - an architecture PNG for marketplaces or social previews
 - a dark social card for GitHub and X sharing
 
-This README now includes repo-local branded visuals, but those four additions would take it from polished to launch-grade.
+This README now includes repo-local branded visuals and animated SVG walkthroughs, but captured product GIFs would still be the highest-fidelity next step.
 
 ---
 
@@ -672,6 +676,10 @@ Response:
 
 If `stream: true`, the service returns SSE.
 
+<p align="center">
+  <img src="./docs/assets/readme/request-stream-animated.svg" alt="Animated request and stream flow" width="100%">
+</p>
+
 ```text
 data: {"id":"chatcmpl-...","object":"chat.completion.chunk","model":"web-chatgpt/gpt-5.4-pro","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
 
@@ -821,13 +829,13 @@ For `port`, `host`, `headless`, and `logLevel`, the supported paths are:
 
 ```mermaid
 flowchart TB
-    A[Admin JWT] --> B[/api/* operator routes]
-    C[API Key] --> D[/v1/* consumer routes]
-    B --> E[Provider login/logout]
-    B --> F[Key issuance and quotas]
-    B --> G[Admin/user management]
-    D --> H[Chat completions]
-    D --> I[Models and status]
+    A["Admin JWT"] --> B["admin api operator routes"]
+    C["API Key"] --> D["public v1 consumer routes"]
+    B --> E["Provider login and logout"]
+    B --> F["Key issuance and quotas"]
+    B --> G["Admin and user management"]
+    D --> H["Chat completions"]
+    D --> I["Models and status"]
 ```
 
 ---
@@ -945,12 +953,12 @@ Without persistence, browser logins and operational state will be lost on redepl
 
 ```mermaid
 flowchart LR
-    A[Docker Compose] --> B[cortex container]
-    B --> C[persistent profiles]
-    B --> D[SQLite and logs]
-    B --> E[reverse proxy]
+    A["Docker Compose"] --> B["cortex container"]
+    B --> C["persistent profiles"]
+    B --> D["SQLite and logs"]
+    B --> E["reverse proxy"]
     B --> F[noVNC]
-    B --> G[provider websites]
+    B --> G["provider websites"]
 ```
 
 ---
@@ -1013,11 +1021,11 @@ If you want a hosted deployment, use a VPS or stateful container host instead of
 
 ```mermaid
 flowchart TB
-    I[Internet / Team Traffic] --> T[TLS Reverse Proxy]
-    T --> C[cortex docker-compose stack]
-    C --> P[(Persistent ~/.cortex)]
-    C --> S[(SQLite + logs)]
-    C --> W[Provider websites]
+    I["Internet and Team Traffic"] --> T["TLS Reverse Proxy"]
+    T --> C["cortex docker compose stack"]
+    C --> P["Persistent cortex profiles"]
+    C --> S["SQLite and logs"]
+    C --> W["Provider websites"]
 ```
 
 ### Deployment checklist
