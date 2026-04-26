@@ -134,7 +134,7 @@ flowchart TB
     D[Provider Registry]
     E[Persistent Browser Sessions]
     F[Admin UI and Admin API]
-    G[Logs / Stats / Audit / Usage]
+    G["Logs Stats Audit and Usage"]
 
     A --> B --> C --> D --> E
     F --> C
@@ -209,7 +209,7 @@ flowchart TB
     CX --> DB["SQLite admin db"]
     CX --> PF["Persistent cortex profiles"]
     CX --> LG[(Logs)]
-    CX --> VNC[noVNC / VNC]
+    CX --> VNC["noVNC and VNC"]
     CX --> CG[chatgpt.com]
     CX --> GM[gemini.google.com]
     CX --> GK[grok.com]
@@ -698,11 +698,11 @@ Notes:
 
 ```mermaid
 flowchart LR
-    A[Client sends model + messages] --> B[Key validation]
-    B --> C[Model resolves to provider]
-    C --> D[Provider session ensured]
-    D --> E[Browser-backed completion]
-    E --> F[OpenAI-style JSON or SSE response]
+    A["Client sends model and messages"] --> B["Key validation"]
+    B --> C["Model resolves to provider"]
+    C --> D["Provider session ensured"]
+    D --> E["Browser-backed completion"]
+    E --> F["OpenAI-style JSON or SSE response"]
 ```
 
 ---

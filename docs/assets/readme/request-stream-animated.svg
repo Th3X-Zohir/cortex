@@ -1,0 +1,71 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08111D"/>
+      <stop offset="1" stop-color="#0F2330"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="720" rx="28" fill="url(#bg)"/>
+  <text x="72" y="86" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="38" font-weight="800">Animated request and stream flow</text>
+  <text x="72" y="120" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="18">How one completion moves through keys, registry, browser sessions, and streaming output.</text>
+
+  <rect x="72" y="178" width="220" height="380" rx="24" fill="#0D1727" stroke="#1E3A5F"/>
+  <text x="102" y="222" fill="#93C5FD" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="700">Client</text>
+  <rect x="100" y="258" width="164" height="116" rx="18" fill="#111F31"/>
+  <text x="120" y="290" fill="#E2E8F0" font-family="Consolas, monospace" font-size="14">POST v1 chat completions</text>
+  <text x="120" y="318" fill="#E2E8F0" font-family="Consolas, monospace" font-size="14">Bearer ctx key</text>
+  <text x="120" y="346" fill="#E2E8F0" font-family="Consolas, monospace" font-size="14">stream true</text>
+  <rect x="100" y="414" width="164" height="96" rx="18" fill="#111F31"/>
+  <text x="120" y="448" fill="#A7F3D0" font-family="Consolas, monospace" font-size="14">data delta Hel</text>
+  <text x="120" y="474" fill="#A7F3D0" font-family="Consolas, monospace" font-size="14">data delta lo</text>
+  <text x="120" y="500" fill="#A7F3D0" font-family="Consolas, monospace" font-size="14">data DONE</text>
+
+  <rect x="372" y="178" width="246" height="380" rx="24" fill="#0D1727" stroke="#1E3A5F"/>
+  <text x="402" y="222" fill="#FDE68A" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="700">cortex core</text>
+  <rect x="400" y="258" width="190" height="52" rx="14" fill="#111F31"/>
+  <text x="428" y="291" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">validate API key</text>
+  <rect x="400" y="328" width="190" height="52" rx="14" fill="#111F31"/>
+  <text x="420" y="361" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">resolve model to provider</text>
+  <rect x="400" y="398" width="190" height="52" rx="14" fill="#111F31"/>
+  <text x="428" y="431" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">ensure connected</text>
+  <rect x="400" y="468" width="190" height="52" rx="14" fill="#111F31"/>
+  <text x="428" y="501" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">log and stream out</text>
+
+  <rect x="698" y="178" width="222" height="380" rx="24" fill="#0D1727" stroke="#1E3A5F"/>
+  <text x="728" y="222" fill="#A7F3D0" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="700">Provider registry</text>
+  <rect x="726" y="270" width="166" height="44" rx="14" fill="#111F31"/>
+  <text x="758" y="298" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="17">chatgpt</text>
+  <rect x="726" y="328" width="166" height="44" rx="14" fill="#111F31"/>
+  <text x="766" y="356" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="17">gemini</text>
+  <rect x="726" y="386" width="166" height="44" rx="14" fill="#111F31"/>
+  <text x="778" y="414" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="17">grok</text>
+  <circle cx="748" cy="494" r="10" fill="#22C55E">
+    <animate attributeName="opacity" values="0.35;1;0.35" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <text x="770" y="500" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">session alive</text>
+
+  <rect x="1000" y="178" width="208" height="380" rx="24" fill="#0D1727" stroke="#1E3A5F"/>
+  <text x="1030" y="222" fill="#C4B5FD" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="700">Browser session</text>
+  <rect x="1028" y="264" width="152" height="56" rx="16" fill="#111F31"/>
+  <text x="1060" y="298" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">chatgpt.com</text>
+  <path d="M1040 372H1168" stroke="#203449" stroke-width="8" stroke-linecap="round"/>
+  <path d="M1040 372H1040" stroke="#38BDF8" stroke-width="8" stroke-linecap="round">
+    <animate attributeName="d" dur="2.4s" repeatCount="indefinite"
+      values="M1040 372H1040;M1040 372H1168;M1040 372H1040"/>
+  </path>
+  <text x="1038" y="418" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">response tokens accumulate in browser runtime</text>
+
+  <path d="M292 368H372" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" stroke-dasharray="12 12">
+    <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1s" repeatCount="indefinite"/>
+  </path>
+  <path d="M618 368H698" stroke="#2DD4BF" stroke-width="6" stroke-linecap="round" stroke-dasharray="12 12">
+    <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1s" begin="0.2s" repeatCount="indefinite"/>
+  </path>
+  <path d="M920 368H1000" stroke="#A78BFA" stroke-width="6" stroke-linecap="round" stroke-dasharray="12 12">
+    <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1s" begin="0.4s" repeatCount="indefinite"/>
+  </path>
+
+  <rect x="180" y="610" width="918" height="56" rx="18" fill="#0D1727" stroke="#1E3A5F"/>
+  <text x="216" y="645" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Client request -> key validation -> provider resolution -> browser backed response -> streamed output</text>
+</svg>

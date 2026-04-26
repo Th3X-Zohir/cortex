@@ -1,0 +1,83 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08111D"/>
+      <stop offset="1" stop-color="#0E2430"/>
+    </linearGradient>
+    <linearGradient id="card" x1="90" y1="150" x2="1190" y2="610" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#132338"/>
+      <stop offset="1" stop-color="#0E1828"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="720" rx="28" fill="url(#bg)"/>
+  <text x="70" y="84" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="38" font-weight="800">Animated setup walkthrough</text>
+  <text x="70" y="118" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="18">Docker-first boot flow from clone to provider-ready API access.</text>
+
+  <rect x="70" y="160" width="1140" height="500" rx="28" fill="#0B1523" stroke="#1E3A5F"/>
+
+  <g>
+    <rect x="100" y="220" width="210" height="220" rx="22" fill="url(#card)" stroke="#264866"/>
+    <text x="128" y="262" fill="#7DD3FC" font-family="Segoe UI, Arial, sans-serif" font-size="19" font-weight="700">1. Start stack</text>
+    <rect x="124" y="290" width="162" height="54" rx="14" fill="#111F31"/>
+    <text x="142" y="323" fill="#E2E8F0" font-family="Consolas, monospace" font-size="15">docker compose up</text>
+    <circle cx="206" cy="384" r="18" fill="#1D4ED8">
+      <animate attributeName="opacity" values="0.35;1;0.35" dur="3s" begin="0s" repeatCount="indefinite"/>
+    </circle>
+    <text x="140" y="440" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Containers boot, volumes mount, and noVNC becomes available.</text>
+  </g>
+
+  <g>
+    <rect x="370" y="220" width="210" height="220" rx="22" fill="url(#card)" stroke="#264866"/>
+    <text x="398" y="262" fill="#A7F3D0" font-family="Segoe UI, Arial, sans-serif" font-size="19" font-weight="700">2. Open admin</text>
+    <rect x="394" y="290" width="162" height="54" rx="14" fill="#111F31"/>
+    <text x="432" y="323" fill="#E2E8F0" font-family="Consolas, monospace" font-size="15">admin panel</text>
+    <rect x="432" y="370" width="86" height="54" rx="14" fill="#0F766E">
+      <animate attributeName="opacity" values="0.25;1;0.25" dur="3s" begin="0.5s" repeatCount="indefinite"/>
+    </rect>
+    <text x="448" y="403" fill="#ECFEFF" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">login</text>
+    <text x="410" y="440" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Sign in as admin and rotate the default password immediately.</text>
+  </g>
+
+  <g>
+    <rect x="640" y="220" width="210" height="220" rx="22" fill="url(#card)" stroke="#264866"/>
+    <text x="668" y="262" fill="#FDE68A" font-family="Segoe UI, Arial, sans-serif" font-size="19" font-weight="700">3. Connect providers</text>
+    <circle cx="692" cy="390" r="8" fill="#22C55E">
+      <animate attributeName="r" values="6;10;6" dur="2.4s" begin="1s" repeatCount="indefinite"/>
+    </circle>
+    <text x="712" y="396" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">chatgpt connected</text>
+    <circle cx="692" cy="422" r="8" fill="#22C55E">
+      <animate attributeName="r" values="6;10;6" dur="2.4s" begin="1.3s" repeatCount="indefinite"/>
+    </circle>
+    <text x="712" y="428" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">gemini connected</text>
+    <circle cx="692" cy="454" r="8" fill="#22C55E">
+      <animate attributeName="r" values="6;10;6" dur="2.4s" begin="1.6s" repeatCount="indefinite"/>
+    </circle>
+    <text x="712" y="460" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">grok connected</text>
+  </g>
+
+  <g>
+    <rect x="910" y="220" width="210" height="220" rx="22" fill="url(#card)" stroke="#264866"/>
+    <text x="938" y="262" fill="#C4B5FD" font-family="Segoe UI, Arial, sans-serif" font-size="19" font-weight="700">4. Issue key</text>
+    <rect x="942" y="362" width="146" height="64" rx="16" fill="#111F31"/>
+    <text x="962" y="400" fill="#BFDBFE" font-family="Consolas, monospace" font-size="16">ctx_a1b2c3...</text>
+    <rect x="942" y="448" width="146" height="14" rx="7" fill="#12324B"/>
+    <rect x="942" y="448" width="10" height="14" rx="7" fill="#38BDF8">
+      <animate attributeName="width" values="10;146;10" dur="3s" begin="2s" repeatCount="indefinite"/>
+    </rect>
+    <text x="936" y="498" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Consumers can now call the public v1 endpoints.</text>
+  </g>
+
+  <path d="M310 330H370" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" stroke-dasharray="10 10">
+    <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1.2s" repeatCount="indefinite"/>
+  </path>
+  <path d="M580 330H640" stroke="#2DD4BF" stroke-width="6" stroke-linecap="round" stroke-dasharray="10 10">
+    <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1.2s" begin="0.3s" repeatCount="indefinite"/>
+  </path>
+  <path d="M850 330H910" stroke="#A78BFA" stroke-width="6" stroke-linecap="round" stroke-dasharray="10 10">
+    <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1.2s" begin="0.6s" repeatCount="indefinite"/>
+  </path>
+
+  <rect x="188" y="562" width="904" height="52" rx="18" fill="#0D1727" stroke="#1E3A5F"/>
+  <text x="220" y="595" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Docker -> Admin -> Provider Login -> API Key -> OpenAI-compatible traffic</text>
+</svg>
