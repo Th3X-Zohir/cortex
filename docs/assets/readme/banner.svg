@@ -1,0 +1,114 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="60" x2="1160" y2="660" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07111F"/>
+      <stop offset="0.52" stop-color="#0D1A2B"/>
+      <stop offset="1" stop-color="#0F2E38"/>
+    </linearGradient>
+    <linearGradient id="glowA" x1="180" y1="80" x2="540" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB" stop-opacity="0.78"/>
+      <stop offset="1" stop-color="#2563EB" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="glowB" x1="760" y1="180" x2="1130" y2="610" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#14B8A6" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#14B8A6" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="cardStroke" x1="760" y1="150" x2="1160" y2="590" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60A5FA" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#2DD4BF" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="logoBg" x1="0" y1="0" x2="104" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1D4ED8"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+    <linearGradient id="logoRing" x1="24" y1="24" x2="84" y2="84" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DBEAFE"/>
+      <stop offset="1" stop-color="#67E8F9"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="1280" height="720" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="24" stdDeviation="32" flood-color="#020617" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="720" rx="32" fill="url(#bg)"/>
+  <circle cx="290" cy="190" r="220" fill="url(#glowA)"/>
+  <circle cx="1010" cy="480" r="250" fill="url(#glowB)"/>
+
+  <g opacity="0.12">
+    <path d="M0 96H1280" stroke="white"/>
+    <path d="M0 192H1280" stroke="white"/>
+    <path d="M0 288H1280" stroke="white"/>
+    <path d="M0 384H1280" stroke="white"/>
+    <path d="M0 480H1280" stroke="white"/>
+    <path d="M0 576H1280" stroke="white"/>
+    <path d="M0 672H1280" stroke="white"/>
+    <path d="M128 0V720" stroke="white"/>
+    <path d="M256 0V720" stroke="white"/>
+    <path d="M384 0V720" stroke="white"/>
+    <path d="M512 0V720" stroke="white"/>
+    <path d="M640 0V720" stroke="white"/>
+    <path d="M768 0V720" stroke="white"/>
+    <path d="M896 0V720" stroke="white"/>
+    <path d="M1024 0V720" stroke="white"/>
+    <path d="M1152 0V720" stroke="white"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="712" y="128" width="456" height="464" rx="28" fill="#08111E" fill-opacity="0.84" stroke="url(#cardStroke)"/>
+    <rect x="744" y="172" width="392" height="56" rx="16" fill="#0F1C2E"/>
+    <circle cx="778" cy="200" r="7" fill="#EF4444"/>
+    <circle cx="804" cy="200" r="7" fill="#F59E0B"/>
+    <circle cx="830" cy="200" r="7" fill="#10B981"/>
+    <rect x="854" y="186" width="176" height="28" rx="10" fill="#13253B"/>
+    <text x="872" y="205" fill="#93C5FD" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">cortex / admin console</text>
+
+    <rect x="744" y="252" width="168" height="108" rx="18" fill="#0E1A2B"/>
+    <text x="768" y="284" fill="#7DD3FC" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">PROVIDER HEALTH</text>
+    <circle cx="772" cy="314" r="6" fill="#22C55E"/>
+    <text x="788" y="319" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">chatgpt connected</text>
+    <circle cx="772" cy="340" r="6" fill="#22C55E"/>
+    <text x="788" y="345" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">gemini connected</text>
+    <circle cx="772" cy="366" r="6" fill="#22C55E"/>
+    <text x="788" y="371" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">grok connected</text>
+
+    <rect x="928" y="252" width="208" height="108" rx="18" fill="#0E1A2B"/>
+    <text x="952" y="284" fill="#A7F3D0" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">API GOVERNANCE</text>
+    <text x="952" y="320" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700">12 active keys</text>
+    <text x="952" y="348" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Daily limits, rate limits, logs, audit trail</text>
+
+    <rect x="744" y="388" width="392" height="174" rx="18" fill="#0E1A2B"/>
+    <text x="768" y="420" fill="#FDE68A" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">OPENAI-COMPATIBLE TRAFFIC</text>
+    <rect x="768" y="446" width="148" height="24" rx="8" fill="#1E293B"/>
+    <text x="782" y="463" fill="#CBD5E1" font-family="Consolas, monospace" font-size="12">POST /v1/chat/completions</text>
+    <rect x="928" y="446" width="184" height="24" rx="8" fill="#10283A"/>
+    <text x="944" y="463" fill="#7DD3FC" font-family="Consolas, monospace" font-size="12">model: web-chatgpt/gpt-5.4-pro</text>
+    <path d="M768 514C806 490 848 502 882 480C914 458 952 430 988 444C1020 456 1040 482 1064 494C1082 504 1098 498 1112 488" stroke="#38BDF8" stroke-width="4" stroke-linecap="round"/>
+    <path d="M768 538H1112" stroke="#203449"/>
+    <path d="M768 488H1112" stroke="#203449"/>
+    <path d="M768 464H1112" stroke="#203449"/>
+    <text x="768" y="554" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="15">Streaming responses, request logging, session-backed providers</text>
+  </g>
+
+  <g>
+    <rect x="96" y="94" width="104" height="104" rx="30" fill="url(#logoBg)"/>
+    <path d="M150 115C132.7 115 119 128.7 119 146C119 163.3 132.7 177 150 177C162.8 177 174.1 169.2 178.9 157.9H165.2C161.8 161.9 156.3 164.2 150 164.2C139.6 164.2 131.4 156 131.4 145.6C131.4 135.2 139.6 127 150 127C156.3 127 161.8 129.3 165.2 133.3H178.9C174.1 122 162.8 115 150 115Z" fill="url(#logoRing)"/>
+    <rect x="131" y="142" width="38" height="8" rx="4" fill="#A5F3FC" fill-opacity="0.95"/>
+  </g>
+
+  <text x="96" y="260" fill="#93C5FD" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700" letter-spacing="2">SELF-HOSTED AI GATEWAY</text>
+  <text x="96" y="334" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="72" font-weight="800">cortex</text>
+  <text x="96" y="390" fill="#D7E3F4" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="600">OpenAI-compatible access to browser-authenticated AI providers</text>
+  <text x="96" y="440" fill="#A5B4C8" font-family="Segoe UI, Arial, sans-serif" font-size="22">Grok, Gemini, and ChatGPT with admin controls, API keys, logs, quotas,</text>
+  <text x="96" y="472" fill="#A5B4C8" font-family="Segoe UI, Arial, sans-serif" font-size="22">persistent Playwright sessions, and production-friendly operator workflows.</text>
+
+  <g>
+    <rect x="96" y="530" width="188" height="52" rx="16" fill="#1D4ED8"/>
+    <text x="124" y="563" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="700">/v1/chat/completions</text>
+    <rect x="300" y="530" width="128" height="52" rx="16" fill="#0F766E"/>
+    <text x="332" y="563" fill="#ECFEFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="700">/admin</text>
+    <rect x="444" y="530" width="140" height="52" rx="16" fill="#111827"/>
+    <text x="472" y="563" fill="#BFDBFE" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="700">API keys</text>
+  </g>
+
+  <text x="96" y="638" fill="#7DD3FC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Created and maintained by Th3X-Zohir</text>
+</svg>

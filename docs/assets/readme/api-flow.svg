@@ -1,0 +1,60 @@
+<svg width="1280" height="820" viewBox="0 0 1280 820" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="20" y1="10" x2="1260" y2="800" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#09111E"/>
+      <stop offset="1" stop-color="#0B2430"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="820" rx="28" fill="url(#bg)"/>
+  <text x="64" y="94" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="800">OpenAI-compatible request flow</text>
+  <text x="64" y="130" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="19">A single endpoint fronts session-backed providers, policy enforcement, and operator observability.</text>
+
+  <rect x="64" y="184" width="332" height="548" rx="22" fill="#0D1727" stroke="#1E3A5F"/>
+  <text x="92" y="226" fill="#93C5FD" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">Client request</text>
+  <rect x="92" y="254" width="276" height="184" rx="18" fill="#0F1C2E"/>
+  <text x="112" y="286" fill="#A7F3D0" font-family="Consolas, monospace" font-size="16">POST /v1/chat/completions</text>
+  <text x="112" y="320" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">{</text>
+  <text x="132" y="348" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">"model": "web-chatgpt/gpt-5.4-pro",</text>
+  <text x="132" y="374" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">"messages": [...],</text>
+  <text x="132" y="400" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">"stream": true</text>
+  <text x="112" y="426" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">}</text>
+  <text x="92" y="478" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Headers</text>
+  <rect x="92" y="498" width="276" height="88" rx="16" fill="#0F1C2E"/>
+  <text x="112" y="528" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">Authorization: Bearer ctx_...</text>
+  <text x="112" y="554" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">or X-API-Key: ctx_...</text>
+  <text x="92" y="626" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="17">Clients can be OpenAI SDKs, custom scripts, internal tools, or gateways.</text>
+
+  <rect x="474" y="184" width="332" height="548" rx="22" fill="#0D1727" stroke="#1E3A5F"/>
+  <text x="502" y="226" fill="#FDE68A" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">cortex processing</text>
+  <rect x="502" y="256" width="276" height="64" rx="16" fill="#0F1C2E"/>
+  <text x="526" y="296" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">1. Validate API key</text>
+  <rect x="502" y="336" width="276" height="64" rx="16" fill="#0F1C2E"/>
+  <text x="526" y="376" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">2. Resolve provider by model</text>
+  <rect x="502" y="416" width="276" height="64" rx="16" fill="#0F1C2E"/>
+  <text x="526" y="456" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">3. Ensure provider connected</text>
+  <rect x="502" y="496" width="276" height="64" rx="16" fill="#0F1C2E"/>
+  <text x="526" y="536" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">4. Stream or collect response</text>
+  <rect x="502" y="576" width="276" height="100" rx="16" fill="#0F1C2E"/>
+  <text x="526" y="612" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">5. Log request metadata</text>
+  <text x="526" y="642" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">provider, model, timing, payload snapshot,</text>
+  <text x="526" y="664" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">token estimate, status code, error state</text>
+
+  <rect x="884" y="184" width="332" height="548" rx="22" fill="#0D1727" stroke="#1E3A5F"/>
+  <text x="912" y="226" fill="#7DD3FC" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">Provider session layer</text>
+  <rect x="912" y="256" width="276" height="90" rx="16" fill="#0F1C2E"/>
+  <text x="936" y="290" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="700">Persistent Playwright profiles</text>
+  <text x="936" y="320" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Browser-backed provider sessions live under ~/.cortex/profiles</text>
+  <rect x="912" y="370" width="276" height="58" rx="16" fill="#13253A"/>
+  <text x="936" y="406" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">chatgpt.com</text>
+  <rect x="912" y="442" width="276" height="58" rx="16" fill="#13253A"/>
+  <text x="936" y="478" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">gemini.google.com</text>
+  <rect x="912" y="514" width="276" height="58" rx="16" fill="#13253A"/>
+  <text x="936" y="550" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">grok.com</text>
+  <rect x="912" y="598" width="276" height="78" rx="16" fill="#0F1C2E"/>
+  <text x="936" y="632" fill="#A7F3D0" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">OpenAI-style response back out</text>
+  <text x="936" y="660" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">SSE for streaming, JSON for non-streaming</text>
+
+  <path d="M396 458H474" stroke="#38BDF8" stroke-width="5" stroke-linecap="round"/>
+  <path d="M806 458H884" stroke="#2DD4BF" stroke-width="5" stroke-linecap="round"/>
+</svg>

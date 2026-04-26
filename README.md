@@ -25,6 +25,8 @@
 
 </div>
 
+![cortex banner](./docs/assets/readme/banner.svg)
+
 ---
 
 ## Overview
@@ -51,6 +53,8 @@ Implementations for `claude` and some API-based providers exist in the repo, but
 ---
 
 ## Visual Snapshot
+
+![Admin console mockup](./docs/assets/readme/admin-console.svg)
 
 <table>
   <tr>
@@ -82,6 +86,8 @@ Implementations for `claude` and some API-based providers exist in the repo, but
 ---
 
 ## Architecture
+
+![API flow visual](./docs/assets/readme/api-flow.svg)
 
 ```mermaid
 flowchart TD
@@ -224,6 +230,8 @@ Always treat `GET /v1/models` as the source of truth for a running instance.
 
 ## Screens You Effectively Get
 
+![Providers and key governance visual](./docs/assets/readme/providers-and-keys.svg)
+
 Even without publishing screenshots in this repository yet, the project already ships these operational surfaces:
 
 - **Admin dashboard** for service visibility
@@ -235,6 +243,17 @@ Even without publishing screenshots in this repository yet, the project already 
 - **User and key-request management**
 
 If you want, the next iteration can include actual PNG screenshots or animated GIF sections once you add image assets to the repo.
+
+### Recommended Open-Source Visual Pack
+
+If you want to make the repository look even more premium after this pass, the best additions would be:
+
+- real screenshots exported from the running admin dashboard
+- a short animated GIF showing provider login, key creation, and a successful `/v1/chat/completions` request
+- an architecture PNG for marketplaces or social previews
+- a dark social card for GitHub and X sharing
+
+This README now includes repo-local branded visuals, but those four additions would take it from polished to launch-grade.
 
 ---
 
@@ -937,4 +956,3 @@ Apache-2.0. See [LICENSE](/D:/Jihan/cortex/LICENSE).
 ## Copyright
 
 Copyright (c) Th3X-Zohir. All rights reserved.
-

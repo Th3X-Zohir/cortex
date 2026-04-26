@@ -1,0 +1,86 @@
+<svg width="1280" height="860" viewBox="0 0 1280 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#0F1E2D"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="240" y1="40" x2="1180" y2="820" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60A5FA" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#2DD4BF" stop-opacity="0.18"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="860" rx="28" fill="url(#bg)"/>
+  <rect x="30" y="30" width="1220" height="800" rx="24" fill="#08111D" stroke="url(#stroke)"/>
+  <rect x="30" y="30" width="1220" height="72" rx="24" fill="#0E1A2B"/>
+  <circle cx="70" cy="66" r="7" fill="#EF4444"/>
+  <circle cx="96" cy="66" r="7" fill="#F59E0B"/>
+  <circle cx="122" cy="66" r="7" fill="#10B981"/>
+  <text x="164" y="72" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">cortex admin platform</text>
+
+  <rect x="58" y="126" width="248" height="674" rx="20" fill="#0D1727"/>
+  <text x="84" y="168" fill="#93C5FD" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">NAVIGATION</text>
+  <rect x="78" y="194" width="208" height="52" rx="14" fill="#18314B"/>
+  <text x="104" y="226" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Dashboard</text>
+  <rect x="78" y="258" width="208" height="44" rx="14" fill="#101E31"/>
+  <text x="104" y="286" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="18">Providers</text>
+  <rect x="78" y="314" width="208" height="44" rx="14" fill="#101E31"/>
+  <text x="104" y="342" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="18">API Keys</text>
+  <rect x="78" y="370" width="208" height="44" rx="14" fill="#101E31"/>
+  <text x="104" y="398" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="18">Logs</text>
+  <rect x="78" y="426" width="208" height="44" rx="14" fill="#101E31"/>
+  <text x="104" y="454" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="18">Audit</text>
+  <rect x="78" y="482" width="208" height="44" rx="14" fill="#101E31"/>
+  <text x="104" y="510" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="18">Users</text>
+
+  <text x="344" y="162" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="800">Operator-grade dashboard</text>
+  <text x="344" y="196" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="18">One place to manage provider sessions, API keys, request logs, users, and system health.</text>
+
+  <rect x="344" y="228" width="206" height="116" rx="18" fill="#0E1A2B"/>
+  <text x="370" y="262" fill="#7DD3FC" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">REQUESTS LAST 24H</text>
+  <text x="370" y="316" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="800">18,472</text>
+
+  <rect x="572" y="228" width="206" height="116" rx="18" fill="#0E1A2B"/>
+  <text x="598" y="262" fill="#A7F3D0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">ACTIVE API KEYS</text>
+  <text x="598" y="316" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="800">12</text>
+
+  <rect x="800" y="228" width="206" height="116" rx="18" fill="#0E1A2B"/>
+  <text x="826" y="262" fill="#FDE68A" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">ERROR RATE</text>
+  <text x="826" y="316" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="800">1.8%</text>
+
+  <rect x="1028" y="228" width="176" height="116" rx="18" fill="#0E1A2B"/>
+  <text x="1054" y="262" fill="#C4B5FD" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">CONNECTED</text>
+  <text x="1054" y="316" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="800">3 / 3</text>
+
+  <rect x="344" y="374" width="430" height="196" rx="20" fill="#0D1727"/>
+  <text x="370" y="410" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">Provider health</text>
+  <rect x="370" y="436" width="378" height="34" rx="10" fill="#12263B"/>
+  <circle cx="394" cy="453" r="6" fill="#22C55E"/>
+  <text x="410" y="458" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700">chatgpt</text>
+  <text x="664" y="458" fill="#86EFAC" font-family="Segoe UI, Arial, sans-serif" font-size="15">connected</text>
+  <rect x="370" y="480" width="378" height="34" rx="10" fill="#12263B"/>
+  <circle cx="394" cy="497" r="6" fill="#22C55E"/>
+  <text x="410" y="502" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700">gemini</text>
+  <text x="676" y="502" fill="#86EFAC" font-family="Segoe UI, Arial, sans-serif" font-size="15">connected</text>
+  <rect x="370" y="524" width="378" height="34" rx="10" fill="#12263B"/>
+  <circle cx="394" cy="541" r="6" fill="#22C55E"/>
+  <text x="410" y="546" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700">grok</text>
+  <text x="688" y="546" fill="#86EFAC" font-family="Segoe UI, Arial, sans-serif" font-size="15">connected</text>
+
+  <rect x="800" y="374" width="404" height="196" rx="20" fill="#0D1727"/>
+  <text x="826" y="410" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">Request activity</text>
+  <path d="M836 526C866 500 886 482 916 494C948 508 976 420 1016 442C1050 462 1070 510 1102 504C1128 500 1146 472 1172 450" stroke="#38BDF8" stroke-width="5" stroke-linecap="round"/>
+  <path d="M836 544H1172" stroke="#223448"/>
+  <path d="M836 500H1172" stroke="#223448"/>
+  <path d="M836 456H1172" stroke="#223448"/>
+  <text x="836" y="558" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="15">Live visibility into throughput, provider health, and operational incidents.</text>
+
+  <rect x="344" y="596" width="860" height="178" rx="20" fill="#0D1727"/>
+  <text x="370" y="632" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">Recent request logs</text>
+  <rect x="370" y="654" width="808" height="32" rx="10" fill="#12263B"/>
+  <text x="388" y="675" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">2026-04-26T20:06:13Z  chatgpt  web-chatgpt/gpt-5.4-pro  200  1842ms  842 tokens</text>
+  <rect x="370" y="694" width="808" height="32" rx="10" fill="#12263B"/>
+  <text x="388" y="715" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">2026-04-26T20:05:44Z  gemini   web-gemini/gemini-3-fast   200  1322ms  512 tokens</text>
+  <rect x="370" y="734" width="808" height="32" rx="10" fill="#12263B"/>
+  <text x="388" y="755" fill="#CBD5E1" font-family="Consolas, monospace" font-size="14">2026-04-26T20:05:02Z  grok     web-grok/grok-expert       200  2216ms  774 tokens</text>
+</svg>
