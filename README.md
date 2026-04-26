@@ -58,6 +58,27 @@ Implementations for `claude` and some API-based providers exist in the repo, but
 
 <table>
   <tr>
+    <td width="25%" valign="top">
+      <h3>Gateway Layer</h3>
+      <p>One endpoint for client apps, one auth model for consumers, one operational surface for maintainers.</p>
+    </td>
+    <td width="25%" valign="top">
+      <h3>Stateful Runtime</h3>
+      <p>Persistent browser profiles allow providers to stay connected across restarts and maintenance windows.</p>
+    </td>
+    <td width="25%" valign="top">
+      <h3>Operator Toolkit</h3>
+      <p>Admins, API keys, logs, quotas, provider controls, user requests, and audit trails are part of the product surface.</p>
+    </td>
+    <td width="25%" valign="top">
+      <h3>Deployment Ready</h3>
+      <p>Docker, noVNC, reverse-proxy friendliness, and persistent storage patterns make self-hosting practical.</p>
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
     <td width="33%" valign="top">
       <h3>Unified API</h3>
       <p>Point OpenAI-compatible clients at one base URL and switch provider behavior with the <code>model</code> field.</p>
@@ -82,6 +103,41 @@ Implementations for `claude` and some API-based providers exist in the repo, but
 | Persistence | SQLite for admin data, filesystem profiles for provider browser sessions |
 | Controls | Admins, API keys, users, user key requests, logs, audit logs, stats |
 | Runtime | Node 20+, Playwright, Chromium, Docker, noVNC/VNC |
+
+---
+
+## Why It Looks Different
+
+Most “OpenAI-compatible” projects stop at request translation.
+
+`cortex` is materially different because it combines:
+
+- browser-authenticated provider sessions
+- a public OpenAI-style API surface
+- a private operator control plane
+- persistent runtime state
+- quota and audit governance
+
+That makes it less like a thin proxy and more like a small AI access platform.
+
+### Conceptual Stack
+
+```mermaid
+flowchart TB
+    A[Client SDKs and Internal Apps]
+    B[OpenAI-Compatible Request Surface]
+    C[Policy and Key Enforcement]
+    D[Provider Registry]
+    E[Persistent Browser Sessions]
+    F[Admin UI and Admin API]
+    G[Logs / Stats / Audit / Usage]
+
+    A --> B --> C --> D --> E
+    F --> C
+    F --> D
+    C --> G
+    D --> G
+```
 
 ---
 
@@ -205,6 +261,31 @@ It is especially useful when you want to:
 
 ---
 
+## Why Open Source
+
+Open-sourcing a project like `cortex` is valuable because users can inspect the exact trust boundary.
+
+That matters here because the project touches:
+
+- authentication
+- browser automation
+- provider session persistence
+- API key enforcement
+- request logging
+- operator permissions
+
+An open repository helps users evaluate:
+
+- how sessions are persisted
+- what the admin surface can do
+- what the logging layer stores
+- what is actually supported at runtime
+- where the limits and risks are
+
+For this type of infrastructure, transparency is a feature.
+
+---
+
 ## Feature Matrix
 
 | Capability | Status | Notes |
@@ -221,6 +302,38 @@ It is especially useful when you want to:
 | User registration and key-request workflows | Yes | Present in current admin backend |
 | Docker / noVNC / VNC | Yes | Included in container setup |
 | Registered Claude runtime support | No | Code exists, not active in registry |
+
+---
+
+## Comparison
+
+### `cortex` vs common alternatives
+
+| Dimension | `cortex` | Official Provider APIs | Thin Reverse Proxy | LiteLLM-style API Router |
+| --- | --- | --- | --- | --- |
+| Browser-authenticated provider access | Yes | No | No | No |
+| OpenAI-compatible surface | Yes | Sometimes | Depends | Yes |
+| Built-in admin UI | Yes | No | No | Usually no |
+| API key governance for your own consumers | Yes | Limited to provider model | Usually no | Sometimes |
+| Provider session persistence | Yes | Not applicable | No | No |
+| Audit and operator workflows | Yes | Provider-owned | Usually no | Limited |
+| Works well with serverless platforms | No | Yes | Sometimes | Sometimes |
+| Stateful self-hosting orientation | Yes | No | Rarely | Moderate |
+
+### What `cortex` is optimized for
+
+- self-hosted control
+- stateful provider access
+- operator governance
+- internal platform use
+- browser-backed compatibility where official APIs are not the whole story
+
+### What `cortex` is not optimized for
+
+- serverless deployment
+- zero-state edge hosting
+- fully stateless autoscaling
+- pretending browser-backed runtime behaves exactly like official provider APIs
 
 ---
 
@@ -300,6 +413,47 @@ If you want to make the repository look even more premium after this pass, the b
 - a dark social card for GitHub and X sharing
 
 This README now includes repo-local branded visuals, but those four additions would take it from polished to launch-grade.
+
+---
+
+## Product Surface Map
+
+```mermaid
+mindmap
+  root((cortex))
+    Public API
+      health
+      models
+      status
+      chat completions
+    Admin Platform
+      login
+      permissions
+      provider controls
+      playground
+      config
+    Governance
+      API keys
+      daily limits
+      rate limits
+      audits
+    Observability
+      request logs
+      stats
+      model usage
+      usage summaries
+    User Access
+      user registration
+      user login
+      key requests
+      user usage
+    Runtime
+      Playwright
+      Chromium
+      persistent profiles
+      Docker
+      noVNC
+```
 
 ---
 
@@ -532,6 +686,17 @@ Notes:
 - some chunks may include `cortex_meta`
 - provider failures can surface in-stream
 
+### Contract Summary
+
+```mermaid
+flowchart LR
+    A[Client sends model + messages] --> B[Key validation]
+    B --> C[Model resolves to provider]
+    C --> D[Provider session ensured]
+    D --> E[Browser-backed completion]
+    E --> F[OpenAI-style JSON or SSE response]
+```
+
 ---
 
 ## Admin API
@@ -579,6 +744,16 @@ The current codebase also includes:
 - `GET /api/user/keys/requests`
 - `GET /api/user/usage`
 - `GET /api/user/logs`
+
+### Admin Capability Breakdown
+
+| Area | Capabilities |
+| --- | --- |
+| Provider operations | connect, disconnect, inspect runtime availability |
+| Consumer governance | create keys, set limits, disable keys, inspect usage |
+| Security operations | manage admins, roles, permissions, password changes |
+| User lifecycle | register users, review key requests, issue access |
+| Platform visibility | logs, stats, audits, model usage, provider status |
 
 ---
 
@@ -629,6 +804,31 @@ For `port`, `host`, `headless`, and `logLevel`, the supported paths are:
 
 - CLI flags such as `cortex start --port=31338 --host=0.0.0.0`
 - persisted config in `~/.cortex/config.json`
+
+### Configuration Philosophy
+
+`cortex` is opinionated about a few things:
+
+- public API key enforcement should be on by default
+- persistent state matters
+- admin and consumer concerns should be separated
+- deployment should favor stateful container or VM environments
+- operator convenience should not hide actual runtime constraints
+
+---
+
+## Security Model
+
+```mermaid
+flowchart TB
+    A[Admin JWT] --> B[/api/* operator routes]
+    C[API Key] --> D[/v1/* consumer routes]
+    B --> E[Provider login/logout]
+    B --> F[Key issuance and quotas]
+    B --> G[Admin/user management]
+    D --> H[Chat completions]
+    D --> I[Models and status]
+```
 
 ---
 
@@ -741,6 +941,18 @@ At minimum, persist:
 
 Without persistence, browser logins and operational state will be lost on redeploy.
 
+### Containerized Operations Model
+
+```mermaid
+flowchart LR
+    A[Docker Compose] --> B[cortex container]
+    B --> C[persistent profiles]
+    B --> D[SQLite and logs]
+    B --> E[reverse proxy]
+    B --> F[noVNC]
+    B --> G[provider websites]
+```
+
 ---
 
 ## Production Guidance
@@ -846,6 +1058,19 @@ Suggested routing model:
 | Kubernetes | Advanced operators | More moving parts, only worth it if you already run K8s |
 | Vercel | Not recommended | Stateless/serverless model conflicts with project needs |
 | GitHub Codespaces | Temporary demo only | Not a production deployment |
+
+### Recommended Release Story For Users
+
+If you want the repository to convert better for open-source users, the cleanest message is:
+
+1. Pull the repo.
+2. Start the Docker stack.
+3. Open `/admin`.
+4. Connect providers.
+5. Generate API keys.
+6. Start sending OpenAI-compatible requests.
+
+That is the shortest path from curiosity to success.
 
 ---
 
@@ -979,6 +1204,58 @@ Fix:
 
 - move the deployment to a VPS or stateful container runtime
 - do not use Vercel for this architecture
+
+---
+
+## FAQ
+
+### Is this a full OpenAI API clone?
+
+No. It implements the project’s current OpenAI-compatible surface, centered around chat completions, models, and status.
+
+### Why is Docker the recommended setup?
+
+Because this project depends on persistent browser automation, runtime state, and optional remote login workflows. Docker is the most reliable and reproducible default.
+
+### Why is Vercel not recommended?
+
+Because `cortex` is a long-running, stateful service with Playwright/Chromium requirements and persistent browser profiles. That does not map cleanly onto stateless serverless hosting.
+
+### Why are `/v1/login/:provider` and `/v1/logout/:provider` blocked?
+
+Because provider session control is an operator function and is intentionally kept behind authenticated admin flows.
+
+### Can I expose this to a team?
+
+Yes, that is one of the better use cases, but you should run it behind HTTPS, issue separate API keys, and restrict admin access carefully.
+
+### Can I run this locally for myself only?
+
+Yes. That is also a good fit, especially if you want a private OpenAI-compatible endpoint for personal tooling.
+
+### Does it support Claude right now?
+
+Not as an active registered runtime provider in the current code path. The repo contains related code, but runtime support should be considered active only when it is wired into the registry and validated.
+
+### Are token counts exact?
+
+No. They are usage estimates produced by the application, not authoritative provider billing counters.
+
+### Is this more of a proxy or more of a platform?
+
+Architecturally it behaves closer to a small self-hosted access platform than a trivial proxy because it includes auth, governance, operator tooling, logs, and persistent provider state.
+
+---
+
+## Release Positioning
+
+If you want to describe this project in one sentence publicly, use something close to:
+
+> `cortex` is a self-hosted, OpenAI-compatible AI gateway for browser-authenticated providers, with admin controls, API key governance, persistent sessions, and operator-grade observability.
+
+If you want a slightly stronger positioning line:
+
+> `cortex` turns browser-authenticated AI providers into a governed, self-hosted API platform your tools and teams can actually consume.
 
 ---
 
