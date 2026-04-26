@@ -137,6 +137,52 @@ flowchart LR
     F --> G[Monitor Logs / Stats / Usage]
 ```
 
+### Infrastructure Topology
+
+```mermaid
+flowchart TB
+    U[Users / Internal Apps] --> RP[Reverse Proxy / TLS]
+    RP --> CX[cortex Container]
+    CX --> UI[/admin + /docs + /]
+    CX --> API[/v1/*]
+    CX --> ADM[/api/*]
+    CX --> DB[(SQLite admin.db)]
+    CX --> PF[(Persistent ~/.cortex profiles)]
+    CX --> LG[(Logs)]
+    CX --> VNC[noVNC / VNC]
+    CX --> CG[chatgpt.com]
+    CX --> GM[gemini.google.com]
+    CX --> GK[grok.com]
+```
+
+### Control Plane vs Data Plane
+
+```mermaid
+flowchart LR
+    subgraph Control Plane
+      A1[Admin UI]
+      A2[Admin JWT]
+      A3[Provider Login/Logout]
+      A4[API Key Issuance]
+      A5[Audit Logs]
+    end
+
+    subgraph Data Plane
+      B1[Client Apps]
+      B2[X-API-Key / Bearer ctx_...]
+      B3[/v1/chat/completions]
+      B4[Provider Registry]
+      B5[Browser Sessions]
+      B6[Request Logs]
+    end
+
+    A1 --> A2 --> A3
+    A1 --> A4 --> B2
+    A1 --> A5
+    B1 --> B2 --> B3 --> B4 --> B5
+    B3 --> B6
+```
+
 ---
 
 ## Why This Project Exists
@@ -259,42 +305,34 @@ This README now includes repo-local branded visuals, but those four additions wo
 
 ## Quick Start
 
+### Docker-first setup
+
+For users of this repository, the recommended setup path is Docker. This project depends on Playwright, Chromium, persistent browser profiles, and remote login workflows, so containerized deployment is the cleanest default.
+
 ### Prerequisites
 
-- Node.js `>= 20`
-- npm
-- a machine capable of running Chromium through Playwright
-- valid provider credentials for any provider you want to connect
+- Docker
+- Docker Compose
+- provider credentials for the accounts you want to connect
+- a machine or VM where persistent storage is available
 
-### Install
+### Start with Docker Compose
 
 ```bash
 git clone https://github.com/Th3X-Zohir/cortex.git
 cd cortex
-npm install
-npm --prefix admin install
+docker compose up --build -d
 ```
 
-### Build
+### Open the service
 
-```bash
-npm run build
-npm --prefix admin run build
-```
+- App / landing: `http://localhost:31339`
+- Admin panel: `http://localhost:31339/admin/`
+- noVNC: `http://localhost:31339/novnc/vnc.html`
 
-### Start
+### Default bootstrap admin
 
-```bash
-node dist/cli.js start --host=0.0.0.0 --port=31338
-```
-
-### Open the admin panel
-
-```text
-http://localhost:31338/admin/
-```
-
-Default bootstrap admin credentials on first run, unless overridden:
+On first boot, unless overridden:
 
 - username: `admin`
 - password: `admin`
@@ -305,28 +343,25 @@ Change them immediately.
 
 ## First-Time Setup Walkthrough
 
-### 1. Build backend and admin UI
+### 1. Launch the stack
 
 ```bash
-npm run build
-npm --prefix admin run build
+docker compose up --build -d
 ```
 
-### 2. Start the server
-
-```bash
-node dist/cli.js start
-```
-
-### 3. Log in to the admin panel
+### 2. Open the admin panel
 
 Visit:
 
 ```text
-http://localhost:31338/admin/
+http://localhost:31339/admin/
 ```
 
-### 4. Connect a provider
+### 3. Change the default admin password
+
+Do this before exposing the instance to any shared network or internet-facing environment.
+
+### 4. Connect providers through the admin controls
 
 Use the authenticated admin provider controls to connect:
 
@@ -342,22 +377,22 @@ Important:
 
 That behavior is implemented in [src/server.ts](/D:/Jihan/cortex/src/server.ts).
 
-### 5. Create an API key
+### 5. Create one or more API keys
 
 Use the admin panel or admin API to issue a consumer key.
 
-### 6. Verify health
+### 6. Verify health and model availability
 
 ```bash
-curl http://localhost:31338/health
-curl http://localhost:31338/v1/models -H "X-API-Key: YOUR_KEY"
-curl http://localhost:31338/v1/status -H "X-API-Key: YOUR_KEY"
+curl http://localhost:31339/health
+curl http://localhost:31339/v1/models -H "X-API-Key: YOUR_KEY"
+curl http://localhost:31339/v1/status -H "X-API-Key: YOUR_KEY"
 ```
 
-### 7. Call the chat endpoint
+### 7. Send a test completion
 
 ```bash
-curl http://localhost:31338/v1/chat/completions \
+curl http://localhost:31339/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_KEY" \
   -d '{
@@ -377,7 +412,7 @@ curl http://localhost:31338/v1/chat/completions \
 Base URL by default:
 
 ```text
-http://localhost:31338
+http://localhost:31339
 ```
 
 ### Authentication
@@ -696,6 +731,16 @@ docker build -t cortex .
 docker run -p 31338:31338 -p 5900:5900 -p 6080:6080 cortex
 ```
 
+### Persistent data you should mount
+
+At minimum, persist:
+
+- `~/.cortex` or the equivalent container path storing provider browser profiles
+- SQLite/admin storage
+- logs
+
+Without persistence, browser logins and operational state will be lost on redeploy.
+
 ---
 
 ## Production Guidance
@@ -723,6 +768,84 @@ This project depends on real provider web surfaces. That means:
 - browser automation may require maintenance
 
 Treat provider adapters as integrations that need upkeep.
+
+### Recommended deployment targets
+
+Good fits for this architecture:
+
+- VPS providers such as Hetzner, DigitalOcean, Linode, OVH
+- cloud VMs such as AWS EC2, Google Compute Engine, Azure VM
+- container hosts such as Fly.io Machines, Render background services with persistent disk if browser/runtime constraints are satisfied, self-managed Docker hosts
+- Kubernetes if you are willing to handle persistent volumes, ingress, and browser runtime dependencies carefully
+
+Best default recommendation:
+
+- a Linux VPS with Docker Compose
+- persistent volume for `~/.cortex`
+- nginx, Caddy, or Traefik in front for HTTPS
+
+### Vercel guidance
+
+**Vercel is not a good deployment target for `cortex`.**
+
+Reason:
+
+- this project is a long-running server, not a serverless edge function
+- it requires persistent browser profiles
+- it depends on Playwright/Chromium runtime behavior
+- it benefits from VNC/noVNC and stateful disk persistence
+
+If you want a hosted deployment, use a VPS or stateful container host instead of Vercel.
+
+### Simple production topology
+
+```mermaid
+flowchart TB
+    I[Internet / Team Traffic] --> T[TLS Reverse Proxy]
+    T --> C[cortex docker-compose stack]
+    C --> P[(Persistent ~/.cortex)]
+    C --> S[(SQLite + logs)]
+    C --> W[Provider websites]
+```
+
+### Deployment checklist
+
+1. Provision a Linux host with Docker and Docker Compose.
+2. Clone the repository.
+3. Set strong admin credentials and secrets before first boot.
+4. Mount persistent storage for profiles and data.
+5. Run `docker compose up --build -d`.
+6. Put HTTPS in front of the stack.
+7. Restrict `/admin` and `/api` to trusted operators where possible.
+8. Log into providers through admin controls.
+9. Issue API keys and configure quotas.
+10. Monitor logs, usage, and provider session health.
+
+### Example reverse proxy strategy
+
+Recommended frontends:
+
+- **Caddy** for simple automatic HTTPS
+- **nginx** for full control
+- **Traefik** if you already run container-based routing
+
+Suggested routing model:
+
+- `/` -> public landing/docs
+- `/v1/*` -> public API behind API key auth
+- `/admin/*` -> operator UI
+- `/api/*` -> operator backend
+- `/novnc/*` -> remote browser access for login workflows
+
+### Deployment patterns by scale
+
+| Pattern | Best For | Notes |
+| --- | --- | --- |
+| Single VPS + Docker Compose | Most users | Simplest and recommended |
+| VM + external reverse proxy | Teams | Cleaner TLS and networking separation |
+| Kubernetes | Advanced operators | More moving parts, only worth it if you already run K8s |
+| Vercel | Not recommended | Stateless/serverless model conflicts with project needs |
+| GitHub Codespaces | Temporary demo only | Not a production deployment |
 
 ---
 
@@ -833,6 +956,29 @@ Cause:
 Fix:
 
 - disable buffering for SSE routes
+
+### Docker container works but provider login is awkward
+
+Cause:
+
+- you are not using the bundled remote browser workflow
+
+Fix:
+
+- open the noVNC route exposed by the stack
+- complete login interactively there
+- verify that the profile persists after container restarts
+
+### Deployment target behaves like stateless compute
+
+Cause:
+
+- the host platform is not suitable for persistent browser automation
+
+Fix:
+
+- move the deployment to a VPS or stateful container runtime
+- do not use Vercel for this architecture
 
 ---
 
