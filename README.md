@@ -1,96 +1,201 @@
+<div align="center">
+
 # cortex
 
-OpenAI-compatible AI gateway for browser-authenticated providers, with an admin panel, API key management, request logging, and self-hosted operations support.
+### Browser-Native AI Gateway With an OpenAI-Compatible API
 
-## Table of Contents
+<p>
+  Self-hosted gateway for <b>Grok</b>, <b>Gemini</b>, and <b>ChatGPT</b>, powered by persistent Playwright browser sessions, operator-managed provider logins, API key governance, and a built-in admin platform.
+</p>
 
-- [What This Project Is](#what-this-project-is)
-- [Who This Is For](#who-this-is-for)
-- [Current Provider Status](#current-provider-status)
-- [Core Capabilities](#core-capabilities)
-- [How It Works](#how-it-works)
-- [Architecture Overview](#architecture-overview)
-- [Quick Start](#quick-start)
-- [First-Time Setup Walkthrough](#first-time-setup-walkthrough)
-- [Using the API](#using-the-api)
-- [Public API Reference](#public-api-reference)
-- [Admin API Reference](#admin-api-reference)
-- [Configuration](#configuration)
-- [Storage and Persistence](#storage-and-persistence)
-- [Docker Deployment](#docker-deployment)
-- [Production Guidance](#production-guidance)
-- [Security Notes](#security-notes)
-- [Troubleshooting](#troubleshooting)
-- [Development](#development)
-- [Project Structure](#project-structure)
-- [Roadmap and Known Limitations](#roadmap-and-known-limitations)
-- [Contributing](#contributing)
-- [License](#license)
+<p>
+  <a href="https://github.com/Th3X-Zohir/cortex"><img src="https://img.shields.io/badge/GitHub-Th3X--Zohir%2Fcortex-111827?style=for-the-badge&logo=github" alt="GitHub"></a>
+  <img src="https://img.shields.io/badge/Node.js-20%2B-16a34a?style=for-the-badge&logo=node.js&logoColor=white" alt="Node 20+">
+  <img src="https://img.shields.io/badge/TypeScript-Strict-2563eb?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Admin%20UI-Built--In-f59e0b?style=for-the-badge" alt="Admin UI">
+  <img src="https://img.shields.io/badge/License-Apache--2.0-7c3aed?style=for-the-badge" alt="License">
+</p>
 
-## What This Project Is
+<p>
+  <img src="https://img.shields.io/badge/OpenAI-Compatible-Yes-0f766e?style=flat-square" alt="OpenAI Compatible">
+  <img src="https://img.shields.io/badge/API%20Keys-Required%20by%20Default-b91c1c?style=flat-square" alt="API Keys Required">
+  <img src="https://img.shields.io/badge/Docker-Supported-1d4ed8?style=flat-square&logo=docker&logoColor=white" alt="Docker">
+  <img src="https://img.shields.io/badge/Playwright-Chromium%20Sessions-15803d?style=flat-square" alt="Playwright">
+</p>
 
-`cortex` is a self-hosted HTTP service that exposes selected browser-based AI providers behind an OpenAI-compatible API surface.
+</div>
 
-Instead of calling an official provider API directly, `cortex` uses persistent Playwright-driven browser sessions to interact with provider web apps. That lets you:
+---
 
-- authenticate once in a real browser session
-- persist session state across restarts
-- present one unified `/v1` API to clients
-- control access with your own API keys
-- operate the service through an admin UI and admin API
+## Overview
 
-The service also includes:
+`cortex` is a self-hosted AI gateway that exposes browser-authenticated providers through an OpenAI-compatible HTTP API.
 
-- an admin web application served at `/admin`
-- API key issuance, rotation, disablement, and quotas
-- request logging and token usage estimation
-- provider connection health and model visibility
-- SQLite-backed operational data
-- Docker support with Xvfb, VNC, and noVNC
+Instead of relying only on official provider APIs, `cortex` drives real provider web apps through Playwright and keeps those sessions persistent on disk. That gives you one service boundary for:
 
-## Who This Is For
+- OpenAI-style client compatibility
+- central operator-managed provider login
+- API key issuance and quota enforcement
+- request logging and usage visibility
+- admin UI and admin API control
+- Docker-friendly deployment
 
-`cortex` is aimed at operators who want to run a personal or team-accessible AI gateway in front of browser-based provider sessions.
+This repository currently supports **registered runtime providers** for:
 
-Typical use cases:
+- `grok`
+- `gemini`
+- `chatgpt`
 
-- internal tooling that expects an OpenAI-compatible endpoint
-- a private bridge for applications that cannot integrate with each provider separately
-- a self-hosted admin-operated service where browser logins are managed centrally
-- experimentation with browser-backed providers through one stable client interface
+Implementations for `claude` and some API-based providers exist in the repo, but they are **not currently registered in the active provider registry** and should not be presented as live support.
 
-This project is not a drop-in replacement for official provider APIs in the strict protocol sense. It is an operational bridge that emulates the parts of the OpenAI API this codebase currently implements.
+---
 
-## Current Provider Status
+## Visual Snapshot
 
-This section reflects the current codebase as of `README.md` in this repository, not aspirational support.
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>Unified API</h3>
+      <p>Point OpenAI-compatible clients at one base URL and switch provider behavior with the <code>model</code> field.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>Operator Control</h3>
+      <p>Use the admin panel to connect providers, issue API keys, inspect logs, manage admins, and monitor usage.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>Browser-Backed</h3>
+      <p>Persistent Chromium sessions let the service work through real provider web experiences rather than thin request translation alone.</p>
+    </td>
+  </tr>
+</table>
 
-### Registered web providers
+### At a Glance
 
-These are currently registered in [src/registry.ts](/D:/Jihan/cortex/src/registry.ts):
-
-| Provider | Status | Notes |
-| --- | --- | --- |
-| `grok` | Enabled | Browser-authenticated |
-| `gemini` | Enabled | Browser-authenticated |
-| `chatgpt` | Enabled | Browser-authenticated |
-
-### Present in repository but not currently registered
-
-These implementations exist in `src/providers`, but are not currently active in the registry:
-
-| Provider | Status |
+| Area | What You Get |
 | --- | --- |
-| `claude` | Present in code, not registered |
-| `claude-api` | Present in code, not registered |
-| `gemini-api` | Present in code, not registered |
-| `codex-api` | Present in code, not registered |
+| API Layer | `POST /v1/chat/completions`, `GET /v1/models`, `GET /v1/status`, `GET /health` |
+| Auth Model | API keys for public consumers, JWT for admin operators |
+| Persistence | SQLite for admin data, filesystem profiles for provider browser sessions |
+| Controls | Admins, API keys, users, user key requests, logs, audit logs, stats |
+| Runtime | Node 20+, Playwright, Chromium, Docker, noVNC/VNC |
 
-If you are opening this project publicly, do not advertise disabled providers as supported until they are wired into [src/registry.ts](/D:/Jihan/cortex/src/registry.ts), surfaced in admin flows, and validated end-to-end.
+---
 
-### Current model IDs
+## Architecture
 
-Runtime model availability comes from the registered providers and is exposed by `GET /v1/models`.
+```mermaid
+flowchart TD
+    A[Client Apps / SDKs] --> B[OpenAI-Compatible HTTP Layer]
+    B --> C[cortex Server]
+    C --> D[Provider Registry]
+    C --> E[Admin API]
+    C --> F[Request Logging + API Key Validation]
+    E --> G[SQLite Admin Store]
+    D --> H[Grok Browser Session]
+    D --> I[Gemini Browser Session]
+    D --> J[ChatGPT Browser Session]
+    H --> K[grok.com]
+    I --> L[gemini.google.com]
+    J --> M[chatgpt.com]
+```
+
+### Request Lifecycle
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Cortex
+    participant Registry
+    participant Provider
+    participant Browser
+
+    Client->>Cortex: POST /v1/chat/completions
+    Cortex->>Cortex: Validate API key
+    Cortex->>Registry: Resolve provider from model ID
+    Registry->>Provider: ensureConnected()
+    Provider->>Browser: Use persisted Playwright session
+    Browser-->>Provider: Provider response stream / DOM output
+    Provider-->>Cortex: Text chunks or final content
+    Cortex-->>Client: OpenAI-compatible response
+```
+
+### Operator Flow
+
+```mermaid
+flowchart LR
+    A[Start cortex] --> B[Open /admin]
+    B --> C[Admin Login]
+    C --> D[Connect Provider]
+    D --> E[Create API Key]
+    E --> F[Call /v1 endpoints]
+    F --> G[Monitor Logs / Stats / Usage]
+```
+
+---
+
+## Why This Project Exists
+
+Many teams want a single AI gateway for internal tools, scripts, automations, and dashboards, but do not want to wire each provider separately or depend on several downstream auth flows.
+
+`cortex` gives you:
+
+- one service boundary
+- one authentication model for consumers
+- one admin console for operators
+- one place to inspect health, usage, and failures
+
+It is especially useful when you want to:
+
+- expose a local or internal OpenAI-compatible endpoint
+- manage browser-authenticated providers centrally
+- provide controlled access to multiple users or teams
+- keep auditability and rate limits under your own infrastructure
+
+---
+
+## Feature Matrix
+
+| Capability | Status | Notes |
+| --- | --- | --- |
+| OpenAI-compatible chat completions | Yes | `POST /v1/chat/completions` |
+| Model listing | Yes | `GET /v1/models` |
+| Provider status reporting | Yes | `GET /v1/status` |
+| Public API key enforcement | Yes | Enabled by default |
+| Daily quotas and per-minute rate limits | Yes | Enforced per API key |
+| Admin web UI | Yes | Served from `/admin` |
+| Admin API | Yes | Under `/api/*` |
+| Request logs | Yes | Includes payload snapshots and token estimates |
+| Audit logs | Yes | Tracks operator actions |
+| User registration and key-request workflows | Yes | Present in current admin backend |
+| Docker / noVNC / VNC | Yes | Included in container setup |
+| Registered Claude runtime support | No | Code exists, not active in registry |
+
+---
+
+## Current Runtime Support
+
+This section reflects the code as it exists now.
+
+### Registered Providers
+
+These are currently instantiated in [src/registry.ts](/D:/Jihan/cortex/src/registry.ts):
+
+| Provider | Runtime Status | Auth Mode |
+| --- | --- | --- |
+| `grok` | Active | Browser session |
+| `gemini` | Active | Browser session |
+| `chatgpt` | Active | Browser session |
+
+### Present in Code But Not Registered
+
+| Provider | State |
+| --- | --- |
+| `claude` | Implemented, not active in runtime registry |
+| `claude-api` | Implemented, not active in runtime registry |
+| `gemini-api` | Implemented, not active in runtime registry |
+| `codex-api` | Implemented, not active in runtime registry |
+
+### Current Model IDs
 
 #### Grok
 
@@ -113,75 +218,25 @@ Runtime model availability comes from the registered providers and is exposed by
 - `web-chatgpt/gpt-5-thinking-mini`
 - `web-chatgpt/o3`
 
-## Core Capabilities
+Always treat `GET /v1/models` as the source of truth for a running instance.
 
-- OpenAI-compatible `POST /v1/chat/completions`
-- `GET /v1/models` model listing
-- `GET /v1/status` provider health and session state
-- API key enforcement enabled by default
-- per-key daily quota and per-minute rate limit enforcement
-- request logging with provider, model, timing, payload snapshots, and usage estimates
-- browser session persistence under `~/.cortex`
-- admin authentication with JWT
-- multi-admin support with roles and permissions
-- user registration and API key request workflows
-- Dockerized runtime with remote browser access
+---
 
-## How It Works
+## Screens You Effectively Get
 
-At a high level:
+Even without publishing screenshots in this repository yet, the project already ships these operational surfaces:
 
-1. `cortex` runs an HTTP server.
-2. An operator logs into a provider through the authenticated admin panel.
-3. The provider session is stored in a persistent Playwright profile on disk.
-4. Client applications call `cortex` using an OpenAI-style request body.
-5. `cortex` routes the request to the provider associated with the selected model ID.
-6. The provider adapter drives the browser UI, streams or collects the response, and `cortex` returns an OpenAI-compatible response shape.
+- **Admin dashboard** for service visibility
+- **Provider controls** for login/logout and connection state
+- **API key management** with quotas and limits
+- **Usage and stats** views
+- **Request log inspection**
+- **Audit log review**
+- **User and key-request management**
 
-Operationally, this means the browser session is part of your production dependency surface. Session expiration, provider UI changes, rate limits, and anti-automation defenses are all relevant.
+If you want, the next iteration can include actual PNG screenshots or animated GIF sections once you add image assets to the repo.
 
-## Architecture Overview
-
-```text
-Client App / SDK
-        |
-        |  OpenAI-compatible HTTP requests
-        v
-+---------------------------+
-|         cortex            |
-|                           |
-|  Public API               |
-|  - /v1/chat/completions   |
-|  - /v1/models             |
-|  - /v1/status             |
-|  - /health                |
-|                           |
-|  Admin Surface            |
-|  - /admin                 |
-|  - /api/*                 |
-|                           |
-|  Core Services            |
-|  - Provider registry      |
-|  - API key validation     |
-|  - Request logging        |
-|  - SQLite admin store     |
-+-------------+-------------+
-              |
-              v
-     Playwright browser contexts
-      |         |            |
-      v         v            v
-    Grok      Gemini      ChatGPT
-```
-
-Relevant implementation files:
-
-- [src/server.ts](/D:/Jihan/cortex/src/server.ts): HTTP server, public API routes, auth enforcement, static admin hosting
-- [src/registry.ts](/D:/Jihan/cortex/src/registry.ts): provider registration, model lookup, session restore, keepalive
-- [src/config.ts](/D:/Jihan/cortex/src/config.ts): defaults, persisted config, environment overrides
-- [src/admin/api.ts](/D:/Jihan/cortex/src/admin/api.ts): admin routes, auth, permissions, provider controls
-- [src/admin/store.ts](/D:/Jihan/cortex/src/admin/store.ts): SQLite schema, API key issuance, logs, usage, users
-- [src/providers](/D:/Jihan/cortex/src/providers): provider-specific browser automation
+---
 
 ## Quick Start
 
@@ -189,8 +244,8 @@ Relevant implementation files:
 
 - Node.js `>= 20`
 - npm
-- a host capable of running Chromium via Playwright
-- credentials for the providers you want to connect
+- a machine capable of running Chromium through Playwright
+- valid provider credentials for any provider you want to connect
 
 ### Install
 
@@ -208,19 +263,43 @@ npm run build
 npm --prefix admin run build
 ```
 
-### Start the server
+### Start
 
 ```bash
 node dist/cli.js start --host=0.0.0.0 --port=31338
 ```
 
-By default:
-
-- public API listens on `0.0.0.0:31338`
-- admin UI is served from `http://localhost:31338/admin/`
-- API key enforcement is enabled
-
 ### Open the admin panel
+
+```text
+http://localhost:31338/admin/
+```
+
+Default bootstrap admin credentials on first run, unless overridden:
+
+- username: `admin`
+- password: `admin`
+
+Change them immediately.
+
+---
+
+## First-Time Setup Walkthrough
+
+### 1. Build backend and admin UI
+
+```bash
+npm run build
+npm --prefix admin run build
+```
+
+### 2. Start the server
+
+```bash
+node dist/cli.js start
+```
+
+### 3. Log in to the admin panel
 
 Visit:
 
@@ -228,45 +307,9 @@ Visit:
 http://localhost:31338/admin/
 ```
 
-Default bootstrap credentials are created automatically on first run unless overridden by environment variables:
+### 4. Connect a provider
 
-- username: `admin`
-- password: `admin`
-
-Change these immediately.
-
-### Build order matters
-
-The backend serves the built admin bundle from `admin/dist`. If you start the server without building the admin app first, `/`, `/docs`, and `/admin` will not serve the expected UI.
-
-## First-Time Setup Walkthrough
-
-This is the recommended operator flow.
-
-### 1. Start the service
-
-```bash
-npm run build
-npm --prefix admin run build
-node dist/cli.js start
-```
-
-### 2. Sign into the admin panel
-
-Open `http://localhost:31338/admin/` and log in with the bootstrap admin account.
-
-If you did not set `CORTEX_ADMIN_PASSWORD`, the first admin will be created with:
-
-- username: `admin`
-- password: `admin`
-
-### 3. Change the admin password
-
-Do this before exposing the instance anywhere outside your machine or LAN.
-
-### 4. Connect one or more providers
-
-Use the admin provider controls to start browser-backed login for:
+Use the authenticated admin provider controls to connect:
 
 - `grok`
 - `gemini`
@@ -274,7 +317,7 @@ Use the admin provider controls to start browser-backed login for:
 
 Important:
 
-- provider login is managed through the authenticated admin surface
+- browser login is managed through the admin surface
 - `POST /v1/login/:provider` is intentionally blocked with `403`
 - `POST /v1/logout/:provider` is intentionally blocked with `403`
 
@@ -282,16 +325,9 @@ That behavior is implemented in [src/server.ts](/D:/Jihan/cortex/src/server.ts).
 
 ### 5. Create an API key
 
-Use the admin panel or admin API to create a consumer key. Public `/v1` requests require a valid API key by default.
+Use the admin panel or admin API to issue a consumer key.
 
-Each key has:
-
-- a name
-- a daily request limit
-- a per-minute rate limit
-- an active or disabled state
-
-### 6. Verify health and models
+### 6. Verify health
 
 ```bash
 curl http://localhost:31338/health
@@ -299,7 +335,7 @@ curl http://localhost:31338/v1/models -H "X-API-Key: YOUR_KEY"
 curl http://localhost:31338/v1/status -H "X-API-Key: YOUR_KEY"
 ```
 
-### 7. Send a chat completion request
+### 7. Call the chat endpoint
 
 ```bash
 curl http://localhost:31338/v1/chat/completions \
@@ -315,13 +351,21 @@ curl http://localhost:31338/v1/chat/completions \
   }'
 ```
 
-## Using the API
+---
+
+## Public API
+
+Base URL by default:
+
+```text
+http://localhost:31338
+```
 
 ### Authentication
 
-Public `/v1` endpoints require an API key unless you explicitly disable enforcement with configuration.
+Public `/v1` routes require an API key by default.
 
-Supported header formats:
+Supported headers:
 
 ```http
 X-API-Key: ctx_...
@@ -333,104 +377,23 @@ or
 Authorization: Bearer ctx_...
 ```
 
-That extraction logic is implemented in [src/server.ts](/D:/Jihan/cortex/src/server.ts).
+### Endpoints
 
-### Base URL
+| Endpoint | Method | Auth | Purpose |
+| --- | --- | --- | --- |
+| `/health` | `GET` | No | Liveness check |
+| `/v1/models` | `GET` | Yes by default | Runtime model list |
+| `/v1/status` | `GET` | Yes by default | Provider and service status |
+| `/v1/chat/completions` | `POST` | Yes by default | OpenAI-compatible chat |
 
-Local default:
+### Intentionally Forbidden Public Routes
 
-```text
-http://localhost:31338
-```
+| Endpoint | Status | Reason |
+| --- | --- | --- |
+| `/v1/login/:provider` | `403` | Provider login is an operator action |
+| `/v1/logout/:provider` | `403` | Provider logout is an operator action |
 
-If you deploy behind reverse proxy or the included nginx compose setup, your public base URL will differ.
-
-### OpenAI SDK example
-
-```ts
-import OpenAI from "openai";
-
-const client = new OpenAI({
-  apiKey: process.env.CORTEX_API_KEY,
-  baseURL: "http://localhost:31338/v1",
-});
-
-const completion = await client.chat.completions.create({
-  model: "web-grok/grok-expert",
-  messages: [
-    { role: "system", content: "You are concise." },
-    { role: "user", content: "Explain cortex in one sentence." }
-  ]
-});
-
-console.log(completion.choices[0]?.message?.content);
-```
-
-### Plain `fetch` example
-
-```ts
-const response = await fetch("http://localhost:31338/v1/chat/completions", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "X-API-Key": process.env.CORTEX_API_KEY ?? ""
-  },
-  body: JSON.stringify({
-    model: "web-chatgpt/gpt-5.4-thinking",
-    messages: [
-      { role: "user", content: "Write a short haiku about logs." }
-    ],
-    stream: false
-  })
-});
-
-if (!response.ok) {
-  throw new Error(await response.text());
-}
-
-const data = await response.json();
-console.log(data.choices?.[0]?.message?.content);
-```
-
-### Python example
-
-```python
-import requests
-
-resp = requests.post(
-    "http://localhost:31338/v1/chat/completions",
-    headers={
-        "Content-Type": "application/json",
-        "X-API-Key": "ctx_your_key_here",
-    },
-    json={
-        "model": "web-gemini/gemini-3-fast",
-        "messages": [
-            {"role": "user", "content": "Return one short sentence."}
-        ],
-        "stream": False,
-    },
-    timeout=120,
-)
-
-resp.raise_for_status()
-print(resp.json()["choices"][0]["message"]["content"])
-```
-
-## Public API Reference
-
-This is the currently implemented public API surface in [src/server.ts](/D:/Jihan/cortex/src/server.ts).
-
-### `GET /health`
-
-Auth: not required
-
-Purpose:
-
-- liveness check
-- simple version visibility
-
-Example response:
+### Example: `GET /health`
 
 ```json
 {
@@ -440,13 +403,7 @@ Example response:
 }
 ```
 
-### `GET /v1/models`
-
-Auth: required by default
-
-Returns the registered runtime models in OpenAI-like list format.
-
-Example response:
+### Example: `GET /v1/models`
 
 ```json
 {
@@ -462,60 +419,9 @@ Example response:
 }
 ```
 
-### `GET /v1/status`
+### Example: `POST /v1/chat/completions`
 
-Auth: required by default
-
-Returns service and provider health.
-
-Example response shape:
-
-```json
-{
-  "running": true,
-  "port": 31338,
-  "version": "0.2.0",
-  "uptime": 123,
-  "providers": [
-    {
-      "name": "chatgpt",
-      "connected": true,
-      "hasProfile": true,
-      "sessionValid": true,
-      "models": [
-        "web-chatgpt/gpt-5.4-pro"
-      ]
-    }
-  ]
-}
-```
-
-### `POST /v1/chat/completions`
-
-Auth: required by default
-
-Implements the project’s OpenAI-compatible chat completion route.
-
-Supported request fields:
-
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `model` | `string` | Yes | Must exist in `GET /v1/models` |
-| `messages` | `array` | Yes | Ordered chat messages |
-| `stream` | `boolean` | No | Default `false` |
-| `temperature` | `number` | No | Provider-dependent behavior |
-| `max_tokens` | `number` | No | Provider-dependent behavior |
-| `newConversation` | `boolean` | No | Default `false`; forces a fresh provider-side conversation when supported |
-
-Supported message roles in current shared types:
-
-- `system`
-- `user`
-- `assistant`
-
-Internally, provider prompt composition may flatten messages into provider-specific browser input text.
-
-#### Non-streaming request example
+Request:
 
 ```json
 {
@@ -529,7 +435,7 @@ Internally, provider prompt composition may flatten messages into provider-speci
 }
 ```
 
-#### Non-streaming response example
+Response:
 
 ```json
 {
@@ -554,11 +460,9 @@ Internally, provider prompt composition may flatten messages into provider-speci
 }
 ```
 
-#### Streaming behavior
+### Streaming
 
-If `stream: true`, the server returns `text/event-stream`.
-
-Chunk shape:
+If `stream: true`, the service returns SSE.
 
 ```text
 data: {"id":"chatcmpl-...","object":"chat.completion.chunk","model":"web-chatgpt/gpt-5.4-pro","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
@@ -570,65 +474,47 @@ data: [DONE]
 
 Notes:
 
-- some stream chunks may include `cortex_meta` when provider adapters expose extra runtime metadata
-- usage is emitted in the terminal chunk
-- provider-side failure may surface as an SSE error payload during streaming
+- usage is included in the terminal chunk
+- some chunks may include `cortex_meta`
+- provider failures can surface in-stream
 
-### Public routes that are intentionally forbidden
+---
 
-These endpoints return `403` on purpose:
+## Admin API
 
-- `POST /v1/login/:provider`
-- `POST /v1/logout/:provider`
+The authenticated operator API lives under `/api/*` and is implemented in [src/admin/api.ts](/D:/Jihan/cortex/src/admin/api.ts).
 
-Reason:
-
-- browser login/logout is an operator action
-- operator actions are handled through the authenticated admin surface
-- exposing them on the public `/v1` surface would be a deployment footgun
-
-## Admin API Reference
-
-This is the authenticated operational API under `/api/*`. It is implemented in [src/admin/api.ts](/D:/Jihan/cortex/src/admin/api.ts).
-
-### Authentication flow
+### Authentication Flow
 
 1. `POST /api/auth/login`
-2. receive admin JWT
-3. send `Authorization: Bearer <token>` to subsequent admin requests
+2. Receive admin JWT
+3. Send `Authorization: Bearer <token>` on later admin requests
 
-### Important admin routes
+### Important Admin Endpoints
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
 | `/api/auth/login` | `POST` | Admin login |
 | `/api/auth/logout` | `POST` | Admin logout |
 | `/api/auth/me` | `GET` | Current admin identity and permissions |
-| `/api/admin/permissions` | `GET` | Current effective permission set |
+| `/api/admin/permissions` | `GET` | Effective permissions |
 | `/api/providers/status` | `GET` | Provider session health |
-| `/api/providers/models` | `GET` | Models plus status and model-level usage |
-| `/api/providers/:provider/login` | `POST` | Start browser login flow |
-| `/api/providers/:provider/logout` | `POST` | Disconnect a provider |
-| `/api/playground/chat` | `POST` | Admin playground chat |
-| `/api/admin/keys` | `GET`, `POST` | List and create API keys |
-| `/api/admin/keys/:id` | `PATCH`, `DELETE` | Update or delete API keys |
-| `/api/logs` | `GET` | Request logs with filters |
-| `/api/logs/prune` | `POST` | Delete old logs |
-| `/api/audit-logs` | `GET` | Audit history |
-| `/api/stats` | `GET` | Dashboard metrics |
-| `/api/config` | `GET`, `POST` | Read and update runtime config |
-| `/api/admin/admins` | `GET`, `POST` | Manage admins |
-| `/api/admin/admins/:id/role` | `PATCH` | Update admin role |
-| `/api/admin/admins/:id/password` | `PATCH` | Reset admin password |
-| `/api/admin/admins/:id` | `DELETE` | Delete admin |
-| `/api/admin/users` | `GET` | List users |
-| `/api/admin/user-requests` | `GET` | Review user API key requests |
-| `/api/admin/user-requests/:id/approve` | `POST` | Approve and issue key |
-| `/api/admin/user-requests/:id/reject` | `POST` | Reject key request |
+| `/api/providers/models` | `GET` | Models plus usage and status |
+| `/api/providers/:provider/login` | `POST` | Start provider browser login |
+| `/api/providers/:provider/logout` | `POST` | Disconnect provider |
+| `/api/playground/chat` | `POST` | Admin chat playground |
+| `/api/admin/keys` | `GET`, `POST` | List or create API keys |
+| `/api/logs` | `GET` | Request logs |
+| `/api/audit-logs` | `GET` | Audit events |
+| `/api/stats` | `GET` | Dashboard stats |
+| `/api/config` | `GET`, `POST` | Runtime config |
+| `/api/admin/admins` | `GET`, `POST` | Admin management |
+| `/api/admin/users` | `GET` | User listing |
+| `/api/admin/user-requests` | `GET` | API key request review |
 
-### End-user routes
+### User-Facing Backend Routes Also Present
 
-There is also a user-oriented auth and request flow in the admin backend:
+The current codebase also includes:
 
 - `POST /api/user/register`
 - `POST /api/user/login`
@@ -640,19 +526,17 @@ There is also a user-oriented auth and request flow in the admin backend:
 - `GET /api/user/usage`
 - `GET /api/user/logs`
 
-If you plan to market this project publicly, this is worth documenting in separate operator and end-user docs later. For now, this README calls it out so the surface area is not hidden.
+---
 
 ## Configuration
 
-Configuration is loaded from:
+Primary config file:
 
 ```text
 ~/.cortex/config.json
 ```
 
-Default values are defined in [src/config.ts](/D:/Jihan/cortex/src/config.ts).
-
-### Default runtime config
+### Default Config Shape
 
 ```json
 {
@@ -672,29 +556,29 @@ Default values are defined in [src/config.ts](/D:/Jihan/cortex/src/config.ts).
 }
 ```
 
-### Environment variables
-
-The current code directly reads these environment variables:
+### Environment Variables Read Directly by Current Code
 
 | Variable | Purpose |
 | --- | --- |
 | `CORTEX_ADMIN_DB` | SQLite admin DB path |
 | `CORTEX_ADMIN_JWT_SECRET` | Admin JWT signing secret |
-| `CORTEX_ADMIN_TOKEN_TTL_SECONDS` | Admin token TTL |
-| `CORTEX_REQUIRE_API_KEY` | Set to `false` to disable public API key enforcement |
-| `CORTEX_LOG_RETENTION_DAYS` | Log retention default |
-| `CORTEX_CORS_ORIGIN` | CORS allow-origin value |
-| `CORTEX_ADMIN_USERNAME` | Initial bootstrap admin username |
-| `CORTEX_ADMIN_PASSWORD` | Initial bootstrap admin password |
+| `CORTEX_ADMIN_TOKEN_TTL_SECONDS` | JWT TTL |
+| `CORTEX_REQUIRE_API_KEY` | Set `false` to disable public API key enforcement |
+| `CORTEX_LOG_RETENTION_DAYS` | Default retention for logs |
+| `CORTEX_CORS_ORIGIN` | CORS allow-origin |
+| `CORTEX_ADMIN_USERNAME` | Initial admin username |
+| `CORTEX_ADMIN_PASSWORD` | Initial admin password |
 
-For `port`, `host`, `headless`, and `logLevel`, the current supported paths are:
+### Runtime Controls
+
+For `port`, `host`, `headless`, and `logLevel`, the supported paths are:
 
 - CLI flags such as `cortex start --port=31338 --host=0.0.0.0`
 - persisted config in `~/.cortex/config.json`
 
-### CLI
+---
 
-The current CLI is useful for process startup, status, and config inspection:
+## CLI
 
 ```bash
 cortex start [--port=31338] [--host=0.0.0.0] [--log-level=info] [--headless=false]
@@ -703,16 +587,17 @@ cortex config
 cortex config <key> <value>
 ```
 
-Important:
+Important note:
 
-- `cortex login <provider>` still exists in the CLI help, but the server currently blocks `/v1/login/:provider`
-- for real operator usage, treat provider login as an admin-panel or admin-API action
+- `cortex login <provider>` appears in the CLI code/help path
+- the current server implementation intentionally blocks public `/v1/login/:provider`
+- for real operations, use the admin panel or the authenticated admin provider endpoints
+
+---
 
 ## Storage and Persistence
 
-`cortex` stores runtime state under the current user’s home directory by default.
-
-### Typical layout
+Typical runtime layout:
 
 ```text
 ~/.cortex/
@@ -728,7 +613,7 @@ Important:
 └── chatgpt-expiry.json
 ```
 
-Repository-local or container-local runtime artifacts may also include:
+Other runtime artifacts can include:
 
 ```text
 logs/
@@ -737,194 +622,165 @@ admin/dist/
 data/
 ```
 
-### What persists
+Persisting `~/.cortex` is mandatory if you want:
 
-- admin accounts
-- JWT secret file if not supplied by env
-- issued API keys and quotas
-- request logs
-- audit logs
-- user accounts and API key requests
-- Playwright browser profiles per provider
+- browser sessions to survive restarts
+- admin data to survive restarts
+- API keys and quotas to survive restarts
+- logs and operational history to survive restarts
 
-If you lose `~/.cortex`, you lose browser sessions and operational metadata unless you have backed it up.
+---
 
 ## Docker Deployment
 
-This repository ships with:
+This repository includes:
 
-- a `Dockerfile`
-- a `docker-compose.yml`
-- an nginx reverse proxy config under [nginx/default.conf](/D:/Jihan/cortex/nginx/default.conf)
-- an entrypoint script under [docker-entrypoint.sh](/D:/Jihan/cortex/docker-entrypoint.sh)
+- [Dockerfile](/D:/Jihan/cortex/Dockerfile)
+- [docker-compose.yml](/D:/Jihan/cortex/docker-compose.yml)
+- [nginx/default.conf](/D:/Jihan/cortex/nginx/default.conf)
+- [docker-entrypoint.sh](/D:/Jihan/cortex/docker-entrypoint.sh)
 
-### What the container includes
+### Container Stack Characteristics
 
-The Docker image installs:
-
-- Node 20
-- Playwright Chromium and its dependencies
+- Node 20 runtime
+- Playwright Chromium installation
 - Xvfb
 - x11vnc
 - noVNC and websockify
-- desktop session components needed for remote browser login
+- remote desktop flow for browser login inside the container
 
-### Compose setup
+### Compose Summary
 
-Current compose behavior from [docker-compose.yml](/D:/Jihan/cortex/docker-compose.yml):
+Current compose behavior:
 
-- `cortex` container exposes internal ports `31338`, `5900`, `6080`
-- `cortex-proxy` publishes host port `31339`
-- nginx fronts the app on `31339`
-- the compose stack mounts `./data`, `./logs`, and a named volume for `~/.cortex`
+- `cortex` exposes internal `31338`, `5900`, `6080`
+- `cortex-proxy` publishes `31339`
+- nginx fronts the application on port `31339`
+- a named volume persists `~/.cortex`
 
-Start it with:
+Start with:
 
 ```bash
 docker compose up --build
 ```
 
-Then access the proxied app on:
+Access:
 
 ```text
 http://localhost:31339
 ```
 
-Operational note from repository docs:
-
-- host `31339` maps to nginx `:80`
-- nginx proxies to `cortex:31338`
-- noVNC routes are also exposed through that ingress
-
-### Building the image directly
+### Direct Image Build
 
 ```bash
 docker build -t cortex .
 docker run -p 31338:31338 -p 5900:5900 -p 6080:6080 cortex
 ```
 
-### Docker recommendations
-
-- persist `~/.cortex` or the mapped volume, or browser sessions will be lost
-- persist logs if you care about auditability
-- use an external reverse proxy for TLS in real deployments
-- do not leave the bootstrap admin password in place
+---
 
 ## Production Guidance
 
-This project is workable as a self-hosted service, but production-readiness here means operational discipline, not just “it starts.”
-
-### Minimum production checklist
+### Minimum Hardening Checklist
 
 - set `CORTEX_ADMIN_PASSWORD` before first boot
 - set `CORTEX_ADMIN_JWT_SECRET`
-- keep `CORTEX_REQUIRE_API_KEY=true`
-- issue distinct API keys per consumer or team
-- set sane daily and per-minute limits
-- persist `~/.cortex`, logs, and SQLite data
-- put the service behind HTTPS
-- restrict admin access by network boundary or upstream auth where possible
-- monitor request logs and audit logs
-- be ready to reconnect providers after session expiration or provider UI changes
+- keep API key enforcement on
+- issue separate keys per consumer or team
+- set daily and per-minute quotas
+- persist `~/.cortex`
+- persist logs and SQLite state
+- front the service with HTTPS
+- restrict admin access by IP, VPN, reverse proxy auth, or private network
+- monitor logs, audit logs, and provider health
 
-### Reverse proxy recommendations
+### Operational Reality
 
-- terminate TLS upstream
-- restrict `/admin` and `/api` to trusted users or networks
-- preserve `Authorization` and `X-API-Key` headers
-- disable proxy buffering for SSE if you rely on streaming
+This project depends on real provider web surfaces. That means:
 
-### Browser-session realities
+- providers can change their UI
+- sessions can expire
+- anti-abuse systems can interrupt flows
+- browser automation may require maintenance
 
-Because providers are web-driven rather than official API-driven:
+Treat provider adapters as integrations that need upkeep.
 
-- login sessions can expire
-- MFA or captcha flows may interrupt automation
-- provider UI changes can break selectors
-- provider-side anti-abuse systems can block or rate-limit automation
-- headless versus headed behavior may differ by provider
-
-Treat provider adapters as operational integrations that need maintenance.
+---
 
 ## Security Notes
 
-### API keys are required by default
+### API Keys Are Required by Default
 
-Public API key enforcement defaults to `true`. Missing keys return `401`, invalid keys return `401`, disabled keys return `403`, and quota/rate exhaustion returns `429`.
+If a request is missing an API key, it receives `401`.
 
-### Bootstrap admin credentials are insecure by design
+If a key is invalid, it receives `401`.
 
-If no admin exists, the app seeds:
+If a key is disabled, it receives `403`.
 
-- username `admin`
-- password `admin`
+If a key exceeds daily or per-minute limits, it receives `429`.
 
-That is only acceptable for local first boot. Change it immediately.
+### Bootstrap Admin Credentials
 
-### JWT secret handling
+If the database is empty, the service seeds:
 
-If `CORTEX_ADMIN_JWT_SECRET` is not set, the app writes a generated secret to:
+- username: `admin`
+- password: `admin`
 
-```text
-~/.cortex/admin-jwt-secret
-```
+That is intended only for first boot convenience. Change it immediately.
 
-That is operationally acceptable for local usage, but explicit secret management is better for controlled deployments.
+### Logs Can Be Sensitive
 
-### Logs may contain sensitive payloads
+Request logs may contain:
 
-Request logs can include:
-
+- prompts
+- responses
 - request payload snapshots
 - response payload snapshots
-- user prompts
-- generated responses
-- IP address and user-agent
+- IP address
+- user-agent
 
-Do not expose the database or logs casually.
+Do not expose the database or log store carelessly.
 
-### Do not disable API keys unless you understand the blast radius
-
-Setting `CORTEX_REQUIRE_API_KEY=false` makes the public API unauthenticated. That may be useful for tightly isolated local development, but it is not appropriate for exposed environments.
+---
 
 ## Troubleshooting
 
-### `/v1/chat/completions` returns `401 API key required`
+### `401 API key required`
 
 Cause:
 
-- API key enforcement is on
-- request did not include `X-API-Key` or `Authorization: Bearer ...`
+- public API key enforcement is enabled
 
 Fix:
 
-- create a key in the admin panel
-- send it in one of the supported headers
+- create an API key in the admin panel
+- send `X-API-Key` or `Authorization: Bearer ...`
 
-### `/v1/chat/completions` returns `503 <provider> is not connected`
+### `503 <provider> is not connected`
 
 Cause:
 
-- provider browser session is not active or could not be restored
+- no active provider session exists
+- session could not be restored
 
 Fix:
 
-- log in through the admin provider controls
-- verify a profile exists under `~/.cortex/profiles`
-- check `GET /v1/status`
+- reconnect the provider through the admin panel
+- verify `~/.cortex/profiles` persistence
+- check `/v1/status`
 
 ### `/v1/login/:provider` returns `403`
 
 Cause:
 
-- that route is intentionally blocked
+- this is expected
 
 Fix:
 
 - use `/admin`
-- or use `POST /api/providers/:provider/login` with admin JWT
+- or use `/api/providers/:provider/login` with admin auth
 
-### Root page or admin UI is unavailable
+### Admin UI does not load correctly
 
 Cause:
 
@@ -937,60 +793,33 @@ npm --prefix admin install
 npm --prefix admin run build
 ```
 
-### Browser session does not persist
+### Browser session keeps disappearing
 
 Cause:
 
-- `~/.cortex` or mounted profile volume is not persistent
-- profile directory permissions are wrong
+- `~/.cortex` is not persisted
 - provider invalidated the session
 
 Fix:
 
-- persist `~/.cortex`
-- verify write permissions
-- reconnect through admin UI
-
-### Streaming does not behave correctly behind proxy
-
-Cause:
-
-- SSE buffering by upstream proxy
-
-Fix:
-
-- disable proxy buffering for the streaming endpoint
-- verify the client consumes `text/event-stream`
-
-### ChatGPT requests fail intermittently
-
-Possible causes:
-
-- provider-side rate limits
-- unusual activity checks
-- browser automation drift
-
-Fix:
-
-- inspect request logs and server logs
+- persist the profile directory
 - reconnect the provider
-- retry with `newConversation: true`
-- expect occasional maintenance when provider web behavior changes
 
-### Docker instance starts but provider login is difficult
+### Streaming is unstable behind proxy
 
 Cause:
 
-- remote browser workflow not being used correctly
+- proxy buffering
 
 Fix:
 
-- use the exposed VNC or noVNC path from the compose setup
-- complete the interactive login there
+- disable buffering for SSE routes
+
+---
 
 ## Development
 
-See also:
+See:
 
 - [CONTRIBUTING.md](/D:/Jihan/cortex/CONTRIBUTING.md)
 - [API_USAGE_GUIDE.md](/D:/Jihan/cortex/API_USAGE_GUIDE.md)
@@ -1004,14 +833,14 @@ npm run typecheck
 npm test
 ```
 
-### Admin app
+### Admin App
 
 ```bash
 npm --prefix admin install
 npm --prefix admin run build
 ```
 
-### Local development workflow
+### Local Workflow
 
 Terminal 1:
 
@@ -1028,84 +857,84 @@ npm --prefix admin run dev
 
 Notes:
 
-- backend dev watches `dist/cli.js`, so build first
-- admin dev server runs on port `5173`
-- admin dev server proxies API requests to port `31338`
+- backend dev watches `dist/cli.js`
+- build first before running `npm run dev`
+- admin dev server runs on `5173`
+- admin dev server proxies API requests to `31338`
 
-### Validation before merging changes
-
-For backend changes:
-
-```bash
-npm run typecheck
-npm test
-```
-
-For backend packaging or entrypoint changes:
-
-```bash
-npm run build
-```
-
-For admin UI changes:
-
-```bash
-npm --prefix admin run build
-```
+---
 
 ## Project Structure
 
-### Core backend
+### Core Backend
 
-- [src/server.ts](/D:/Jihan/cortex/src/server.ts): HTTP server and public API
-- [src/registry.ts](/D:/Jihan/cortex/src/registry.ts): providers and runtime model registry
-- [src/config.ts](/D:/Jihan/cortex/src/config.ts): persisted and environment-backed config
+- [src/server.ts](/D:/Jihan/cortex/src/server.ts): public HTTP API, auth enforcement, admin bundle serving
+- [src/registry.ts](/D:/Jihan/cortex/src/registry.ts): runtime provider registration and session restore
+- [src/config.ts](/D:/Jihan/cortex/src/config.ts): config defaults and persistence
 - [src/types.ts](/D:/Jihan/cortex/src/types.ts): shared contracts
 
 ### Providers
 
-- [src/providers/base.ts](/D:/Jihan/cortex/src/providers/base.ts): shared browser-provider behavior
-- [src/providers/grok.ts](/D:/Jihan/cortex/src/providers/grok.ts): Grok adapter
-- [src/providers/gemini.ts](/D:/Jihan/cortex/src/providers/gemini.ts): Gemini adapter
-- [src/providers/chatgpt.ts](/D:/Jihan/cortex/src/providers/chatgpt.ts): ChatGPT adapter
+- [src/providers/base.ts](/D:/Jihan/cortex/src/providers/base.ts)
+- [src/providers/grok.ts](/D:/Jihan/cortex/src/providers/grok.ts)
+- [src/providers/gemini.ts](/D:/Jihan/cortex/src/providers/gemini.ts)
+- [src/providers/chatgpt.ts](/D:/Jihan/cortex/src/providers/chatgpt.ts)
 
-### Admin backend
+### Admin Backend
 
-- [src/admin/api.ts](/D:/Jihan/cortex/src/admin/api.ts): admin and user HTTP API
-- [src/admin/store.ts](/D:/Jihan/cortex/src/admin/store.ts): SQLite persistence
-- [src/admin/auth.ts](/D:/Jihan/cortex/src/admin/auth.ts): password hashing and JWT signing
+- [src/admin/api.ts](/D:/Jihan/cortex/src/admin/api.ts)
+- [src/admin/store.ts](/D:/Jihan/cortex/src/admin/store.ts)
+- [src/admin/auth.ts](/D:/Jihan/cortex/src/admin/auth.ts)
 
-### Admin frontend
+### Admin Frontend
 
-- [admin/src/router/AppRouter.tsx](/D:/Jihan/cortex/admin/src/router/AppRouter.tsx): route map
-- [admin/src/lib/api.ts](/D:/Jihan/cortex/admin/src/lib/api.ts): frontend API client
-- [admin/src/pages](/D:/Jihan/cortex/admin/src/pages): page-level features
+- [admin/src/router/AppRouter.tsx](/D:/Jihan/cortex/admin/src/router/AppRouter.tsx)
+- [admin/src/lib/api.ts](/D:/Jihan/cortex/admin/src/lib/api.ts)
+- [admin/src/pages](/D:/Jihan/cortex/admin/src/pages)
 
-## Roadmap and Known Limitations
+---
 
-Current limitations worth stating clearly in an open-source README:
+## Known Limitations
 
-- only `grok`, `gemini`, and `chatgpt` are currently registered
-- `claude` exists in the repo but is not active
-- public API surface is intentionally narrow; this is not a full OpenAI API clone
-- browser automation can break when providers change their UIs
-- token counts are estimated, not authoritative provider billing numbers
-- provider availability depends on persisted interactive sessions
-- some CLI help text is ahead of current supported operator workflow
+- only `grok`, `gemini`, and `chatgpt` are currently active in the runtime registry
+- the service is intentionally narrower than the full OpenAI API surface
+- browser-driven providers can break when upstream UIs change
+- token usage is estimated, not authoritative billing data
+- some CLI wording is ahead of the actual operator flow
 
-If you open-source this publicly, this honesty will save users time and reduce issue churn.
+For an open-source release, stating these limits clearly is a strength, not a weakness.
+
+---
+
+## Maintainer
+
+**Created, maintained, and published by `Th3X-Zohir`.**
+
+- GitHub: [@Th3X-Zohir](https://github.com/Th3X-Zohir)
+- Repository: [Th3X-Zohir/cortex](https://github.com/Th3X-Zohir/cortex)
+
+---
 
 ## Contributing
 
 Contributions are welcome. Start with [CONTRIBUTING.md](/D:/Jihan/cortex/CONTRIBUTING.md).
 
-For substantial changes:
+Before opening a PR:
 
-- keep changes focused
-- update documentation with behavior changes
-- validate both backend and admin builds when relevant
-- avoid advertising new provider support before it is actually registered and tested end-to-end
+- keep the change focused
+- update docs when behavior changes
+- avoid advertising support that is not wired into runtime
+- validate backend and admin builds when relevant
+
+---
 
 ## License
 
 Apache-2.0. See [LICENSE](/D:/Jihan/cortex/LICENSE).
+
+---
+
+## Copyright
+
+Copyright (c) Th3X-Zohir. All rights reserved.
+
