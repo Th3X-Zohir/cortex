@@ -24,7 +24,11 @@
     <circle cx="206" cy="384" r="18" fill="#1D4ED8">
       <animate attributeName="opacity" values="0.35;1;0.35" dur="3s" begin="0s" repeatCount="indefinite"/>
     </circle>
-    <text x="140" y="440" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Containers boot, volumes mount, and noVNC becomes available.</text>
+    <text x="124" y="438" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+      <tspan x="124" dy="0">Containers boot,</tspan>
+      <tspan x="124" dy="18">volumes mount,</tspan>
+      <tspan x="124" dy="18">noVNC comes up.</tspan>
+    </text>
   </g>
 
   <g>
@@ -36,7 +40,11 @@
       <animate attributeName="opacity" values="0.25;1;0.25" dur="3s" begin="0.5s" repeatCount="indefinite"/>
     </rect>
     <text x="448" y="403" fill="#ECFEFF" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">login</text>
-    <text x="410" y="440" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Sign in as admin and rotate the default password immediately.</text>
+    <text x="394" y="438" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+      <tspan x="394" dy="0">Sign in as admin.</tspan>
+      <tspan x="394" dy="18">Rotate the default</tspan>
+      <tspan x="394" dy="18">password at once.</tspan>
+    </text>
   </g>
 
   <g>
@@ -65,7 +73,11 @@
     <rect x="942" y="448" width="10" height="14" rx="7" fill="#38BDF8">
       <animate attributeName="width" values="10;146;10" dur="3s" begin="2s" repeatCount="indefinite"/>
     </rect>
-    <text x="936" y="498" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Consumers can now call the public v1 endpoints.</text>
+    <text x="936" y="496" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+      <tspan x="936" dy="0">Consumers can now</tspan>
+      <tspan x="936" dy="18">call the public</tspan>
+      <tspan x="936" dy="18">v1 endpoints.</tspan>
+    </text>
   </g>
 
   <path d="M310 330H370" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" stroke-dasharray="10 10">
@@ -79,5 +91,5 @@
   </path>
 
   <rect x="188" y="562" width="904" height="52" rx="18" fill="#0D1727" stroke="#1E3A5F"/>
-  <text x="220" y="595" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Docker -> Admin -> Provider Login -> API Key -> OpenAI-compatible traffic</text>
+  <text x="270" y="595" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Docker -> Admin -> Provider Login -> API Key -> Public API Traffic</text>
 </svg>

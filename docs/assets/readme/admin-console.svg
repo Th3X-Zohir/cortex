@@ -34,7 +34,7 @@
   <text x="104" y="510" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="18">Users</text>
 
   <text x="344" y="162" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="800">Operator-grade dashboard</text>
-  <text x="344" y="196" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="18">One place to manage provider sessions, API keys, request logs, users, and system health.</text>
+  <text x="344" y="196" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="17">Manage providers, keys, logs, users, and system health in one place.</text>
 
   <rect x="344" y="228" width="206" height="116" rx="18" fill="#0E1A2B"/>
   <text x="370" y="262" fill="#7DD3FC" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">REQUESTS LAST 24H</text>
@@ -73,7 +73,10 @@
   <path d="M836 544H1172" stroke="#223448"/>
   <path d="M836 500H1172" stroke="#223448"/>
   <path d="M836 456H1172" stroke="#223448"/>
-  <text x="836" y="558" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="15">Live visibility into throughput, provider health, and operational incidents.</text>
+  <text x="836" y="556" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+    <tspan x="836" dy="0">Live visibility into throughput,</tspan>
+    <tspan x="836" dy="18">provider health, and incidents.</tspan>
+  </text>
 
   <rect x="344" y="596" width="860" height="178" rx="20" fill="#0D1727"/>
   <text x="370" y="632" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">Recent request logs</text>

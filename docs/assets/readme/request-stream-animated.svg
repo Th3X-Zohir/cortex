@@ -8,7 +8,7 @@
 
   <rect width="1280" height="720" rx="28" fill="url(#bg)"/>
   <text x="72" y="86" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="38" font-weight="800">Animated request and stream flow</text>
-  <text x="72" y="120" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="18">How one completion moves through keys, registry, browser sessions, and streaming output.</text>
+  <text x="72" y="120" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="18">How one completion flows through keys, registry, sessions, and stream output.</text>
 
   <rect x="72" y="178" width="220" height="380" rx="24" fill="#0D1727" stroke="#1E3A5F"/>
   <text x="102" y="222" fill="#93C5FD" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="700">Client</text>
@@ -26,7 +26,8 @@
   <rect x="400" y="258" width="190" height="52" rx="14" fill="#111F31"/>
   <text x="428" y="291" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">validate API key</text>
   <rect x="400" y="328" width="190" height="52" rx="14" fill="#111F31"/>
-  <text x="420" y="361" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">resolve model to provider</text>
+  <text x="430" y="361" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">resolve model</text>
+  <text x="440" y="381" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">to provider</text>
   <rect x="400" y="398" width="190" height="52" rx="14" fill="#111F31"/>
   <text x="428" y="431" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">ensure connected</text>
   <rect x="400" y="468" width="190" height="52" rx="14" fill="#111F31"/>
@@ -54,7 +55,11 @@
     <animate attributeName="d" dur="2.4s" repeatCount="indefinite"
       values="M1040 372H1040;M1040 372H1168;M1040 372H1040"/>
   </path>
-  <text x="1038" y="418" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">response tokens accumulate in browser runtime</text>
+  <text x="1038" y="418" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+    <tspan x="1038" dy="0">Response tokens build</tspan>
+    <tspan x="1038" dy="18">inside the browser</tspan>
+    <tspan x="1038" dy="18">runtime session.</tspan>
+  </text>
 
   <path d="M292 368H372" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" stroke-dasharray="12 12">
     <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1s" repeatCount="indefinite"/>
@@ -67,5 +72,5 @@
   </path>
 
   <rect x="180" y="610" width="918" height="56" rx="18" fill="#0D1727" stroke="#1E3A5F"/>
-  <text x="216" y="645" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Client request -> key validation -> provider resolution -> browser backed response -> streamed output</text>
+  <text x="242" y="645" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Client -> Key Validation -> Provider Resolution -> Browser Response -> Stream Output</text>
 </svg>
