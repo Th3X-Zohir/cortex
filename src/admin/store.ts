@@ -466,6 +466,7 @@ export class AdminStore {
       requestsLast7d: number;
       avgResponseTime: number;
       errorCount: number;
+      blockedCount: number;
       errorRate: string;
       totalTokens: number;
       promptTokens: number;
