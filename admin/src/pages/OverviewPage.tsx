@@ -50,6 +50,7 @@ const EMPTY_STATS: Stats = {
     requestsLast7d: 0,
     avgResponseTime: 0,
     errorCount: 0,
+    blockedCount: 0,
     errorRate: '0',
     totalTokens: 0,
     promptTokens: 0,
