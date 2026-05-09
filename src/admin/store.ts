@@ -486,7 +486,8 @@ export class AdminStore {
     const r24h = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE created_at > ?').get(oneDayAgo) as any).c;
     const r7d = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE created_at > ?').get(sevenDaysAgo) as any).c;
     const avgRt = (this.db.prepare('SELECT AVG(response_time_ms) as a FROM request_logs WHERE response_time_ms IS NOT NULL').get() as any).a ?? 0;
-    const errCount = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE status_code >= 400 OR error IS NOT NULL').get() as any).c;
+    const errCount = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE status_code >= 500 OR error IS NOT NULL').get() as any).c;
+    const blockedCount = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE status_code >= 400 AND status_code < 500').get() as any).c;
     const tokenTotals = this.db.prepare(
       'SELECT COALESCE(SUM(prompt_tokens), 0) as prompt, COALESCE(SUM(completion_tokens), 0) as completion, COALESCE(SUM(total_tokens), 0) as total FROM request_logs'
     ).get() as { prompt: number; completion: number; total: number };
@@ -500,7 +501,7 @@ export class AdminStore {
     const recentErrors = this.db.prepare(
       `SELECT id, provider, model, status_code as statusCode, error, created_at as createdAt
        FROM request_logs
-       WHERE status_code >= 400 OR error IS NOT NULL
+       WHERE status_code >= 500 OR error IS NOT NULL
        ORDER BY created_at DESC
        LIMIT 8`
     ).all() as any[];
@@ -513,6 +514,7 @@ export class AdminStore {
         requestsLast7d: r7d,
         avgResponseTime: Math.round(avgRt),
         errorCount: errCount,
+        blockedCount,
         errorRate: total > 0 ? ((errCount / total) * 100).toFixed(1) + '%' : '0%',
         totalTokens: tokenTotals.total,
         promptTokens: tokenTotals.prompt,
@@ -566,23 +568,25 @@ export class AdminStore {
     };
   }
 
-  getModelUsage(): Record<string, { requests: number; totalTokens: number; avgResponseTime: number; errorCount: number; lastUsed: string | null }> {
+  getModelUsage(): Record<string, { requests: number; totalTokens: number; avgResponseTime: number; errorCount: number; blockedCount: number; lastUsed: string | null }> {
     const rows = this.db.prepare(
       `SELECT model,
               COUNT(*) as requests,
               COALESCE(SUM(total_tokens), 0) as totalTokens,
               COALESCE(AVG(response_time_ms), 0) as avgResponseTime,
-              SUM(CASE WHEN status_code >= 400 OR error IS NOT NULL THEN 1 ELSE 0 END) as errorCount,
+              SUM(CASE WHEN status_code >= 500 OR error IS NOT NULL THEN 1 ELSE 0 END) as errorCount,
+              SUM(CASE WHEN status_code >= 400 AND status_code < 500 THEN 1 ELSE 0 END) as blockedCount,
               MAX(created_at) as lastUsed
        FROM request_logs
        GROUP BY model`
-    ).all() as Array<{ model: string; requests: number; totalTokens: number; avgResponseTime: number; errorCount: number; lastUsed: string | null }>;
+    ).all() as Array<{ model: string; requests: number; totalTokens: number; avgResponseTime: number; errorCount: number; blockedCount: number; lastUsed: string | null }>;
 
     return Object.fromEntries(rows.map(row => [row.model, {
       requests: row.requests,
       totalTokens: row.totalTokens,
       avgResponseTime: Math.round(row.avgResponseTime),
       errorCount: row.errorCount,
+      blockedCount: row.blockedCount,
       lastUsed: row.lastUsed,
     }]));
   }

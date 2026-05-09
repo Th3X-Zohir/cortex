@@ -44,8 +44,9 @@ npm --prefix admin run dev
 
 Notes:
 
-- The backend dev script watches dist/cli.js, so build first.
-- Admin dev server runs on port 5173 and proxies API requests to port 31338.
+- The backend dev script watches `dist/cli.js`, so build first.
+- Admin dev server runs on port 5173 and proxies `/api` and `/ws` to backend port 31338.
+- Docker compose exposes the stack on host port 31339 (nginx proxy).
 
 ## Architecture Boundaries
 
@@ -60,6 +61,7 @@ Provider implementation:
 
 - [src/providers/base.ts](src/providers/base.ts): shared Playwright provider behavior.
 - [src/providers/grok.ts](src/providers/grok.ts), [src/providers/gemini.ts](src/providers/gemini.ts), [src/providers/chatgpt.ts](src/providers/chatgpt.ts): concrete web providers.
+- `src/providers/claude.ts`, `src/providers/claude-api.ts`, `src/providers/gemini-api.ts`, `src/providers/codex-api.ts`, `src/providers/api-base.ts`: exist but are **not registered** in the active provider registry.
 
 Admin backend:
 
@@ -77,16 +79,18 @@ Admin frontend:
 
 - TypeScript strict mode is enabled for both backend and admin.
 - Root package uses ESM and Node 20+.
+- Build uses esbuild for bundling (not tsc emit); `tsc --noEmit` is typecheck only.
 - Preserve OpenAI-compatible response shapes for /v1 endpoints.
 - Keep provider-specific behavior inside provider files; avoid leaking provider logic into server routing.
 - No dedicated lint config is present. Match existing local style and naming.
+- Admin frontend uses Vite + React + Tailwind + Radix UI with `@` path alias.
 
 ## Expected Validation Before Finishing
 
-- Run npm run typecheck for backend changes.
-- Run npm test when behavior changes.
-- Run npm run build for backend entrypoint or packaging changes.
-- Run npm --prefix admin run build for admin UI changes.
+- Run `npm run typecheck` for backend changes.
+- Run `npm test` when behavior changes.
+- Run `npm run build` for backend entrypoint or packaging changes.
+- Run `npm --prefix admin run build` for admin UI changes.
 
 If an endpoint contract changes, validate with:
 
@@ -95,11 +99,14 @@ If an endpoint contract changes, validate with:
 
 ## High-Risk Pitfalls
 
-- API key enforcement is on by default (CORTEX_REQUIRE_API_KEY is true unless explicitly false).
-- /v1/login/:provider and /v1/logout/:provider are intentionally blocked with 403; provider login/logout is managed in admin routes.
-- Session restore relies on persistent profiles under ~/.cortex/profiles.
+- API key enforcement is on by default (`CORTEX_REQUIRE_API_KEY` is true unless explicitly set to `false`).
+- `/v1/login/:provider` and `/v1/logout/:provider` are intentionally blocked with 403; provider login/logout is managed in admin routes.
+- Session restore relies on persistent profiles under `~/.cortex/profiles`.
 - Docker ingress uses nginx in [docker-compose.yml](docker-compose.yml): host 31339 maps to nginx:80, then proxies to cortex:31338 and noVNC routes on cortex:6080.
 - Headless browser container startup depends on [docker-entrypoint.sh](docker-entrypoint.sh) cleanup and Xvfb/noVNC boot.
+- Default bootstrap admin credentials are `admin`/`admin` — change immediately.
+- Config lives in `~/.cortex/config.json`; corrupt files are silently ignored.
+- Only `grok`, `gemini`, and `chatgpt` are active registered providers. Do not present unregistered providers as live.
 
 ## Change Patterns
 

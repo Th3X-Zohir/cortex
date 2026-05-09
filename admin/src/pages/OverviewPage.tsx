@@ -388,8 +388,14 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
             <StatTile
               label="Error Rate"
               value={`${errorRateValue.toFixed(2)}%`}
-              hint={`${formatNumber(stats.overview.errorCount)} failed requests`}
+              hint={`${formatNumber(stats.overview.errorCount)} server errors`}
               tone={errorRateValue >= 3 ? 'bad' : 'good'}
+            />
+            <StatTile
+              label="Blocked Requests"
+              value={formatNumber(stats.overview.blockedCount)}
+              hint="Auth, rate limit & client errors (4xx)"
+              tone="default"
             />
             <StatTile
               label="Providers Connected"
@@ -879,7 +885,7 @@ function buildThroughputAnalytics(logs: RequestLog[]): ThroughputAnalytics {
 
     aggregate.requests += 1
     aggregate.tokens += asNumber(log.totalTokens ?? log.tokensUsed)
-    if ((log.statusCode ?? 0) >= 400 || Boolean(log.error)) aggregate.errors += 1
+    if (log.statusCode != null && log.statusCode >= 500 || Boolean(log.error)) aggregate.errors += 1
     if (log.stream) aggregate.streamRequests += 1
 
     const latency = asNumber(log.responseTimeMs)
