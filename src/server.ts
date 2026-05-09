@@ -510,6 +510,9 @@ export class BridgeServer {
 
     const token = this._extractApiKey(req);
     if (!token) {
+      const ip = getIp(req);
+      const ua = getUserAgent(req);
+      logger.warn(`[AUTH] 401 — API key missing — ${req.method ?? 'GET'} ${req.url ?? '/'} — IP: ${ip} — UA: ${ua}`);
       this._adminStore.logRequest({
         api_key_id: null,
         api_key_name: null,
@@ -524,8 +527,8 @@ export class BridgeServer {
         total_tokens: 0,
         tokens_used: null,
         error: 'API key required',
-        ip_address: getIp(req),
-        user_agent: getUserAgent(req),
+        ip_address: ip,
+        user_agent: ua,
         request_payload: safeJsonStringify({ method: req.method ?? 'GET', path: req.url ?? '/' }),
         response_payload: safeJsonStringify({ error: { message: 'API key required', type: 'authentication_error' } }),
       });
@@ -536,6 +539,11 @@ export class BridgeServer {
     const validation = this._adminStore.validateApiKey(token);
     if (!validation.valid || !validation.key) {
       const statusCode = validation.statusCode ?? 401;
+      const ip = getIp(req);
+      const ua = getUserAgent(req);
+      const reason = validation.reason ?? 'Invalid API key';
+      const keyName = validation.key?.name ?? token.substring(0, 16);
+      logger.warn(`[AUTH] ${statusCode} — ${reason} — key: ${keyName} — ${req.method ?? 'GET'} ${req.url ?? '/'} — IP: ${ip} — UA: ${ua}`);
       this._adminStore.logRequest({
         api_key_id: validation.key?.id ?? null,
         api_key_name: validation.key?.name ?? null,
@@ -549,13 +557,13 @@ export class BridgeServer {
         completion_tokens: 0,
         total_tokens: 0,
         tokens_used: null,
-        error: validation.reason ?? 'Invalid API key',
-        ip_address: getIp(req),
-        user_agent: getUserAgent(req),
+        error: reason,
+        ip_address: ip,
+        user_agent: ua,
         request_payload: safeJsonStringify({ method: req.method ?? 'GET', path: req.url ?? '/' }),
-        response_payload: safeJsonStringify({ error: { message: validation.reason ?? 'Invalid API key', type: 'authentication_error' } }),
+        response_payload: safeJsonStringify({ error: { message: reason, type: 'authentication_error' } }),
       });
-      json(res, statusCode, { error: { message: validation.reason ?? 'Invalid API key', type: 'authentication_error' } });
+      json(res, statusCode, { error: { message: reason, type: 'authentication_error' } });
       return null;
     }
 
