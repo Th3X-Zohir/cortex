@@ -487,7 +487,7 @@ export class AdminStore {
     const r24h = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE created_at > ?').get(oneDayAgo) as any).c;
     const r7d = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE created_at > ?').get(sevenDaysAgo) as any).c;
     const avgRt = (this.db.prepare('SELECT AVG(response_time_ms) as a FROM request_logs WHERE response_time_ms IS NOT NULL').get() as any).a ?? 0;
-    const errCount = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE status_code >= 500 OR error IS NOT NULL').get() as any).c;
+    const errCount = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE status_code >= 500 OR (status_code < 400 AND error IS NOT NULL)').get() as any).c;
     const blockedCount = (this.db.prepare('SELECT COUNT(*) as c FROM request_logs WHERE status_code >= 400 AND status_code < 500').get() as any).c;
     const tokenTotals = this.db.prepare(
       'SELECT COALESCE(SUM(prompt_tokens), 0) as prompt, COALESCE(SUM(completion_tokens), 0) as completion, COALESCE(SUM(total_tokens), 0) as total FROM request_logs'
@@ -502,7 +502,7 @@ export class AdminStore {
     const recentErrors = this.db.prepare(
       `SELECT id, provider, model, status_code as statusCode, error, created_at as createdAt
        FROM request_logs
-       WHERE status_code >= 500 OR error IS NOT NULL
+       WHERE status_code >= 500 OR (status_code < 400 AND error IS NOT NULL)
        ORDER BY created_at DESC
        LIMIT 8`
     ).all() as any[];
@@ -575,7 +575,7 @@ export class AdminStore {
               COUNT(*) as requests,
               COALESCE(SUM(total_tokens), 0) as totalTokens,
               COALESCE(AVG(response_time_ms), 0) as avgResponseTime,
-              SUM(CASE WHEN status_code >= 500 OR error IS NOT NULL THEN 1 ELSE 0 END) as errorCount,
+              SUM(CASE WHEN status_code >= 500 OR (status_code < 400 AND error IS NOT NULL) THEN 1 ELSE 0 END) as errorCount,
               SUM(CASE WHEN status_code >= 400 AND status_code < 500 THEN 1 ELSE 0 END) as blockedCount,
               MAX(created_at) as lastUsed
        FROM request_logs

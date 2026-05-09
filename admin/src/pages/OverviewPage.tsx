@@ -886,7 +886,7 @@ function buildThroughputAnalytics(logs: RequestLog[]): ThroughputAnalytics {
 
     aggregate.requests += 1
     aggregate.tokens += asNumber(log.totalTokens ?? log.tokensUsed)
-    if (log.statusCode != null && log.statusCode >= 500 || Boolean(log.error)) aggregate.errors += 1
+    if (log.statusCode != null && log.statusCode >= 500 || (log.statusCode != null && log.statusCode < 400 && Boolean(log.error))) aggregate.errors += 1
     if (log.stream) aggregate.streamRequests += 1
 
     const latency = asNumber(log.responseTimeMs)
