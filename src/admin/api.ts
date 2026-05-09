@@ -425,6 +425,7 @@ export class AdminApi {
               totalTokens: 0,
               avgResponseTime: 0,
               errorCount: 0,
+              blockedCount: 0,
               lastUsed: null,
             },
           })),

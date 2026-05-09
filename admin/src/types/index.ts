@@ -220,6 +220,7 @@ export interface ModelUsage {
   totalTokens: number
   avgResponseTime: number
   errorCount: number
+  blockedCount: number
   lastUsed: string | null
 }
 
