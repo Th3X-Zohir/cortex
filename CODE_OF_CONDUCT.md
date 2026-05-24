@@ -32,6 +32,8 @@ Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the project team at **admin@zohirrayhan.me**. All complaints will
 be reviewed and investigated promptly and fairly.
 
+This project is maintained by **Zohir Rayhan**.
+
 ## Attribution
 
 This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org),
