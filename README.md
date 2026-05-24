@@ -1471,3 +1471,141 @@ Apache-2.0. See [LICENSE](/D:/Jihan/cortex/LICENSE).
 ## Copyright
 
 Copyright (c) Th3X-Zohir. All rights reserved.
+
+---
+
+## How to Use Cortex in Practice
+
+This section is an operator-friendly addendum for people who want the shortest path from clone to real API traffic.
+
+### 1. Start the stack
+
+Use Docker Compose for the normal production-like workflow:
+
+```bash
+docker compose up -d --build
+```
+
+The default public entrypoint is:
+
+```text
+http://localhost:31339
+```
+
+Useful routes:
+
+| Surface | URL |
+| --- | --- |
+| Admin console | `http://localhost:31339/admin/` |
+| Health check | `http://localhost:31339/health` |
+| OpenAI-compatible models | `http://localhost:31339/v1/models` |
+| OpenAI-compatible chat | `http://localhost:31339/v1/chat/completions` |
+| noVNC browser control | `http://localhost:31339/novnc/vnc.html` |
+
+### 2. Log in as an admin
+
+Open the admin console and sign in with the bootstrap admin account if this is a fresh install.
+
+Immediately change the default admin password before using the project on any shared network.
+
+### 3. Connect providers
+
+Use the admin provider controls to connect the browser-backed providers:
+
+- `chatgpt`
+- `gemini`
+- `grok`
+
+Provider login is intentionally an admin/operator action. Public `/v1/login/:provider` and `/v1/logout/:provider` routes are blocked by design.
+
+### 4. Add ChatGPT accounts
+
+For ChatGPT, Cortex supports a multi-account browser pool.
+
+In the admin console:
+
+1. Open **Account Router**.
+2. Add one or more ChatGPT accounts.
+3. Start login for each account.
+4. Complete login through the returned noVNC browser.
+5. Keep accounts enabled only when they are ready for traffic.
+
+When ChatGPT returns provider-side blocker text such as unusual-activity warnings, Cortex treats that as an account-level failure, puts that account into cooldown, and routes future requests to another healthy ChatGPT account when available. Unusual-activity cooldowns are held for 12 hours.
+
+### 5. Create an API key
+
+Create a key from **API Access** in the admin console.
+
+Use either header style:
+
+```http
+X-API-Key: your_key_here
+```
+
+or:
+
+```http
+Authorization: Bearer your_key_here
+```
+
+### 6. Send a normal chat request
+
+```bash
+curl http://localhost:31339/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_key_here" \
+  -d '{
+    "model": "web-chatgpt/gpt-5.4-pro",
+    "messages": [
+      { "role": "user", "content": "Say hello from Cortex in one sentence." }
+    ],
+    "stream": false,
+    "temperature": 0.7,
+    "max_tokens": 200,
+    "newConversation": true
+  }'
+```
+
+### 7. Validate the runtime
+
+For a calm smoke test, check:
+
+```bash
+curl http://localhost:31339/health
+curl http://localhost:31339/v1/models -H "Authorization: Bearer your_key_here"
+```
+
+Then send one small request to each connected provider. Avoid rapid repeated requests during login, recovery, or provider-side cooldown windows.
+
+### 8. Watch operations
+
+Use the admin console for:
+
+- request logs
+- usage counters
+- API key rotation
+- provider connection state
+- ChatGPT account health
+- per-account VNC inspection
+- user API key requests
+- admin and permission management
+
+For container logs:
+
+```bash
+docker logs --tail 200 cortex
+```
+
+---
+
+## Project Footer
+
+Built and open-sourced by **Zohir Rayhan**.
+
+- Website: [zohirrayhan.me](https://zohirrayhan.me)
+- GitHub: [@Th3X-Zohir](https://github.com/Th3X-Zohir)
+- Project: [Cortex](https://github.com/Th3X-Zohir/cortex)
+
+Copyright (c) Zohir Rayhan / Th3X-Zohir. All rights reserved.
+
+Cortex is released under the Apache-2.0 license. See [LICENSE](/D:/Jihan/cortex/LICENSE).
