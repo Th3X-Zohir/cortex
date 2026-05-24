@@ -1,134 +1,188 @@
-# CorteX API Usage Guide
+# Cortex API Usage Guide
 
-This document is a complete, shareable reference for integrating with the CorteX API correctly.
+This guide is the practical integration reference for Cortex. It covers the public OpenAI-compatible API, admin operations API, user self-service API, ChatGPT multi-account management, streaming, client examples, errors, quotas, and production usage notes.
 
-It covers:
-- Base URLs and authentication
-- Public API endpoints
-- Request and response formats
-- Streaming behavior
-- Supported model IDs
-- Postman workflow
-- JavaScript and Python examples
-- Admin/operations endpoints
-- Error handling and troubleshooting
+No real API key is included here. Replace every `ctx_replace_me` value with a key issued by your own Cortex admin panel.
 
-## 1. Base URL and Authentication
+## Table of Contents
 
-### Production Base URL
+- [Architecture in One Minute](#architecture-in-one-minute)
+- [Base URLs](#base-urls)
+- [Authentication](#authentication)
+- [Quick Start](#quick-start)
+- [Public OpenAI-Compatible API](#public-openai-compatible-api)
+- [Chat Completions](#chat-completions)
+- [Streaming SSE](#streaming-sse)
+- [Model IDs](#model-ids)
+- [JavaScript Examples](#javascript-examples)
+- [Python Examples](#python-examples)
+- [Postman](#postman)
+- [Admin API](#admin-api)
+- [ChatGPT Multi-Account API](#chatgpt-multi-account-api)
+- [User Self-Service API](#user-self-service-api)
+- [Errors and Status Codes](#errors-and-status-codes)
+- [Quotas and Logging](#quotas-and-logging)
+- [Reliability Playbook](#reliability-playbook)
+- [Security Checklist](#security-checklist)
 
-- https://cortex.zohirrayhan.com
+## Architecture in One Minute
 
-### Local Base URL (default)
+Cortex presents a clean API boundary to clients and keeps provider browser automation behind an authenticated operator surface.
 
-- http://localhost:31338
-
-### API Key (current configured key)
-
-- ctx_373762fcf6a1404ea7db393cce902498
-
-Use either header format:
-
-```http
-X-API-Key: ctx_373762fcf6a1404ea7db393cce902498
+```mermaid
+flowchart LR
+    A[Apps, SDKs, scripts] --> B[/v1 OpenAI-compatible API]
+    B --> C[API key validation]
+    C --> D[Provider registry]
+    D --> E[Browser-backed providers]
+    F[Admin UI and /api routes] --> C
+    F --> D
+    F --> G[SQLite logs, keys, users, audits]
 ```
 
-or
+Core idea:
 
-```http
-Authorization: Bearer ctx_373762fcf6a1404ea7db393cce902498
+| Plane | Routes | Auth | Purpose |
+| --- | --- | --- | --- |
+| Public data plane | `/v1/*` | Cortex API key | Client traffic |
+| Health | `/health` | none | Liveness checks |
+| Admin control plane | `/api/*` admin routes | Admin JWT | Operators, providers, keys, logs |
+| User self-service | `/api/user/*` | User JWT | User dashboard and key requests |
+| Browser access | `/novnc/*` | Deployment-dependent | Provider login and visual recovery |
+
+Provider login/logout is intentionally blocked on public `/v1/login/:provider` and `/v1/logout/:provider`. Use the admin UI or authenticated admin API.
+
+## Base URLs
+
+Local backend default:
+
+```text
+http://localhost:31338
 ```
 
-Important:
-- API key enforcement is enabled by default.
-- If API key is missing, the API returns 401.
-- If API key is invalid, disabled, over daily limit, or over rate limit, requests fail with corresponding error codes.
+Docker Compose ingress default:
 
-### Quick curl Setup Variables
+```text
+http://localhost:31339
+```
 
-For terminal use, define these once:
+Production example:
+
+```text
+https://cortex.example.com
+```
+
+OpenAI SDK base URL:
+
+```text
+https://cortex.example.com/v1
+```
+
+## Authentication
+
+### Public API Key
+
+Public `/v1` routes require an API key by default.
+
+Supported headers:
+
+```http
+X-API-Key: ctx_replace_me
+```
+
+or:
+
+```http
+Authorization: Bearer ctx_replace_me
+```
+
+Recommended shell setup:
 
 ```bash
-BASE_URL="https://cortex.zohirrayhan.com"
-API_KEY="ctx_373762fcf6a1404ea7db393cce902498"
+export CORTEX_BASE_URL="http://localhost:31339"
+export CORTEX_API_KEY="ctx_replace_me"
 ```
 
 PowerShell:
 
 ```powershell
-$BASE_URL = "https://cortex.zohirrayhan.com"
-$API_KEY = "ctx_373762fcf6a1404ea7db393cce902498"
+$env:CORTEX_BASE_URL = "http://localhost:31339"
+$env:CORTEX_API_KEY = "ctx_replace_me"
 ```
 
-## 2. Public API Endpoints
+### Admin JWT
 
-### Quick Copy-Paste curl Commands
-
-List models:
+Admin routes require an admin JWT after login.
 
 ```bash
-curl "$BASE_URL/v1/models" -H "X-API-Key: $API_KEY"
-```
-
-Provider status:
-
-```bash
-curl "$BASE_URL/v1/status" -H "X-API-Key: $API_KEY"
-```
-
-Non-streaming chat:
-
-```bash
-curl "$BASE_URL/v1/chat/completions" \
+curl "$CORTEX_BASE_URL/api/auth/login" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
+  -d '{"username":"admin","password":"replace-me"}'
+```
+
+Use the returned token:
+
+```bash
+export CORTEX_ADMIN_TOKEN="eyJ_replace_me"
+```
+
+Then call admin routes:
+
+```bash
+curl "$CORTEX_BASE_URL/api/auth/me" \
+  -H "Authorization: Bearer $CORTEX_ADMIN_TOKEN"
+```
+
+### User JWT
+
+User routes under `/api/user/*` use a separate token returned by `/api/user/login`.
+
+## Quick Start
+
+1. Start Cortex.
+2. Open `/admin/`.
+3. Log in as an admin.
+4. Connect providers or create ChatGPT accounts.
+5. Issue an API key.
+6. Call `/v1/models`.
+7. Send a chat completion.
+
+Minimal smoke test:
+
+```bash
+curl "$CORTEX_BASE_URL/health"
+
+curl "$CORTEX_BASE_URL/v1/models" \
+  -H "X-API-Key: $CORTEX_API_KEY"
+
+curl "$CORTEX_BASE_URL/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $CORTEX_API_KEY" \
   -d '{
-    "model": "web-grok/grok-expert",
-    "messages": [{"role":"user","content":"Say hello in one line."}],
+    "model": "web-chatgpt/gpt-5.4-pro",
+    "messages": [
+      { "role": "user", "content": "Say hello in one sentence." }
+    ],
     "stream": false,
-    "newConversation": true,
-    "temperature": 0.7,
-    "max_tokens": 120
+    "newConversation": true
   }'
 ```
 
-Streaming chat:
+## Public OpenAI-Compatible API
 
-```bash
-curl -N "$BASE_URL/v1/chat/completions" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
-  -d '{
-    "model": "web-chatgpt/gpt-5.4-thinking",
-    "messages": [{"role":"user","content":"Write a 2-line poem about uptime."}],
-    "stream": true,
-    "newConversation": true,
-    "temperature": 0.6,
-    "max_tokens": 120
-  }'
-```
-
-PowerShell note:
-- Use curl.exe (not curl alias) to ensure standard curl behavior.
-
-PowerShell non-streaming example:
-
-```powershell
-curl.exe "$BASE_URL/v1/chat/completions" -H "Content-Type: application/json" -H "X-API-Key: $API_KEY" -d '{"model":"web-grok/grok-expert","messages":[{"role":"user","content":"Say hello in one line."}],"stream":false,"newConversation":true,"temperature":0.7,"max_tokens":120}'
-```
-
-## Health
+| Endpoint | Method | Auth | Purpose |
+| --- | --- | --- | --- |
+| `/health` | `GET` | none | Liveness check |
+| `/v1/models` | `GET` | API key | OpenAI-style model catalog |
+| `/v1/status` | `GET` | API key | Provider and service state |
+| `/v1/chat/completions` | `POST` | API key | Chat completion |
+| `/v1/login/:provider` | `POST` | API key, always forbidden | Login is admin-only |
+| `/v1/logout/:provider` | `POST` | API key, always forbidden | Logout is admin-only |
 
 ### GET /health
 
-Auth: none
-
-Use for liveness checks.
-
-Example:
-
 ```bash
-curl https://cortex.zohirrayhan.com/health
+curl "$CORTEX_BASE_URL/health"
 ```
 
 Typical response:
@@ -141,17 +195,11 @@ Typical response:
 }
 ```
 
-## List Models
-
 ### GET /v1/models
 
-Auth: required (API key)
-
-Example:
-
 ```bash
-curl https://cortex.zohirrayhan.com/v1/models \
-  -H "X-API-Key: ctx_373762fcf6a1404ea7db393cce902498"
+curl "$CORTEX_BASE_URL/v1/models" \
+  -H "X-API-Key: $CORTEX_API_KEY"
 ```
 
 Response shape:
@@ -170,35 +218,51 @@ Response shape:
 }
 ```
 
-## Provider Status
+Use this endpoint as the runtime source of truth.
 
 ### GET /v1/status
 
-Auth: required (API key)
-
-Returns provider connection state, profile/session state, and uptime.
-
 ```bash
-curl https://cortex.zohirrayhan.com/v1/status \
-  -H "X-API-Key: ctx_373762fcf6a1404ea7db393cce902498"
+curl "$CORTEX_BASE_URL/v1/status" \
+  -H "X-API-Key: $CORTEX_API_KEY"
+```
+
+Response shape:
+
+```json
+{
+  "running": true,
+  "port": 31338,
+  "version": "0.2.0",
+  "uptime": 3600,
+  "providers": [
+    {
+      "name": "chatgpt",
+      "connected": true,
+      "hasProfile": true,
+      "sessionValid": true,
+      "models": ["web-chatgpt/gpt-5.4-pro"]
+    }
+  ]
+}
 ```
 
 ## Chat Completions
 
-### POST /v1/chat/completions
+Endpoint:
 
-Auth: required (API key)
+```http
+POST /v1/chat/completions
+```
 
-OpenAI-compatible endpoint for non-streaming and streaming chat generation.
-
-## 3. Chat Request Schema
+Request schema:
 
 ```json
 {
   "model": "web-chatgpt/gpt-5.4-pro",
   "messages": [
-    { "role": "system", "content": "You are a concise assistant." },
-    { "role": "user", "content": "Summarize the platform in one sentence." }
+    { "role": "system", "content": "You are concise." },
+    { "role": "user", "content": "Summarize Cortex." }
   ],
   "stream": false,
   "newConversation": true,
@@ -207,43 +271,39 @@ OpenAI-compatible endpoint for non-streaming and streaming chat generation.
 }
 ```
 
-Field details:
+Fields:
 
 | Field | Type | Required | Notes |
-|---|---|---|---|
-| model | string | Yes | Must match a model ID from GET /v1/models |
-| messages | array | Yes | Ordered chat history |
-| messages[].role | system \| user \| assistant | Yes | Valid roles only |
-| messages[].content | string | Yes | Message text |
-| stream | boolean | No | Default false |
-| newConversation | boolean | No | Default false on public endpoint |
-| temperature | number | No | Use range 0 to 2 |
-| max_tokens | number | No | Max completion tokens |
+| --- | --- | --- | --- |
+| `model` | string | yes | Must match `/v1/models` |
+| `messages` | array | yes | Ordered chat messages |
+| `messages[].role` | `system`, `user`, `assistant` | yes | OpenAI-style role |
+| `messages[].content` | string | yes | Message content |
+| `stream` | boolean | no | `false` by default |
+| `newConversation` | boolean | no | Starts a fresh provider conversation when supported |
+| `temperature` | number | no | Generation preference |
+| `max_tokens` | number | no | Completion length hint |
 
-System prompt guidance:
-- Put system message first when used.
-- Set newConversation=true while testing different system prompts to avoid context carryover.
-
-## 4. Non-Streaming Example
+Non-streaming request:
 
 ```bash
-curl https://cortex.zohirrayhan.com/v1/chat/completions \
+curl "$CORTEX_BASE_URL/v1/chat/completions" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: ctx_373762fcf6a1404ea7db393cce902498" \
+  -H "X-API-Key: $CORTEX_API_KEY" \
   -d '{
     "model": "web-grok/grok-expert",
     "messages": [
-      {"role": "system", "content": "You are a concise assistant."},
-      {"role": "user", "content": "Give me a 1-line summary."}
+      { "role": "system", "content": "You are concise." },
+      { "role": "user", "content": "Give me a one-line status." }
     ],
     "stream": false,
     "newConversation": true,
-    "temperature": 0.7,
-    "max_tokens": 150
+    "temperature": 0.4,
+    "max_tokens": 120
   }'
 ```
 
-Typical response:
+Response:
 
 ```json
 {
@@ -255,88 +315,95 @@ Typical response:
       "index": 0,
       "message": {
         "role": "assistant",
-        "content": "Your one-line response here."
+        "content": "Cortex is online and ready."
       },
       "finish_reason": "stop"
     }
   ],
   "usage": {
     "prompt_tokens": 42,
-    "completion_tokens": 28,
-    "total_tokens": 70
+    "completion_tokens": 8,
+    "total_tokens": 50
   }
 }
 ```
 
-## 5. Streaming Example (SSE)
+Usage is estimated by Cortex and should not be treated as provider billing truth.
+
+## Streaming SSE
+
+Set `stream: true`.
 
 ```bash
-curl -N https://cortex.zohirrayhan.com/v1/chat/completions \
+curl -N "$CORTEX_BASE_URL/v1/chat/completions" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: ctx_373762fcf6a1404ea7db393cce902498" \
+  -H "X-API-Key: $CORTEX_API_KEY" \
   -d '{
     "model": "web-chatgpt/gpt-5.4-thinking",
     "messages": [
-      {"role": "user", "content": "Write a short haiku about reliability."}
+      { "role": "user", "content": "Write a two-line uptime note." }
     ],
     "stream": true,
-    "newConversation": true,
-    "temperature": 0.6,
-    "max_tokens": 120
+    "newConversation": true
   }'
 ```
 
-SSE chunk format:
+Chunk format:
 
 ```text
-data: {"id":"chatcmpl-...","object":"chat.completion.chunk","model":"web-chatgpt/gpt-5.4-thinking","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","model":"web-chatgpt/gpt-5.4-thinking","choices":[{"index":0,"delta":{"content":"Systems"},"finish_reason":null}]}
 
 data: {"id":"chatcmpl-...","object":"chat.completion.chunk","model":"web-chatgpt/gpt-5.4-thinking","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":42,"completion_tokens":30,"total_tokens":72}}
 
 data: [DONE]
 ```
 
-Streaming notes:
-- Consume until [DONE].
-- Build final text by appending each delta.content in order.
-- If provider fails after stream starts, an SSE error event can be sent in-stream.
+Streaming client rules:
 
-## 6. Supported Model IDs
+- append `choices[0].delta.content` in order
+- keep reading until `data: [DONE]`
+- handle a final usage chunk
+- handle in-stream errors when a provider fails after response headers are sent
+- disable proxy buffering for SSE routes in production
 
-Always call GET /v1/models for latest runtime list. Current configured models:
+## Model IDs
 
-### ChatGPT
-- web-chatgpt/gpt-5.4-pro
-- web-chatgpt/gpt-5.4-thinking
-- web-chatgpt/gpt-5.3-instant
-- web-chatgpt/gpt-5-thinking-mini
-- web-chatgpt/o3
+Active providers in the current registry:
 
-### Grok
-- web-grok/grok-expert
-- web-grok/grok-fast
-- web-grok/grok-heavy
-- web-grok/grok-4.20-beta
+- `chatgpt`
+- `grok`
+- `gemini`
 
-### Gemini
-- web-gemini/gemini-3-fast
-- web-gemini/gemini-3-thinking
-- web-gemini/gemini-3.1-pro
+Current model IDs:
 
-## 7. JavaScript Integration
+| Provider | Model ID | Display |
+| --- | --- | --- |
+| ChatGPT | `web-chatgpt/gpt-5.4-pro` | GPT-5.4 Pro |
+| ChatGPT | `web-chatgpt/gpt-5.4-thinking` | GPT-5.4 Thinking |
+| ChatGPT | `web-chatgpt/gpt-5.3-instant` | GPT-5.3 Instant |
+| ChatGPT | `web-chatgpt/gpt-5-thinking-mini` | GPT-5 Thinking Mini |
+| ChatGPT | `web-chatgpt/o3` | o3 |
+| Grok | `web-grok/grok-expert` | Grok Expert |
+| Grok | `web-grok/grok-fast` | Grok Fast |
+| Grok | `web-grok/grok-heavy` | Grok Heavy |
+| Grok | `web-grok/grok-4.20-beta` | Grok 4.20 Beta |
+| Gemini | `web-gemini/gemini-3-fast` | Gemini 3 Fast |
+| Gemini | `web-gemini/gemini-3-thinking` | Gemini 3 Thinking |
+| Gemini | `web-gemini/gemini-3.1-pro` | Gemini 3.1 Pro |
 
-Important:
-- The following examples are JavaScript/Node.js only.
-- Do not put JavaScript import syntax inside a Python file.
-- If your file is run.py, use the Python examples in the next section.
+Provider implementations for other names may exist in source, but they are not live unless registered and returned by `/v1/models`.
 
-## Using fetch
+## JavaScript Examples
+
+### fetch
 
 ```js
-const baseUrl = "https://cortex.zohirrayhan.com";
-const apiKey = "ctx_373762fcf6a1404ea7db393cce902498";
+const baseUrl = process.env.CORTEX_BASE_URL ?? "http://localhost:31339";
+const apiKey = process.env.CORTEX_API_KEY;
 
-const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+if (!apiKey) throw new Error("Set CORTEX_API_KEY");
+
+const response = await fetch(`${baseUrl}/v1/chat/completions`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -345,8 +412,8 @@ const res = await fetch(`${baseUrl}/v1/chat/completions`, {
   body: JSON.stringify({
     model: "web-gemini/gemini-3-thinking",
     messages: [
-      { role: "system", content: "You are a concise assistant." },
-      { role: "user", content: "Explain this API in one paragraph." },
+      { role: "system", content: "You are concise." },
+      { role: "user", content: "Explain Cortex in one paragraph." },
     ],
     stream: false,
     newConversation: true,
@@ -355,29 +422,31 @@ const res = await fetch(`${baseUrl}/v1/chat/completions`, {
   }),
 });
 
-if (!res.ok) {
-  const err = await res.json();
-  throw new Error(err?.error?.message || "Request failed");
+if (!response.ok) {
+  const text = await response.text();
+  throw new Error(`Cortex error ${response.status}: ${text}`);
 }
 
-const data = await res.json();
-console.log(data.choices?.[0]?.message?.content || "");
+const data = await response.json();
+console.log(data.choices[0]?.message?.content ?? "");
 ```
 
-## Using OpenAI SDK compatible mode
+### OpenAI SDK
 
 ```js
 import OpenAI from "openai";
 
+const baseUrl = process.env.CORTEX_BASE_URL ?? "http://localhost:31339";
+
 const client = new OpenAI({
-  apiKey: "ctx_373762fcf6a1404ea7db393cce902498",
-  baseURL: "https://cortex.zohirrayhan.com/v1",
+  apiKey: process.env.CORTEX_API_KEY,
+  baseURL: `${baseUrl}/v1`,
 });
 
 const completion = await client.chat.completions.create({
   model: "web-chatgpt/gpt-5.4-pro",
   messages: [
-    { role: "system", content: "You are a concise assistant." },
+    { role: "system", content: "You are concise." },
     { role: "user", content: "Give me a one-line health summary." },
   ],
   stream: false,
@@ -385,22 +454,25 @@ const completion = await client.chat.completions.create({
   max_tokens: 120,
 });
 
-console.log(completion.choices[0]?.message?.content || "");
+console.log(completion.choices[0]?.message?.content ?? "");
 ```
 
-## 8. Python Integration
+## Python Examples
+
+### requests
 
 ```python
+import os
 import requests
 
-base_url = "https://cortex.zohirrayhan.com"
-api_key = "ctx_373762fcf6a1404ea7db393cce902498"
+base_url = os.environ.get("CORTEX_BASE_URL", "http://localhost:31339")
+api_key = os.environ["CORTEX_API_KEY"]
 
 payload = {
     "model": "web-grok/grok-expert",
     "messages": [
-        {"role": "system", "content": "You are a concise assistant."},
-        {"role": "user", "content": "Summarize your capabilities in one line."}
+        {"role": "system", "content": "You are concise."},
+        {"role": "user", "content": "Summarize Cortex in one line."},
     ],
     "stream": False,
     "newConversation": True,
@@ -410,127 +482,290 @@ payload = {
 
 r = requests.post(
     f"{base_url}/v1/chat/completions",
-    headers={
-        "Content-Type": "application/json",
-        "X-API-Key": api_key,
-    },
+    headers={"Content-Type": "application/json", "X-API-Key": api_key},
     json=payload,
     timeout=120,
 )
-
 r.raise_for_status()
 print(r.json()["choices"][0]["message"]["content"])
 ```
 
-### Python OpenAI SDK Compatible Mode (Correct for run.py)
-
-If you saw this error:
-
-```text
-SyntaxError: import OpenAI from "openai";
-```
-
-that means JavaScript code was pasted into Python.
-
-Use this Python code instead:
+### OpenAI SDK
 
 ```python
+import os
 from openai import OpenAI
 
+base_url = os.environ.get("CORTEX_BASE_URL", "http://localhost:31339")
+
 client = OpenAI(
-  api_key="ctx_373762fcf6a1404ea7db393cce902498",
-  base_url="https://cortex.zohirrayhan.com/v1",
+    api_key=os.environ["CORTEX_API_KEY"],
+    base_url=f"{base_url}/v1",
 )
 
 completion = client.chat.completions.create(
-  model="web-chatgpt/gpt-5.4-pro",
-  messages=[
-    {"role": "system", "content": "You are a concise assistant."},
-    {"role": "user", "content": "Say hello in one short sentence."},
-  ],
-  stream=False,
-  temperature=0.5,
-  max_tokens=120,
+    model="web-chatgpt/gpt-5.4-pro",
+    messages=[
+        {"role": "system", "content": "You are concise."},
+        {"role": "user", "content": "Say hello in one sentence."},
+    ],
+    stream=False,
+    temperature=0.5,
+    max_tokens=120,
 )
 
 print(completion.choices[0].message.content)
 ```
 
-Install dependency first:
+Install:
 
 ```bash
-pip install --upgrade openai
+pip install --upgrade openai requests
 ```
 
-## 9. Postman Setup
+## Postman
 
-A full Postman collection already exists in this repo:
-- cortex.postman_collection.json
+The repository includes:
 
-Collection variables (currently set):
-- baseUrl = https://cortex.zohirrayhan.com
-- apiKey = ctx_373762fcf6a1404ea7db393cce902498
-- defaultPrompt = Say hello in 5 words
-- defaultTemp = 0.7
-- defaultMaxTokens = 150
+```text
+cortex.postman_collection.json
+```
 
-How to use:
-1. Import cortex.postman_collection.json.
-2. Select any request under ChatGPT, Grok, or Gemini folders.
-3. Use Non-Streaming requests for regular JSON responses.
-4. Use Streaming requests to inspect SSE events.
-5. For admin requests, set adminUsername, adminPassword, and adminToken variables.
+Recommended collection variables:
 
-## 10. Admin and Operations API
+| Variable | Example |
+| --- | --- |
+| `baseUrl` | `http://localhost:31339` |
+| `apiKey` | `ctx_replace_me` |
+| `adminUsername` | `admin` |
+| `adminPassword` | `replace-me` |
+| `adminToken` | `eyJ_replace_me` |
+| `defaultPrompt` | `Say hello in 5 words` |
+| `defaultTemp` | `0.7` |
+| `defaultMaxTokens` | `150` |
 
-These endpoints are for system operators, not regular API consumers.
+Workflow:
 
-Admin auth flow:
-1. POST /api/auth/login with username/password.
-2. Receive JWT token in response.
-3. Send Authorization: Bearer <admin_jwt> for subsequent /api/* admin calls.
+1. Import the collection.
+2. Set `baseUrl`.
+3. Set `apiKey`.
+4. Run `GET /health`.
+5. Run `GET /v1/models`.
+6. Test non-streaming chat.
+7. Test streaming chat.
+8. Log in as admin and set `adminToken`.
+9. Use provider, account, logs, stats, and key-management requests.
 
-Important:
-- /v1/login/:provider and /v1/logout/:provider are intentionally blocked (403).
-- Browser provider login/logout is done via /api/providers/:provider/login and /api/providers/:provider/logout with admin JWT.
+## Admin API
 
-Core admin endpoints:
+Admin routes are for trusted operators.
+
+### Auth and Identity
 
 | Endpoint | Method | Purpose |
-|---|---|---|
-| /api/auth/login | POST | Admin login |
-| /api/auth/logout | POST | Admin logout |
-| /api/auth/me | GET | Current admin profile |
-| /api/providers/status | GET | Provider session health |
-| /api/providers/models | GET | Models plus provider status/usage |
-| /api/providers/:provider/login | POST | Trigger provider browser login |
-| /api/providers/:provider/logout | POST | Disconnect provider session |
-| /api/playground/chat | POST | Admin playground chat endpoint |
-| /api/logs | GET | Request logs with filtering |
-| /api/audit-logs | GET | Admin action audit logs |
-| /api/stats | GET | Dashboard metrics |
-| /api/admin/keys | GET/POST | List/create API keys |
-| /api/admin/keys/:id | PATCH/DELETE | Update/delete API key |
-| /api/admin/admins | GET/POST | List/create admin accounts |
-| /api/admin/admins/:id/role | PATCH | Update admin role |
-| /api/admin/admins/:id/password | PATCH | Update admin password |
-| /api/admin/admins/:id | DELETE | Delete admin |
-| /api/config | GET/POST | Read/update runtime config |
-| /api/logs/prune | POST | Delete old logs |
-| /api/health | GET | Admin API health |
+| --- | --- | --- |
+| `/api/auth/login` | `POST` | Admin login |
+| `/api/auth/logout` | `POST` | Admin logout audit |
+| `/api/auth/me` | `GET` | Current admin identity and permissions |
+| `/api/admin/permissions` | `GET` | Role permission map |
+| `/api/health` | `GET` | Admin API health |
 
-## 11. Errors and Status Codes
+### Admin Accounts
 
-| Status | Typical Cause | Example Error |
-|---|---|---|
-| 400 | Invalid JSON or bad request shape | Invalid JSON / model and messages required |
-| 401 | Missing or invalid API key | API key required / Invalid API key |
-| 403 | Disabled API key or forbidden route | API key is disabled / forbidden |
-| 404 | Unknown model or endpoint | Unknown model: <id> |
-| 429 | Daily or rate limit exceeded | Daily limit exceeded / Rate limit exceeded |
-| 503 | Provider not connected or provider-side failure | <provider> is not connected |
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/admin/admins` | `GET` | List admins |
+| `/api/admin/admins` | `POST` | Create admin |
+| `/api/admin/admins/:id/password` | `PATCH` | Change admin password |
+| `/api/admin/admins/:id/role` | `PATCH` | Change role |
+| `/api/admin/admins/:id` | `DELETE` | Delete admin |
 
-Public chat error response shape:
+### API Keys, Users, Requests
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/admin/keys` | `GET` | List API keys |
+| `/api/admin/keys` | `POST` | Create API key |
+| `/api/admin/keys/:id` | `PATCH` | Update key name, limits, active state |
+| `/api/admin/keys/:id` | `DELETE` | Delete API key |
+| `/api/admin/users` | `GET` | List users |
+| `/api/admin/users/:id` | `GET` | User detail |
+| `/api/admin/users/:id/status` | `PATCH` | Activate or suspend user |
+| `/api/admin/users/:id/password` | `PATCH` | Reset user password |
+| `/api/admin/users/:id/keys` | `POST` | Issue a key for one user |
+| `/api/admin/user-requests` | `GET` | List key requests |
+| `/api/admin/user-requests/:id/approve` | `POST` | Approve request |
+| `/api/admin/user-requests/:id/reject` | `POST` | Reject request |
+| `/api/admin/usage` | `GET` | Usage summary |
+
+### Providers, Logs, Config
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/providers/status` | `GET` | Provider session health |
+| `/api/providers/models` | `GET` | Models, usage, provider status, VNC metadata |
+| `/api/providers/:provider/login` | `POST` | Start provider browser login for non-pooled providers |
+| `/api/providers/:provider/logout` | `POST` | Logout provider |
+| `/api/providers/:provider/cooldown` | `GET` | Cooldown policy |
+| `/api/providers/:provider/cooldown` | `PATCH` | Update cooldown policy |
+| `/api/playground/chat` | `POST` | Admin playground chat |
+| `/api/logs` | `GET` | Request logs |
+| `/api/logs/prune` | `POST` | Delete old logs |
+| `/api/audit-logs` | `GET` | Audit events |
+| `/api/stats` | `GET` | Dashboard stats |
+| `/api/config` | `GET` | Runtime config |
+| `/api/config` | `POST` | Update runtime config |
+
+## ChatGPT Multi-Account API
+
+ChatGPT is currently the account-pooled provider. Each account can have a separate profile directory, browser context, health state, cooldown, priority, and noVNC display slot.
+
+### Why this exists
+
+The account pool lets operators:
+
+- keep multiple ChatGPT sessions available
+- recover one account without affecting the entire provider
+- cool down accounts that hit provider-side friction
+- route requests across healthy accounts
+- open the exact browser stream for one account
+
+### Account Endpoints
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/accounts?provider=chatgpt` | `GET` | List accounts |
+| `/api/accounts` | `POST` | Create account |
+| `/api/accounts/:id` | `PATCH` | Update label, enabled flag, notes, priority |
+| `/api/accounts/:id` | `DELETE` | Delete account and profile |
+| `/api/accounts/:id/login` | `POST` | Start login for one account |
+| `/api/accounts/:id/logout` | `POST` | Logout one account |
+| `/api/accounts/:id/check` | `POST` | Check session health |
+| `/api/accounts/:id/pages` | `GET` | List live pages |
+| `/api/accounts/:id/screenshot` | `GET` | Browser screenshot |
+| `/api/accounts/:id/reset-cooldown` | `POST` | Clear cooldown |
+| `/api/accounts/:id/force-cooldown` | `POST` | Force cooldown |
+| `/api/browsers` | `GET` | Browser dashboard feed |
+
+### Create Account
+
+```bash
+curl "$CORTEX_BASE_URL/api/accounts" \
+  -H "Authorization: Bearer $CORTEX_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "chatgpt",
+    "label": "team-primary",
+    "notes": "Primary ChatGPT account for team traffic"
+  }'
+```
+
+Response shape:
+
+```json
+{
+  "account": {
+    "id": "account-id",
+    "provider": "chatgpt",
+    "label": "team-primary",
+    "profileDir": "/home/node/.cortex/profiles/chatgpt-account-id",
+    "enabled": true,
+    "status": "unknown",
+    "cooldownUntil": null,
+    "inCooldown": false,
+    "cooldownSecondsRemaining": 0,
+    "lastUsedAt": null,
+    "lastError": null,
+    "errorCount24h": 0,
+    "priority": 100,
+    "displaySlot": 0,
+    "vncPath": "/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&path=novnc/d0/websockify",
+    "createdAt": "2026-01-01 00:00:00",
+    "createdBy": "admin-id",
+    "notes": "Primary ChatGPT account for team traffic"
+  }
+}
+```
+
+### Login One Account
+
+```bash
+curl "$CORTEX_BASE_URL/api/accounts/account-id/login" \
+  -H "Authorization: Bearer $CORTEX_ADMIN_TOKEN" \
+  -X POST
+```
+
+Open the returned account `vncPath` or the Accounts/Browsers page and complete provider login in that account browser.
+
+### Account Routing Rules
+
+For ChatGPT requests:
+
+1. Disabled accounts are skipped.
+2. Accounts in cooldown are skipped.
+3. Lower `priority` wins.
+4. Similar priority accounts rotate by least-recently-used behavior.
+5. If a provider-side account failure is detected, Cortex applies cooldown and tries another healthy account when possible.
+
+### Cooldowns
+
+Cooldown exists to keep a single unhealthy account from harming the whole pool.
+
+Typical reasons:
+
+- `rate_limited`
+- `unusual_activity`
+- `session_expired`
+
+Inspect policy:
+
+```bash
+curl "$CORTEX_BASE_URL/api/providers/chatgpt/cooldown" \
+  -H "Authorization: Bearer $CORTEX_ADMIN_TOKEN"
+```
+
+Clear one account:
+
+```bash
+curl "$CORTEX_BASE_URL/api/accounts/account-id/reset-cooldown" \
+  -H "Authorization: Bearer $CORTEX_ADMIN_TOKEN" \
+  -X POST
+```
+
+### noVNC and Display Slots
+
+Each slotted account has a path like:
+
+```text
+/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&path=novnc/d0/websockify
+```
+
+Notes:
+
+- the Browsers page uses per-account `vncPath`
+- `/api/providers/models` includes shared VNC metadata for the VNC page and Playground
+- shared VNC metadata prefers a connected account slot when available
+- if no connected slotted account exists, Cortex falls back to the shared VNC endpoint
+
+## User Self-Service API
+
+These routes support the user dashboard and user-owned API key requests.
+
+| Endpoint | Method | Auth | Purpose |
+| --- | --- | --- | --- |
+| `/api/user/register` | `POST` | none | Register user |
+| `/api/user/login` | `POST` | none | Login and receive user JWT |
+| `/api/user/me` | `GET` | user JWT | Current user |
+| `/api/user/logout` | `POST` | user JWT | Logout response |
+| `/api/user/keys` | `GET` | user JWT | List user keys |
+| `/api/user/keys/request` | `POST` | user JWT | Request API key |
+| `/api/user/keys/requests` | `GET` | user JWT | Request history |
+| `/api/user/usage` | `GET` | user JWT | Usage summary |
+| `/api/user/logs` | `GET` | user JWT | User-scoped logs |
+
+## Errors and Status Codes
+
+Public `/v1` errors use an OpenAI-like shape:
 
 ```json
 {
@@ -541,47 +776,96 @@ Public chat error response shape:
 }
 ```
 
-## 12. Limit and Quota Behavior
+Admin/user routes usually use:
+
+```json
+{
+  "error": "Authentication required",
+  "code": "AUTH_REQUIRED"
+}
+```
+
+Common statuses:
+
+| Status | Meaning | Typical Fix |
+| --- | --- | --- |
+| `400` | Invalid body or parameter | Check JSON and required fields |
+| `401` | Missing/invalid key or token | Send correct auth |
+| `403` | Disabled key, missing permission, forbidden route | Use active key or admin route |
+| `404` | Unknown endpoint, model, account, user | Refresh IDs/catalog |
+| `409` | Conflict such as duplicate account label | Use a unique value |
+| `429` | Daily limit or rate limit exceeded | Back off or change quota |
+| `503` | Provider unavailable or disconnected | Reconnect provider/account |
+
+## Quotas and Logging
 
 API keys are checked in this order:
-1. Key exists
-2. Key is active
-3. Daily usage has not reached daily_limit
-4. Requests in last minute are below rate_limit_per_min
 
-If any check fails, request is denied immediately.
+1. Key exists.
+2. Key is active.
+3. Daily usage is below `daily_limit`.
+4. Requests in the last minute are below `rate_limit_per_min`.
 
-## 13. Logging and Observability
+Request logs can include:
 
-Every request is logged with:
-- Provider and model
-- API key identity (if applicable)
-- HTTP status and response time
-- Prompt/completion/total token counts
-- Request payload JSON snapshot
-- Response payload JSON snapshot
-- Error message, IP, and user-agent
+- provider
+- model
+- API key identity
+- HTTP status
+- response time
+- token estimates
+- request payload snapshot
+- response payload snapshot
+- error message
+- IP address
+- user agent
+- ChatGPT account ID and label when account routing is used
 
-Use these endpoints to inspect:
-- GET /api/logs
-- GET /api/stats
-- GET /api/admin/usage
+Useful admin routes:
 
-## 14. Best Practices for Reliable Use
+- `GET /api/logs`
+- `GET /api/stats`
+- `GET /api/audit-logs`
+- `GET /api/admin/usage`
 
-1. Call GET /v1/models at startup and cache model IDs.
-2. Always send one clear system message first when you need strict behavior.
-3. Use newConversation=true for clean independent tasks.
-4. Use newConversation=false only when you intentionally want context carryover.
-5. Set request timeouts on client side (especially streaming).
-6. Handle 429 with retry/backoff.
-7. Handle 503 by checking provider connection state via /v1/status or admin routes.
-8. Never expose API keys in browser frontend code for public apps.
+## Reliability Playbook
 
-## 15. Security Note Before Sharing This File
+Client-side:
 
-This guide currently contains an active API key value for convenience.
-If you share this file outside trusted users:
-1. Rotate/revoke the key first.
-2. Replace the key value with a placeholder.
-3. Issue per-user keys with daily and per-minute limits.
+- call `/v1/models` at startup
+- set client timeouts
+- use `newConversation: true` for isolated work
+- retry `429` with backoff
+- do not retry `400`, `401`, or `403` blindly
+- treat `503` as a provider/session health problem
+- consume streaming responses until `[DONE]`
+
+Operator-side:
+
+- keep `~/.cortex` persisted
+- monitor `/v1/status`
+- monitor request logs and audit logs
+- keep provider sessions connected
+- use the Browsers page for per-account visual checks
+- cool down or disable unhealthy ChatGPT accounts
+
+Production proxy notes:
+
+- disable buffering for SSE
+- allow long-running requests
+- protect `/admin`, `/api`, and `/novnc`
+- use HTTPS in front of the stack
+
+## Security Checklist
+
+- Do not commit real API keys.
+- Rotate any key that appeared in docs, logs, screenshots, terminal history, or chat.
+- Keep `CORTEX_REQUIRE_API_KEY` enabled unless you are intentionally running a private dev instance.
+- Set `CORTEX_ADMIN_PASSWORD` before first boot.
+- Set `CORTEX_ADMIN_JWT_SECRET`.
+- Issue separate API keys per app, user, or team.
+- Set daily and per-minute quotas.
+- Restrict admin routes to trusted operators.
+- Treat noVNC as privileged browser access.
+- Remember logs may contain prompts and responses.
+
