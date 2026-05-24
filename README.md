@@ -353,7 +353,7 @@ These are currently instantiated in [src/registry.ts](/D:/Jihan/cortex/src/regis
 | --- | --- | --- |
 | `grok` | Active | Browser session |
 | `gemini` | Active | Browser session |
-| `chatgpt` | Active | Browser session |
+| `chatgpt` | Active | Multi-account browser pool |
 
 ### Present in Code But Not Registered
 
@@ -388,6 +388,35 @@ These are currently instantiated in [src/registry.ts](/D:/Jihan/cortex/src/regis
 - `web-chatgpt/o3`
 
 Always treat `GET /v1/models` as the source of truth for a running instance.
+
+### ChatGPT Multi-Account Pool
+
+ChatGPT is the only provider currently wired for account pooling. Instead of a single shared `chatgpt-profile`, the runtime can manage multiple ChatGPT accounts, each with its own persistent browser profile, health state, cooldown state, and dedicated noVNC display slot.
+
+What this enables:
+
+- multiple ChatGPT sessions can exist side by side
+- each account has its own profile directory and browser context
+- unhealthy accounts can be cooled down without disabling the whole provider
+- requests rotate through healthy enabled accounts
+- admins can pin, inspect, login, logout, and recover individual accounts
+- the Browsers page can show each account through its own per-slot noVNC stream
+
+Selection behavior:
+
+1. Disabled accounts are skipped.
+2. Accounts in cooldown are skipped until the cooldown expires.
+3. Lower `priority` values are preferred.
+4. Among equivalent accounts, routing favors least-recently-used healthy accounts.
+5. If a provider-side account failure is detected, Cortex applies the configured cooldown and tries another healthy account when possible.
+
+Each account includes a `vncPath` like:
+
+```text
+/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&path=novnc/d0/websockify
+```
+
+That path targets the account's dedicated display slot. The shared VNC metadata used by the VNC page and Playground now prefers a connected ChatGPT account slot when one is available, while the Browsers page continues to use each account's own `vncPath`.
 
 ---
 
@@ -726,9 +755,16 @@ The authenticated operator API lives under `/api/*` and is implemented in [src/a
 | `/api/auth/me` | `GET` | Current admin identity and permissions |
 | `/api/admin/permissions` | `GET` | Effective permissions |
 | `/api/providers/status` | `GET` | Provider session health |
-| `/api/providers/models` | `GET` | Models plus usage and status |
+| `/api/providers/models` | `GET` | Models plus usage, status, and shared VNC metadata |
 | `/api/providers/:provider/login` | `POST` | Start provider browser login |
 | `/api/providers/:provider/logout` | `POST` | Disconnect provider |
+| `/api/accounts` | `GET`, `POST` | List or create ChatGPT pool accounts |
+| `/api/accounts/:id/login` | `POST` | Start login for one ChatGPT account |
+| `/api/accounts/:id/logout` | `POST` | Logout one ChatGPT account |
+| `/api/accounts/:id/check` | `POST` | Check one ChatGPT account session |
+| `/api/accounts/:id/pages` | `GET` | List live pages for one ChatGPT account |
+| `/api/accounts/:id/screenshot` | `GET` | Capture one ChatGPT account browser screenshot |
+| `/api/browsers` | `GET` | Browser dashboard feed for account VNC streams |
 | `/api/playground/chat` | `POST` | Admin chat playground |
 | `/api/admin/keys` | `GET`, `POST` | List or create API keys |
 | `/api/logs` | `GET` | Request logs |
@@ -869,7 +905,8 @@ Typical runtime layout:
 ├── profiles/
 │   ├── grok-profile/
 │   ├── gemini-profile/
-│   └── chatgpt-profile/
+│   ├── chatgpt-profile/
+│   └── chatgpt-<account-id>/
 ├── grok-expiry.json
 ├── gemini-expiry.json
 └── chatgpt-expiry.json
