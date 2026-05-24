@@ -1125,12 +1125,31 @@ export class AdminApi {
     const host = hostHeader.split(':')[0] || 'localhost';
     const portMatch = hostHeader.match(/:(\d+)$/);
     const path = '/novnc/vnc.html';
+    const accounts = this.store.listProviderAccounts()
+      .filter(account => (
+        account.enabled === 1
+        && account.display_slot !== null
+        && account.display_slot !== undefined
+        && account.status === 'connected'
+      ))
+      .sort((a, b) => {
+        const priority = (a.priority ?? 100) - (b.priority ?? 100);
+        if (priority !== 0) return priority;
+        const aLastUsed = a.last_used_at ? Date.parse(a.last_used_at) : 0;
+        const bLastUsed = b.last_used_at ? Date.parse(b.last_used_at) : 0;
+        return bLastUsed - aLastUsed;
+      });
+    const account = accounts[0];
+    const websocketPath = account
+      ? `novnc/d${account.display_slot}/websockify`
+      : 'websockify';
+
     return {
       enabled: true,
       host,
       port: portMatch ? Number(portMatch[1]) : this.cfg.port,
       path,
-      url: `${path}?autoconnect=1&resize=scale&reconnect=1&path=websockify`,
+      url: `${path}?autoconnect=1&resize=scale&reconnect=1&path=${websocketPath}`,
     };
   }
 
