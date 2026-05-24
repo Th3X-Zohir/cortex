@@ -31,13 +31,13 @@ Cortex presents a clean API boundary to clients and keeps provider browser autom
 
 ```mermaid
 flowchart LR
-    A[Apps, SDKs, scripts] --> B[/v1 OpenAI-compatible API]
-    B --> C[API key validation]
-    C --> D[Provider registry]
-    D --> E[Browser-backed providers]
-    F[Admin UI and /api routes] --> C
+    A["Apps, SDKs, scripts"] --> B["/v1 OpenAI-compatible API"]
+    B --> C["API key validation"]
+    C --> D["Provider registry"]
+    D --> E["Browser-backed providers"]
+    F["Admin UI and /api routes"] --> C
     F --> D
-    F --> G[SQLite logs, keys, users, audits]
+    F --> G["SQLite logs, keys, users, audits"]
 ```
 
 Core idea:
@@ -868,4 +868,3 @@ Production proxy notes:
 - Restrict admin routes to trusted operators.
 - Treat noVNC as privileged browser access.
 - Remember logs may contain prompts and responses.
-
