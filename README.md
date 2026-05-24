@@ -290,6 +290,53 @@ For this type of infrastructure, transparency is a feature.
 
 ---
 
+## Open Source Readiness
+
+If you are evaluating `cortex` as an open-source project, start here.
+
+### What is ready to use
+
+- Docker-based local/self-hosted deployment
+- OpenAI-compatible chat completions for the active registry providers
+- admin login, admin roles, API key issuance, quotas, logs, stats, and audit data
+- browser-backed provider login through the admin surface
+- ChatGPT multi-account pooling with per-account browser profiles and noVNC streams
+- public API documentation in [API_USAGE_GUIDE.md](/D:/Jihan/cortex/API_USAGE_GUIDE.md)
+
+### What to understand before deploying
+
+- `cortex` is a stateful service, not a serverless function.
+- Persistent storage is required for provider profiles, admin data, API keys, and logs.
+- Provider web UIs can change, expire sessions, or trigger manual recovery flows.
+- Public `/v1` routes require API keys by default; keep that enabled for any shared deployment.
+- noVNC/browser access should be treated as privileged operator access.
+- Logs may contain prompts, responses, IP addresses, user agents, and request metadata.
+
+### Good first issues and contributions
+
+Good contributions are usually focused and easy to validate:
+
+- provider adapter fixes when an upstream UI changes
+- admin UI polish that preserves existing workflows
+- tests around account routing, quotas, logs, and auth behavior
+- documentation improvements that match the current registered runtime
+- deployment examples for stateful hosts such as VPS, Docker Compose, or Kubernetes
+
+Please avoid advertising providers or features as supported unless they are registered, tested, and visible from `/v1/models`.
+
+### Before publishing a public instance
+
+- change the bootstrap admin password
+- set `CORTEX_ADMIN_JWT_SECRET`
+- keep `CORTEX_REQUIRE_API_KEY` enabled
+- issue separate API keys per user/app/team
+- put HTTPS in front of the service
+- restrict `/admin`, `/api`, and `/novnc` to trusted operators where possible
+- persist `~/.cortex`
+- review log retention and data handling expectations
+
+---
+
 ## Feature Matrix
 
 | Capability | Status | Notes |
