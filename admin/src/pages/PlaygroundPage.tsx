@@ -58,7 +58,9 @@ export function PlaygroundPage() {
     try {
       const next = await api.providers.models()
       setCatalog(next)
-      setModel(current => current || next.models[0]?.id || '')
+      // Default to a ChatGPT model; only fall back if none are registered.
+      const chatgptDefault = next.models.find(m => m.provider === 'chatgpt')?.id
+      setModel(current => current || chatgptDefault || next.models[0]?.id || '')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load models')
     } finally {
@@ -248,9 +250,16 @@ export function PlaygroundPage() {
               <div>
                 <label className="ui-label">Model</label>
                 <select className="ui-input" value={model} onChange={event => setModel(event.target.value)}>
-                  {catalog?.models.map(item => (
-                    <option key={item.id} value={item.id}>{item.displayName} ({item.id})</option>
-                  ))}
+                  {(() => {
+                    const models = catalog?.models ?? []
+                    // ChatGPT first, then everything else in original order.
+                    const order = (p: string) => p === 'chatgpt' ? 0 : 1
+                    return [...models]
+                      .sort((a, b) => order(a.provider) - order(b.provider))
+                      .map(item => (
+                        <option key={item.id} value={item.id}>{item.displayName} ({item.id})</option>
+                      ))
+                  })()}
                 </select>
               </div>
 

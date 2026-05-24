@@ -38,8 +38,8 @@ export class BridgeServer {
 
   constructor(cfg: BridgeConfig, store?: AdminStore) {
     this._cfg = cfg;
-    this._registry = new ProviderRegistry(cfg);
     this._adminStore = store ?? new AdminStore(cfg.admin.dbPath);
+    this._registry = new ProviderRegistry(cfg, this._adminStore);
     this._adminApi = new AdminApi(this._adminStore, this._registry, cfg);
   }
 
@@ -240,6 +240,16 @@ export class BridgeServer {
       providerName = activeProvider.name;
       modelName = activeModel;
 
+      // X-Cortex-Account: <label> — admin/client may pin the request to a
+      // specific account on a pooled provider (chatgpt). Empty header is ignored.
+      const pinnedAccountLabel = ((): string | undefined => {
+        const raw = req.headers['x-cortex-account'];
+        const val = Array.isArray(raw) ? raw[0] : raw;
+        const trimmed = typeof val === 'string' ? val.trim() : '';
+        return trimmed ? trimmed : undefined;
+      })();
+      const runCtx: import('./types.js').ChatRunContext = { pinnedAccountLabel };
+
       const connected = await activeProvider.ensureConnected();
       if (!connected) {
         if (isChatGptRequest) {
@@ -280,7 +290,7 @@ export class BridgeServer {
         let usageForLog: TokenUsage = this._estimateTokenUsage(reqData, '');
         let responsePayloadForLog: unknown = null;
         try {
-          for await (const chunk of activeProvider.chatStream({ model: activeModel, messages, temperature, max_tokens, newConversation })) {
+          for await (const chunk of activeProvider.chatStream({ model: activeModel, messages, temperature, max_tokens, newConversation }, runCtx)) {
             chunks.push(chunk);
             const meta = 'currentMeta' in activeProvider ? (activeProvider as any).currentMeta : undefined;
             const data = JSON.stringify({
@@ -327,7 +337,7 @@ export class BridgeServer {
               logger.warn(`[fallback] chatgpt streaming failed, rerouting to ${providerName}/${modelName}: ${streamError}`);
 
               try {
-                for await (const chunk of activeProvider.chatStream({ model: activeModel, messages, temperature, max_tokens, newConversation })) {
+                for await (const chunk of activeProvider.chatStream({ model: activeModel, messages, temperature, max_tokens, newConversation }, runCtx)) {
                   chunks.push(chunk);
                   const meta = 'currentMeta' in activeProvider ? (activeProvider as any).currentMeta : undefined;
                   const data = JSON.stringify({
@@ -400,6 +410,7 @@ export class BridgeServer {
             usageForLog,
             reqData,
             responsePayloadForLog,
+            runCtx,
           );
         }
       } else {
@@ -409,7 +420,7 @@ export class BridgeServer {
         // Keep the same API request alive while rerouting failed ChatGPT attempts to random Gemini/Grok providers.
         for (let attempt = 0; attempt < 4; attempt += 1) {
           try {
-            const content = await activeProvider.chat({ model: activeModel, messages, temperature, max_tokens, newConversation });
+            const content = await activeProvider.chat({ model: activeModel, messages, temperature, max_tokens, newConversation }, runCtx);
 
             if (this._isProviderBlockerContent(content)) {
               throw new Error(`${activeProvider.name} returned platform blocker content`);
@@ -428,7 +439,7 @@ export class BridgeServer {
               usage,
             };
             json(res, 200, responsePayload);
-            this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 200, startedAt, null, req, usage, reqData, responsePayload);
+            this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 200, startedAt, null, req, usage, reqData, responsePayload, runCtx);
             return;
           } catch (err) {
             lastError = (err as Error).message;
@@ -453,7 +464,7 @@ export class BridgeServer {
           : lastError || 'Provider request failed';
         const errorPayload = { error: { message, type: 'provider_error' } };
         json(res, 503, errorPayload);
-        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 503, startedAt, message, req, usage, reqData, errorPayload);
+        this._logApiRequest(auth, providerName, modelName, messagesCount, streamRequest, 503, startedAt, message, req, usage, reqData, errorPayload, runCtx);
       }
       return;
     }
@@ -595,6 +606,7 @@ export class BridgeServer {
     usage: TokenUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
     requestPayload?: unknown,
     responsePayload?: unknown,
+    runCtx?: import('./types.js').ChatRunContext,
   ): void {
     try {
       this._adminStore.logRequest({
@@ -615,6 +627,8 @@ export class BridgeServer {
         user_agent: getUserAgent(req),
         request_payload: safeJsonStringify(requestPayload),
         response_payload: safeJsonStringify(responsePayload),
+        account_id: runCtx?.accountId ?? null,
+        account_label: runCtx?.accountLabel ?? null,
       });
     } catch (err) {
       logger.debug(`Failed to log request: ${(err as Error).message}`);

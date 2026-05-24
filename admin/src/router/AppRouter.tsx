@@ -8,6 +8,7 @@ import { AccessPage } from "~/pages/AccessPage"
 import { LimitsPage } from "~/pages/LimitsPage"
 import { LogsPage } from "~/pages/LogsPage"
 import { ProvidersPage } from "~/pages/ProvidersPage"
+import { AccountsPage } from "~/pages/AccountsPage"
 import { PlaygroundPage } from "~/pages/PlaygroundPage"
 import { VncPage } from "~/pages/VncPage"
 import { DocsPage } from "~/pages/DocsPage"
@@ -56,6 +57,7 @@ export function AppRouter({ admin }: { admin: Admin | null }) {
             <Route path="/limits" element={<LimitsPage />} />
             <Route path="/logs" element={<LogsPage />} />
             <Route path="/providers" element={<ProvidersPage />} />
+            <Route path="/accounts" element={<AccountsPage />} />
             <Route path="/playground" element={<PlaygroundPage />} />
             <Route path="/vnc" element={<VncPage />} />
             <Route path="/docs" element={<DocsPage />} />

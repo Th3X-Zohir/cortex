@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom"
 import {
   BarChart3, KeyRound, Gauge, Activity, Cpu, TerminalSquare,
-  Monitor, BookOpen, Users, Settings, LogOut
+  Monitor, BookOpen, Users, Settings, LogOut, UsersRound
 } from "lucide-react"
 import { cn } from "~/lib/utils"
 
@@ -18,6 +18,7 @@ const navItems = [
   { to: "/limits", icon: Gauge, label: "Daily Limits" },
   { to: "/logs", icon: Activity, label: "Logs" },
   { to: "/providers", icon: Cpu, label: "Model Control" },
+  { to: "/accounts", icon: UsersRound, label: "Account Router" },
   { to: "/playground", icon: TerminalSquare, label: "API Playground" },
   { to: "/vnc", icon: Monitor, label: "VNC Viewer" },
   { to: "/docs", icon: BookOpen, label: "API Docs" },

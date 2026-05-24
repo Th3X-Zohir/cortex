@@ -1,12 +1,30 @@
-import type { BridgeConfig, ChatRequest, ModelDefinition } from '../types.js';
+import type { BridgeConfig, ChatRequest, ChatRunContext, ModelDefinition, ProviderAccountRecord, AccountFailureReason } from '../types.js';
 import { BaseProvider } from './base.js';
+import { ProviderAccount } from './account.js';
+import { AccountFailureError, isAccountFailure } from './errors.js';
+import { pickHealthyAccount, isInCooldown, cooldownForReason } from './pool-policy.js';
 import { logger } from '../logger.js';
 import { buildUserMessage, logPromptComposition } from './grok.js';
+import { existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import type { AdminStore } from '../admin/store.js';
+
+const CHATGPT_LOGIN_URL = 'https://chatgpt.com';
+const CHATGPT_VERIFY_SELECTOR = '#prompt-textarea, [contenteditable="true"]';
+
+export type AccountActivityKind = 'idle' | 'chat' | 'login' | 'restoring' | 'logged_out';
+export interface AccountActivity {
+  kind: AccountActivityKind;
+  /** Model id (for chat) or other detail. */
+  detail?: string;
+  /** ms epoch when this activity began. */
+  startedAt: number;
+}
 
 export class ChatGPTProvider extends BaseProvider {
   readonly name = 'chatgpt' as const;
-  readonly loginUrl = 'https://chatgpt.com';
-  readonly verifySelector = '#prompt-textarea, [contenteditable="true"]';
+  readonly loginUrl = CHATGPT_LOGIN_URL;
+  readonly verifySelector = CHATGPT_VERIFY_SELECTOR;
 
   readonly models: ModelDefinition[] = [
     { id: 'web-chatgpt/gpt-5.4-pro',       provider: 'chatgpt', displayName: 'GPT-5.4 Pro',       owned_by: 'openai' },
@@ -16,12 +34,339 @@ export class ChatGPTProvider extends BaseProvider {
     { id: 'web-chatgpt/o3',                provider: 'chatgpt', displayName: 'o3',                 owned_by: 'openai' },
   ];
 
-  constructor(cfg: BridgeConfig) { super(cfg); }
+  private readonly _store: AdminStore | null;
+  private _accounts: Map<string, ProviderAccount> = new Map();
+  private _accountListLoaded = false;
 
-  async chat(req: ChatRequest): Promise<string> {
-    if (!this._ctx) throw new Error('ChatGPT: not connected. Run login first.');
+  /** Per-account current activity — surfaced via /api/browsers for the dashboard. */
+  private _activity: Map<string, AccountActivity> = new Map();
 
-    const page = await this._createIsolatedRequestPage();
+  constructor(cfg: BridgeConfig, store: AdminStore | null = null) {
+    super(cfg);
+    this._store = store;
+    if (store) this._syncAccountsFromStore();
+  }
+
+  // ── Account pool management ────────────────────────────────────────────────
+
+  /**
+   * Reload accounts from DB. Auto-imports a legacy single-profile setup as
+   * a 'default' account on first run if no accounts exist yet for this provider.
+   * Safe to call multiple times — preserves existing in-memory ProviderAccount
+   * instances when their underlying record hasn't changed.
+   */
+  syncAccountsFromStore(): void { this._syncAccountsFromStore(); }
+  private _syncAccountsFromStore(): void {
+    if (!this._store) return;
+    this._maybeAutoImportLegacyProfile();
+    const rows = this._store.listProviderAccounts(this.name);
+    const seen = new Set<string>();
+    for (const row of rows) {
+      seen.add(row.id);
+      const existing = this._accounts.get(row.id);
+      if (existing) {
+        (existing.record as ProviderAccountRecord).label = row.label;
+        (existing.record as ProviderAccountRecord).enabled = row.enabled;
+        (existing.record as ProviderAccountRecord).status = row.status;
+        (existing.record as ProviderAccountRecord).cooldown_until = row.cooldown_until;
+        (existing.record as ProviderAccountRecord).last_used_at = row.last_used_at;
+        (existing.record as ProviderAccountRecord).last_error = row.last_error;
+        (existing.record as ProviderAccountRecord).error_count_24h = row.error_count_24h;
+        (existing.record as ProviderAccountRecord).notes = row.notes;
+        continue;
+      }
+      this._accounts.set(row.id, new ProviderAccount({
+        record: row,
+        loginUrl: CHATGPT_LOGIN_URL,
+        verifySelector: CHATGPT_VERIFY_SELECTOR,
+      }));
+    }
+    // Dispose any accounts that have been removed from DB.
+    for (const [id, account] of this._accounts) {
+      if (!seen.has(id)) {
+        account.logout().catch(() => {});
+        this._accounts.delete(id);
+      }
+    }
+    this._accountListLoaded = true;
+  }
+
+  /** Auto-import the legacy ~/.cortex/profiles/chatgpt-profile dir as account 'default'. */
+  private _maybeAutoImportLegacyProfile(): void {
+    if (!this._store) return;
+    const existing = this._store.listProviderAccounts(this.name);
+    if (existing.length > 0) return;
+    const legacy = join(this._cfg.profileBaseDir, `${this.name}-profile`);
+    if (!existsSync(legacy)) return;
+    try {
+      this._store.createProviderAccount({
+        provider: this.name,
+        label: 'default',
+        profile_dir: legacy,
+        created_by: null,
+        notes: 'auto-imported from legacy single-profile setup',
+      });
+      logger.info(`[chatgpt] auto-imported legacy profile at ${legacy} as account 'default'`);
+    } catch (err) {
+      logger.warn(`[chatgpt] legacy auto-import failed: ${(err as Error).message}`);
+    }
+  }
+
+  get accountList(): ProviderAccount[] { return [...this._accounts.values()]; }
+
+  getAccount(id: string): ProviderAccount | undefined { return this._accounts.get(id); }
+
+  /** Read-only view of an account's current activity. */
+  getActivity(accountId: string): AccountActivity {
+    return this._activity.get(accountId) ?? { kind: 'idle', startedAt: 0 };
+  }
+
+  private _setActivity(accountId: string, kind: AccountActivityKind, detail?: string): void {
+    this._activity.set(accountId, { kind, detail, startedAt: Date.now() });
+  }
+
+  /**
+   * Allocate a new profile directory under profileBaseDir for a freshly-created
+   * account. Caller persists the row into DB with this path.
+   */
+  defaultProfileDirForId(accountId: string): string {
+    const dir = join(this._cfg.profileBaseDir, `${this.name}-${accountId}`);
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  private _pickHealthyAccount(excludeIds: Set<string>): ProviderAccount | null {
+    const result = pickHealthyAccount(this.accountList.map(a => a.record), excludeIds);
+    if (!result.chosen) return null;
+    return this._accounts.get(result.chosen.id) ?? null;
+  }
+
+  private _applyCooldown(account: ProviderAccount, reason: AccountFailureReason, message: string): void {
+    if (!this._store) return;
+    const cfg = this._store.getCooldownConfig(this.name);
+    const { until, status } = cooldownForReason(reason, cfg);
+    this._store.setProviderAccountCooldown(account.id, until, reason, status);
+    (account.record as ProviderAccountRecord).cooldown_until = until ? until.toISOString() : null;
+    (account.record as ProviderAccountRecord).status = status;
+    (account.record as ProviderAccountRecord).last_error = message;
+    logger.warn(`[chatgpt] account '${account.label}' cooldown applied (reason=${reason}, until=${until?.toISOString() ?? 'n/a'})`);
+  }
+
+  /**
+   * Pick an account (or honor a pinned-account hint from runCtx), ensure
+   * connected, run fn, populate runCtx with the chosen account. On
+   * AccountFailureError, apply cooldown and rotate. If the caller pinned an
+   * account, no rotation occurs — the failure is surfaced to the client.
+   */
+  private async _withAccount<T>(
+    runCtx: ChatRunContext | undefined,
+    fn: (account: ProviderAccount) => Promise<T>,
+  ): Promise<T> {
+    if (this._accountListLoaded === false) this._syncAccountsFromStore();
+
+    // Pinned-account fast path: caller forced a specific account by label.
+    const pinned = runCtx?.pinnedAccountLabel?.trim();
+    if (pinned) {
+      const account = this._findAccountByLabel(pinned);
+      if (!account) throw new Error(`ChatGPT: no account with label '${pinned}'`);
+      if (account.record.enabled !== 1) throw new Error(`ChatGPT: pinned account '${pinned}' is disabled`);
+      if (account.record.cooldown_until && Date.parse(account.record.cooldown_until) > Date.now()) {
+        throw new Error(`ChatGPT: pinned account '${pinned}' is in cooldown until ${account.record.cooldown_until}`);
+      }
+      if (runCtx) { runCtx.accountId = account.id; runCtx.accountLabel = account.label; }
+      const ok = await account.ensureConnected().catch(() => false);
+      if (!ok) throw new Error(`ChatGPT: pinned account '${pinned}' could not be restored`);
+      this._store?.markProviderAccountUsed(account.id);
+      (account.record as ProviderAccountRecord).last_used_at = new Date().toISOString();
+      try {
+        const result = await fn(account);
+        this._store?.setProviderAccountStatus(account.id, 'connected', null);
+        return result;
+      } catch (err) {
+        if (isAccountFailure(err)) {
+          this._applyCooldown(account, err.reason, err.providerMessage);
+        }
+        throw err;
+      }
+    }
+
+    // LRU rotation path
+    const tried = new Set<string>();
+    const failures: { label: string; reason: string; message: string }[] = [];
+    while (true) {
+      const account = this._pickHealthyAccount(tried);
+      if (!account) {
+        const detail = failures.length
+          ? ' Failures: ' + failures.map(f => `${f.label}(${f.reason})`).join(', ')
+          : '';
+        throw new Error(`ChatGPT: no healthy accounts available.${detail}`);
+      }
+      tried.add(account.id);
+      if (runCtx) { runCtx.accountId = account.id; runCtx.accountLabel = account.label; }
+      const ok = await account.ensureConnected().catch(() => false);
+      if (!ok) {
+        this._applyCooldown(account, 'session_expired', 'restoreSession failed');
+        failures.push({ label: account.label, reason: 'session_expired', message: 'restoreSession failed' });
+        continue;
+      }
+      this._store?.markProviderAccountUsed(account.id);
+      (account.record as ProviderAccountRecord).last_used_at = new Date().toISOString();
+      try {
+        const result = await fn(account);
+        this._store?.setProviderAccountStatus(account.id, 'connected', null);
+        return result;
+      } catch (err) {
+        if (isAccountFailure(err)) {
+          this._applyCooldown(account, err.reason, err.providerMessage);
+          failures.push({ label: account.label, reason: err.reason, message: err.providerMessage });
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
+  /** Streaming variant — same rotation logic but yields chunks. */
+  private async *_withAccountStream(
+    runCtx: ChatRunContext | undefined,
+    fn: (account: ProviderAccount) => AsyncGenerator<string>,
+  ): AsyncGenerator<string> {
+    if (this._accountListLoaded === false) this._syncAccountsFromStore();
+
+    const pinned = runCtx?.pinnedAccountLabel?.trim();
+    if (pinned) {
+      const account = this._findAccountByLabel(pinned);
+      if (!account) throw new Error(`ChatGPT: no account with label '${pinned}'`);
+      if (account.record.enabled !== 1) throw new Error(`ChatGPT: pinned account '${pinned}' is disabled`);
+      if (account.record.cooldown_until && Date.parse(account.record.cooldown_until) > Date.now()) {
+        throw new Error(`ChatGPT: pinned account '${pinned}' is in cooldown until ${account.record.cooldown_until}`);
+      }
+      if (runCtx) { runCtx.accountId = account.id; runCtx.accountLabel = account.label; }
+      const ok = await account.ensureConnected().catch(() => false);
+      if (!ok) throw new Error(`ChatGPT: pinned account '${pinned}' could not be restored`);
+      this._store?.markProviderAccountUsed(account.id);
+      (account.record as ProviderAccountRecord).last_used_at = new Date().toISOString();
+      try {
+        for await (const chunk of fn(account)) yield chunk;
+        this._store?.setProviderAccountStatus(account.id, 'connected', null);
+        return;
+      } catch (err) {
+        if (isAccountFailure(err)) this._applyCooldown(account, err.reason, err.providerMessage);
+        throw err;
+      }
+    }
+
+    const tried = new Set<string>();
+    const failures: { label: string; reason: string; message: string }[] = [];
+    while (true) {
+      const account = this._pickHealthyAccount(tried);
+      if (!account) {
+        const detail = failures.length
+          ? ' Failures: ' + failures.map(f => `${f.label}(${f.reason})`).join(', ')
+          : '';
+        throw new Error(`ChatGPT: no healthy accounts available.${detail}`);
+      }
+      tried.add(account.id);
+      if (runCtx) { runCtx.accountId = account.id; runCtx.accountLabel = account.label; }
+      const ok = await account.ensureConnected().catch(() => false);
+      if (!ok) {
+        this._applyCooldown(account, 'session_expired', 'restoreSession failed');
+        failures.push({ label: account.label, reason: 'session_expired', message: 'restoreSession failed' });
+        continue;
+      }
+      this._store?.markProviderAccountUsed(account.id);
+      (account.record as ProviderAccountRecord).last_used_at = new Date().toISOString();
+      try {
+        for await (const chunk of fn(account)) yield chunk;
+        this._store?.setProviderAccountStatus(account.id, 'connected', null);
+        return;
+      } catch (err) {
+        if (isAccountFailure(err)) {
+          this._applyCooldown(account, err.reason, err.providerMessage);
+          failures.push({ label: account.label, reason: err.reason, message: err.providerMessage });
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
+  // ── ProviderAdapter overrides (pool-aware) ────────────────────────────────
+
+  override get hasProfile(): boolean {
+    if (this._accountListLoaded === false) this._syncAccountsFromStore();
+    return this.accountList.some(a => a.hasProfile);
+  }
+
+  override async checkSession(): Promise<boolean> {
+    for (const a of this.accountList) if (await a.checkSession()) return true;
+    return false;
+  }
+
+  override async ensureConnected(): Promise<boolean> {
+    for (const a of this.accountList) {
+      if (await a.ensureConnected()) return true;
+    }
+    return false;
+  }
+
+  override async restoreSession(): Promise<boolean> {
+    if (this._accountListLoaded === false) this._syncAccountsFromStore();
+    const accounts = this.accountList;
+    if (accounts.length === 0) return false;
+    accounts.forEach(a => this._setActivity(a.id, 'restoring'));
+    const results = await Promise.all(accounts.map(a => a.restoreSession().catch(() => false)));
+    accounts.forEach((a, i) => {
+      const status = results[i] ? 'connected' : 'logged_out';
+      this._store?.setProviderAccountStatus(a.id, status, null);
+      (a.record as ProviderAccountRecord).status = status;
+      this._setActivity(a.id, results[i] ? 'idle' : 'logged_out');
+    });
+    return results.some(Boolean);
+  }
+
+  override async login(_onReady: (loginUrl: string) => void): Promise<void> {
+    throw new Error('ChatGPT login is per-account — use the admin UI (/admin/accounts/:id/login).');
+  }
+
+  override async logout(): Promise<void> {
+    await Promise.all(this.accountList.map(a => a.logout().catch(() => {})));
+  }
+
+  async chat(req: ChatRequest, runCtx?: ChatRunContext): Promise<string> {
+    return this._withAccount(runCtx, async account => {
+      this._setActivity(account.id, 'chat', req.model);
+      try {
+        return await this._chatOnAccount(account, req);
+      } finally {
+        this._setActivity(account.id, 'idle', req.model);
+      }
+    });
+  }
+
+  async *chatStream(req: ChatRequest, runCtx?: ChatRunContext): AsyncGenerator<string> {
+    const self = this;
+    yield* this._withAccountStream(runCtx, async function* (account) {
+      self._setActivity(account.id, 'chat', req.model);
+      try {
+        yield* self._streamOnAccount(account, req);
+      } finally {
+        self._setActivity(account.id, 'idle', req.model);
+      }
+    });
+  }
+
+  /** Find an account by case-insensitive label match. */
+  private _findAccountByLabel(label: string): ProviderAccount | null {
+    const normalized = label.trim().toLowerCase();
+    for (const a of this.accountList) {
+      if (a.label.toLowerCase() === normalized) return a;
+    }
+    return null;
+  }
+
+  private async _chatOnAccount(account: ProviderAccount, req: ChatRequest): Promise<string> {
+    const page = await this._createIsolatedRequestPage(account);
     try {
       if (req.newConversation) {
         await this._startNewConversation(page);
@@ -123,7 +468,7 @@ export class ChatGPTProvider extends BaseProvider {
         const rateLimited = await this._dismissTooManyRequestsDialog(page);
         if (rateLimited && lastLength === 0 && !observedText) {
           if (resubmitCount >= 2) {
-            throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
+            throw new AccountFailureError('rate_limited', 'Too many requests dialog persisted after retries');
           }
           resubmitCount += 1;
           const waitMs = resubmitCount * 4000;
@@ -140,7 +485,7 @@ export class ChatGPTProvider extends BaseProvider {
         if (lastLength === 0 && !observedText) {
           const unusualActivity = await this._detectUnusualActivityBlocker(page)
           if (unusualActivity) {
-            throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
+            throw new AccountFailureError('unusual_activity', unusualActivity)
           }
         }
 
@@ -168,10 +513,8 @@ export class ChatGPTProvider extends BaseProvider {
     }
   }
 
-  async *chatStream(req: ChatRequest): AsyncGenerator<string> {
-    if (!this._ctx) throw new Error('ChatGPT: not connected. Run login first.');
-
-    const page = await this._createIsolatedRequestPage();
+  private async *_streamOnAccount(account: ProviderAccount, req: ChatRequest): AsyncGenerator<string> {
+    const page = await this._createIsolatedRequestPage(account);
     try {
       if (req.newConversation) {
         await this._startNewConversation(page);
@@ -221,7 +564,7 @@ export class ChatGPTProvider extends BaseProvider {
         const rateLimited = await this._dismissTooManyRequestsDialog(page);
         if (rateLimited && !hasContent && !result.text && !result.done && !result.started) {
           if (resubmitCount >= 2) {
-            throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
+            throw new AccountFailureError('rate_limited', 'Too many requests dialog persisted after retries');
           }
           resubmitCount += 1;
           const waitMs = resubmitCount * 4000;
@@ -244,7 +587,7 @@ export class ChatGPTProvider extends BaseProvider {
         if (!hasContent && !result.text && !result.started) {
           const unusualActivity = await this._detectUnusualActivityBlocker(page)
           if (unusualActivity) {
-            throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
+            throw new AccountFailureError('unusual_activity', unusualActivity)
           }
         }
 
@@ -293,10 +636,8 @@ export class ChatGPTProvider extends BaseProvider {
     }
   }
 
-  private async _createIsolatedRequestPage(): Promise<import('playwright').Page> {
-    if (!this._ctx) throw new Error('ChatGPT: not connected. Run login first.');
-
-    const page = await this._ctx.newPage();
+  private async _createIsolatedRequestPage(account: ProviderAccount): Promise<import('playwright').Page> {
+    const page = await account.newPage();
     try {
       await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
       await this._clearRateLimitBlockers(page, 'page initialization');
@@ -328,13 +669,13 @@ export class ChatGPTProvider extends BaseProvider {
       const rateLimited = await this._dismissTooManyRequestsDialog(page);
       const unusualActivity = await this._detectUnusualActivityBlocker(page)
       if (unusualActivity) {
-        throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
+        throw new AccountFailureError('unusual_activity', unusualActivity)
       }
 
       if (!rateLimited) return;
 
       if (attempt >= retryDelaysMs.length) {
-        throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
+        throw new AccountFailureError('rate_limited', 'Too many requests dialog persisted after retries');
       }
 
       const waitMs = retryDelaysMs[attempt];
@@ -354,7 +695,7 @@ export class ChatGPTProvider extends BaseProvider {
       if (!dismissed) return;
 
       if (attempt >= retryDelaysMs.length) {
-        throw new Error('ChatGPT temporarily rate limited. Please retry in a few minutes.');
+        throw new AccountFailureError('rate_limited', 'Too many requests dialog persisted after retries');
       }
 
       const waitMs = retryDelaysMs[attempt];
@@ -446,7 +787,7 @@ export class ChatGPTProvider extends BaseProvider {
       if (lastLength === 0) {
         const unusualActivity = await this._detectUnusualActivityBlocker(page)
         if (unusualActivity) {
-          throw new Error(`ChatGPT blocked request: ${unusualActivity}`)
+          throw new AccountFailureError('unusual_activity', unusualActivity)
         }
       }
 

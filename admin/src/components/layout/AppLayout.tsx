@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Outlet, useNavigate } from "react-router-dom"
+import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import { Sidebar } from "./Sidebar"
 import { MobileDrawer } from "./MobileDrawer"
 import { Header } from "./Header"
@@ -13,6 +13,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ admin, onLogout }: AppLayoutProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { theme, toggleTheme } = useTheme()
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
   const [mobileOpen, setMobileOpen] = React.useState(false)
@@ -22,6 +23,10 @@ export function AppLayout({ admin, onLogout }: AppLayoutProps) {
       navigate("/login", { replace: true })
     }
   }, [admin, navigate])
+
+  // Auto-close the mobile drawer whenever the route changes (covers back/forward
+  // navigation in addition to NavLink clicks).
+  React.useEffect(() => { setMobileOpen(false) }, [location.pathname])
 
   if (!admin) return null
 

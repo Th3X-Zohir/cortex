@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import type { BridgeConfig, ChatMessage, ProviderAdapter, ProviderName } from '../types.js';
 import { loadConfig, saveConfig } from '../config.js';
 import type { ProviderRegistry } from '../registry.js';
@@ -14,6 +15,8 @@ import {
   type UserTokenPayload,
 } from './auth.js';
 import type { AdminRecord, AdminStore, ApiKeyRecord, RequestLogRecord, AuditLogRecord, UserRecord, UserKeyRequestRecord } from './store.js';
+import { ChatGPTProvider } from '../providers/chatgpt.js';
+import type { AccountCooldownConfig } from '../types.js';
 
 type Permission =
   | 'dashboard:read'
@@ -465,6 +468,229 @@ export class AdminApi {
         return true;
       }
 
+      // ── Account router (multi-account routing) ───────────────────────────
+      // GET /api/accounts?provider=chatgpt — list accounts
+      if (url.pathname === '/api/accounts' && req.method === 'GET') {
+        if (!this.has(ctx, 'providers:manage')) return forbidden(res);
+        const providerFilter = url.searchParams.get('provider') as ProviderName | null;
+        if (providerFilter && !PROVIDERS.has(providerFilter)) {
+          json(res, 400, { error: `unsupported provider: ${providerFilter}`, code: 'BAD_PROVIDER' });
+          return true;
+        }
+        const rows = this.store.listProviderAccounts(providerFilter ?? undefined);
+        json(res, 200, { accounts: rows.map(mapProviderAccount) });
+        return true;
+      }
+
+      // POST /api/accounts — create a new (logged-out) account
+      if (url.pathname === '/api/accounts' && req.method === 'POST') {
+        if (!this.has(ctx, 'providers:manage')) return forbidden(res);
+        const body = await readJson(req);
+        const provider = requireString(body.provider, 'provider') as ProviderName;
+        if (!PROVIDERS.has(provider)) {
+          json(res, 400, { error: `unsupported provider: ${provider}`, code: 'BAD_PROVIDER' });
+          return true;
+        }
+        const label = requireString(body.label, 'label').trim();
+        if (!label) { json(res, 400, { error: 'label cannot be empty', code: 'BAD_LABEL' }); return true; }
+        const dup = this.store.getProviderAccountByLabel(provider, label);
+        if (dup) { json(res, 409, { error: `label '${label}' already exists for ${provider}`, code: 'DUP_LABEL' }); return true; }
+        const tmpId = randomUUID();
+        const profileDir = this.poolProvider(provider).defaultProfileDirForId(tmpId);
+        const record = this.store.createProviderAccount({
+          provider,
+          label,
+          profile_dir: profileDir,
+          created_by: ctx.admin.id,
+          notes: body.notes ? String(body.notes) : null,
+        });
+        this.poolProvider(provider).syncAccountsFromStore();
+        this.audit(req, ctx, 'account_create', 'provider_account', record.id, { provider, label });
+        json(res, 201, { account: mapProviderAccount(record) });
+        return true;
+      }
+
+      // GET /api/browsers — aggregated view of every account's live pages + activity
+      if (url.pathname === '/api/browsers' && req.method === 'GET') {
+        if (!this.has(ctx, 'providers:manage')) return forbidden(res);
+        const rows = this.store.listProviderAccounts();
+        const result: unknown[] = [];
+        for (const row of rows) {
+          const provider = row.provider as ProviderName;
+          if (!PROVIDERS.has(provider)) {
+            result.push({ account: mapProviderAccount(row), pages: [], activity: { kind: 'idle', startedAt: 0 } });
+            continue;
+          }
+          let pages: Array<{ url: string; title: string }> = [];
+          let activity: unknown = { kind: 'idle', startedAt: 0 };
+          try {
+            const pool = this.poolProvider(provider);
+            const instance = pool.getAccount(row.id);
+            if (instance) pages = await instance.livePages();
+            activity = pool.getActivity(row.id);
+          } catch { /* not pooled — skip */ }
+          result.push({ account: mapProviderAccount(row), pages, activity });
+        }
+        json(res, 200, { browsers: result });
+        return true;
+      }
+
+      // GET /api/accounts/:id/screenshot — base64 JPEG of the account's most-recent page.
+      // Returned as JSON so JWT auth via Authorization header works (img src can't send headers).
+      const screenshotMatch = url.pathname.match(/^\/api\/accounts\/([^/]+)\/screenshot$/);
+      if (screenshotMatch && req.method === 'GET') {
+        if (!this.has(ctx, 'providers:manage')) return forbidden(res);
+        const accountId = screenshotMatch[1];
+        const record = this.store.getProviderAccountById(accountId);
+        if (!record) return notFound(res);
+        const provider = record.provider as ProviderName;
+        if (!PROVIDERS.has(provider)) { json(res, 400, { error: 'provider not pooled', code: 'NOT_POOLED' }); return true; }
+        let image: string | null = null;
+        try {
+          const pool = this.poolProvider(provider);
+          const instance = pool.getAccount(accountId);
+          if (instance) {
+            const buf = await instance.screenshot();
+            if (buf) image = `data:image/jpeg;base64,${buf.toString('base64')}`;
+          }
+        } catch (err) {
+          json(res, 500, { error: (err as Error).message, code: 'SCREENSHOT_FAILED' });
+          return true;
+        }
+        json(res, 200, { image, capturedAt: new Date().toISOString() });
+        return true;
+      }
+
+      const accountMatch = url.pathname.match(/^\/api\/accounts\/([^/]+)(?:\/(login|logout|check|reset-cooldown|force-cooldown|pages))?$/);
+      if (accountMatch) {
+        if (!this.has(ctx, 'providers:manage')) return forbidden(res);
+        const accountId = accountMatch[1];
+        const action = accountMatch[2] as 'login' | 'logout' | 'check' | 'reset-cooldown' | 'force-cooldown' | 'pages' | undefined;
+        const record = this.store.getProviderAccountById(accountId);
+        if (!record) return notFound(res);
+        const pool = this.poolProvider(record.provider as ProviderName);
+        const account = pool.getAccount(accountId);
+        if (!account) {
+          // pool out of sync; force resync once
+          pool.syncAccountsFromStore();
+        }
+        const accountInstance = pool.getAccount(accountId);
+        if (!accountInstance) return notFound(res);
+
+        if (action === 'login' && req.method === 'POST') {
+          void accountInstance.login(loginUrl => {
+            this.audit(req, ctx, 'account_login_started', 'provider_account', accountId, { provider: record.provider, label: record.label, loginUrl });
+          }).then(() => {
+            this.store.setProviderAccountStatus(accountId, 'connected', null);
+          }).catch(err => {
+            this.store.setProviderAccountStatus(accountId, 'logged_out', (err as Error).message);
+            this.audit(req, ctx, 'account_login_failed', 'provider_account', accountId, { error: (err as Error).message });
+          });
+          json(res, 202, { status: 'login_started', account: mapProviderAccount(record) });
+          return true;
+        }
+        if (action === 'logout' && req.method === 'POST') {
+          await accountInstance.logout();
+          this.store.setProviderAccountStatus(accountId, 'logged_out', null);
+          this.audit(req, ctx, 'account_logout', 'provider_account', accountId);
+          json(res, 200, { status: 'ok' });
+          return true;
+        }
+        if (action === 'check' && req.method === 'POST') {
+          const ok = await accountInstance.checkSession();
+          this.store.setProviderAccountStatus(accountId, ok ? 'connected' : 'logged_out', null);
+          json(res, 200, { connected: ok });
+          return true;
+        }
+        if (action === 'pages' && req.method === 'GET') {
+          const pages = await accountInstance.livePages();
+          json(res, 200, { account: mapProviderAccount(record), pages });
+          return true;
+        }
+        if (action === 'reset-cooldown' && req.method === 'POST') {
+          this.store.clearProviderAccountCooldown(accountId);
+          pool.syncAccountsFromStore();
+          this.audit(req, ctx, 'account_reset_cooldown', 'provider_account', accountId);
+          const fresh = this.store.getProviderAccountById(accountId)!;
+          json(res, 200, { account: mapProviderAccount(fresh) });
+          return true;
+        }
+        if (action === 'force-cooldown' && req.method === 'POST') {
+          const body = await readJson(req).catch(() => ({}));
+          const secsRaw = Number(body?.seconds);
+          const seconds = Number.isFinite(secsRaw) && secsRaw > 0 ? Math.floor(secsRaw) : 300;
+          const reason: 'rate_limited' | 'unusual_activity' = body?.reason === 'unusual_activity' ? 'unusual_activity' : 'rate_limited';
+          const until = new Date(Date.now() + seconds * 1000);
+          const status = reason === 'unusual_activity' ? 'blocked' : 'cooldown';
+          this.store.setProviderAccountCooldown(accountId, until, reason, status);
+          pool.syncAccountsFromStore();
+          this.audit(req, ctx, 'account_force_cooldown', 'provider_account', accountId, { seconds, reason });
+          const fresh = this.store.getProviderAccountById(accountId)!;
+          json(res, 200, { account: mapProviderAccount(fresh) });
+          return true;
+        }
+        if (!action && req.method === 'PATCH') {
+          const body = await readJson(req);
+          const updates: { label?: string; enabled?: boolean; notes?: string | null; priority?: number } = {};
+          if (body.label !== undefined) updates.label = String(body.label).trim();
+          if (body.enabled !== undefined) updates.enabled = Boolean(body.enabled);
+          if (body.notes !== undefined) updates.notes = body.notes === null ? null : String(body.notes);
+          if (body.priority !== undefined) {
+            const n = Number(body.priority);
+            if (!Number.isFinite(n) || n < 0) { json(res, 400, { error: 'priority must be a non-negative integer', code: 'BAD_PRIORITY' }); return true; }
+            updates.priority = Math.floor(n);
+          }
+          if (updates.label !== undefined && updates.label !== record.label) {
+            const dup = this.store.getProviderAccountByLabel(record.provider as ProviderName, updates.label);
+            if (dup && dup.id !== accountId) {
+              json(res, 409, { error: `label '${updates.label}' already exists`, code: 'DUP_LABEL' });
+              return true;
+            }
+          }
+          this.store.updateProviderAccount(accountId, updates);
+          pool.syncAccountsFromStore();
+          this.audit(req, ctx, 'account_update', 'provider_account', accountId, updates);
+          const fresh = this.store.getProviderAccountById(accountId)!;
+          json(res, 200, { account: mapProviderAccount(fresh) });
+          return true;
+        }
+        if (!action && req.method === 'DELETE') {
+          await accountInstance.deleteProfile();
+          this.store.deleteProviderAccount(accountId);
+          pool.syncAccountsFromStore();
+          this.audit(req, ctx, 'account_delete', 'provider_account', accountId, { provider: record.provider, label: record.label });
+          json(res, 200, { status: 'ok' });
+          return true;
+        }
+      }
+
+      // GET /api/providers/:provider/cooldown — cooldown settings
+      const cooldownMatch = url.pathname.match(/^\/api\/providers\/([^/]+)\/cooldown$/);
+      if (cooldownMatch) {
+        if (!this.has(ctx, 'providers:manage')) return forbidden(res);
+        const provider = cooldownMatch[1] as ProviderName;
+        if (!PROVIDERS.has(provider)) { json(res, 400, { error: `unsupported provider: ${provider}`, code: 'BAD_PROVIDER' }); return true; }
+        if (req.method === 'GET') {
+          json(res, 200, this.store.getCooldownConfig(provider));
+          return true;
+        }
+        if (req.method === 'PUT') {
+          const body = await readJson(req);
+          const updates: Partial<AccountCooldownConfig> = {};
+          if (body.rate_limited_seconds !== undefined) updates.rate_limited_seconds = asPositiveInteger(body.rate_limited_seconds, 'rate_limited_seconds');
+          if (body.unusual_activity_seconds !== undefined) updates.unusual_activity_seconds = asPositiveInteger(body.unusual_activity_seconds, 'unusual_activity_seconds');
+          if (body.session_expired_seconds !== undefined) {
+            const n = Number(body.session_expired_seconds);
+            if (!Number.isFinite(n) || n < 0) { json(res, 400, { error: 'session_expired_seconds must be >= 0', code: 'BAD_SECONDS' }); return true; }
+            updates.session_expired_seconds = Math.floor(n);
+          }
+          this.store.setCooldownConfig(provider, updates);
+          this.audit(req, ctx, 'cooldown_update', 'provider_settings', provider, updates);
+          json(res, 200, this.store.getCooldownConfig(provider));
+          return true;
+        }
+      }
+
       if (url.pathname === '/api/config' && req.method === 'GET') {
         if (!this.has(ctx, 'config:manage')) return forbidden(res);
         json(res, 200, this.publicConfig());
@@ -578,6 +804,18 @@ export class AdminApi {
     return ctx.permissions.includes(permission);
   }
 
+  /**
+   * Get the pool-aware provider instance for a given provider name.
+   * Currently only 'chatgpt' is account-pooled; other providers will throw.
+   */
+  private poolProvider(provider: ProviderName): ChatGPTProvider {
+    const p = this.registry.get(provider);
+    if (!(p instanceof ChatGPTProvider)) {
+      throw new Error(`Provider '${provider}' does not yet support multi-account routing`);
+    }
+    return p;
+  }
+
   private audit(req: IncomingMessage, ctx: AdminContext, action: string, entityType: string, entityId: string | null, metadata?: unknown): void {
     this.store.logAuditEvent({
       admin_id: ctx.admin.id,
@@ -603,16 +841,27 @@ export class AdminApi {
     const provider = this.registry.providerForModel(model);
     const providerName = provider?.name ?? 'unknown';
 
+    // Pinning works through either the header (X-Cortex-Account) or a body field
+    // (accountLabel) — the playground UI may eventually let admins pick a target.
+    const headerPin = ((): string | undefined => {
+      const raw = req.headers['x-cortex-account'];
+      const v = Array.isArray(raw) ? raw[0] : raw;
+      const t = typeof v === 'string' ? v.trim() : '';
+      return t || undefined;
+    })();
+    const bodyPin = typeof body.accountLabel === 'string' && body.accountLabel.trim() ? body.accountLabel.trim() : undefined;
+    const runCtx: import('../types.js').ChatRunContext = { pinnedAccountLabel: bodyPin ?? headerPin };
+
     if (!provider) {
       const errorPayload = { error: `Unknown model: ${model}`, code: 'UNKNOWN_MODEL' };
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 404, startedAt, `Unknown model: ${model}`, { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }, body, errorPayload);
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 404, startedAt, `Unknown model: ${model}`, { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }, body, errorPayload, runCtx);
       json(res, 404, errorPayload);
       return;
     }
 
     if (temperature !== undefined && (!Number.isFinite(temperature) || temperature < 0 || temperature > 2)) {
       const errorPayload = { error: 'temperature must be between 0 and 2', code: 'INVALID_TEMPERATURE' };
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 400, startedAt, 'temperature must be between 0 and 2', this.estimateTokenUsage(messages, ''), body, errorPayload);
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 400, startedAt, 'temperature must be between 0 and 2', this.estimateTokenUsage(messages, ''), body, errorPayload, runCtx);
       json(res, 400, errorPayload);
       return;
     }
@@ -621,13 +870,13 @@ export class AdminApi {
     if (!connected) {
       const error = `${provider.name} is not connected`;
       const errorPayload = { error, code: 'PROVIDER_UNAVAILABLE' };
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 503, startedAt, error, this.estimateTokenUsage(messages, ''), body, errorPayload);
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, stream, 503, startedAt, error, this.estimateTokenUsage(messages, ''), body, errorPayload, runCtx);
       json(res, 503, errorPayload);
       return;
     }
 
     if (stream) {
-      await this.playgroundStream(req, res, ctx, provider, providerName, model, messages, temperature, maxTokens, newConversation, startedAt, body);
+      await this.playgroundStream(req, res, ctx, provider, providerName, model, messages, temperature, maxTokens, newConversation, startedAt, body, runCtx);
       return;
     }
 
@@ -638,7 +887,7 @@ export class AdminApi {
         temperature,
         max_tokens: maxTokens,
         newConversation,
-      });
+      }, runCtx);
       const usage = this.tokenUsage(provider, messages, content);
       const responsePayload = {
         id: `admin-playground-${Date.now()}`,
@@ -655,14 +904,14 @@ export class AdminApi {
         }],
         usage,
       };
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, false, 200, startedAt, null, usage, body, responsePayload);
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, false, 200, startedAt, null, usage, body, responsePayload, runCtx);
       this.audit(req, ctx, 'playground_chat', 'provider', providerName, { model, stream: false, usage });
       json(res, 200, responsePayload);
     } catch (err) {
       const message = (err as Error).message;
       const usage = this.estimateTokenUsage(messages, '');
       const errorPayload = { error: message, code: 'PROVIDER_ERROR' };
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, false, 503, startedAt, message, usage, body, errorPayload);
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, false, 503, startedAt, message, usage, body, errorPayload, runCtx);
       this.audit(req, ctx, 'playground_chat_failed', 'provider', providerName, { model, stream: false, error: message });
       json(res, 503, errorPayload);
     }
@@ -681,6 +930,7 @@ export class AdminApi {
     newConversation: boolean,
     startedAt: number,
     requestPayload: unknown,
+    runCtx?: import('../types.js').ChatRunContext,
   ): Promise<void> {
     const id = `admin-playground-${Date.now()}`;
     const chunks: string[] = [];
@@ -695,7 +945,7 @@ export class AdminApi {
     });
 
     try {
-      for await (const chunk of provider.chatStream({ model, messages, temperature, max_tokens: maxTokens, newConversation })) {
+      for await (const chunk of provider.chatStream({ model, messages, temperature, max_tokens: maxTokens, newConversation }, runCtx)) {
         chunks.push(chunk);
         res.write(`data: ${JSON.stringify({
           id,
@@ -732,7 +982,7 @@ export class AdminApi {
         }],
         usage,
       };
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, true, 200, startedAt, null, usage, requestPayload, responsePayloadForLog);
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, true, 200, startedAt, null, usage, requestPayload, responsePayloadForLog, runCtx);
       this.audit(req, ctx, 'playground_chat', 'provider', providerName, { model, stream: true, usage });
     } catch (err) {
       streamError = (err as Error).message;
@@ -751,7 +1001,7 @@ export class AdminApi {
         usage,
         error: { message: streamError, code: 'PROVIDER_ERROR' },
       };
-      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, true, 200, startedAt, streamError, usage, requestPayload, responsePayloadForLog);
+      this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, true, 200, startedAt, streamError, usage, requestPayload, responsePayloadForLog, runCtx);
       this.audit(req, ctx, 'playground_chat_failed', 'provider', providerName, { model, stream: true, error: streamError });
     } finally {
       res.end();
@@ -771,6 +1021,7 @@ export class AdminApi {
     usage: TokenUsage,
     requestPayload?: unknown,
     responsePayload?: unknown,
+    runCtx?: import('../types.js').ChatRunContext,
   ): void {
     this.store.logRequest({
       api_key_id: null,
@@ -790,6 +1041,8 @@ export class AdminApi {
       user_agent: getUserAgent(req),
       request_payload: safeJsonStringify(requestPayload),
       response_payload: safeJsonStringify(responsePayload),
+      account_id: runCtx?.accountId ?? null,
+      account_label: runCtx?.accountLabel ?? null,
     });
   }
 
@@ -1129,6 +1382,39 @@ function safeJsonStringify(value: unknown): string | null {
   }
 }
 
+function mapProviderAccount(r: import('../types.js').ProviderAccountRecord) {
+  const inCooldown = r.cooldown_until ? Date.parse(r.cooldown_until) > Date.now() : false;
+  return {
+    id: r.id,
+    provider: r.provider,
+    label: r.label,
+    profileDir: r.profile_dir,
+    enabled: Boolean(r.enabled),
+    status: r.status,
+    cooldownUntil: r.cooldown_until,
+    inCooldown,
+    cooldownSecondsRemaining: inCooldown && r.cooldown_until
+      ? Math.max(0, Math.ceil((Date.parse(r.cooldown_until) - Date.now()) / 1000))
+      : 0,
+    lastUsedAt: r.last_used_at,
+    lastError: r.last_error,
+    errorCount24h: r.error_count_24h,
+    priority: typeof r.priority === 'number' ? r.priority : 100,
+    displaySlot: r.display_slot ?? null,
+    // noVNC viewer URL for this account. All accounts load the SAME static
+    // /novnc/vnc.html (served by the shared websockify) — only the `path` URL
+    // parameter differs, telling noVNC which per-slot WebSocket to connect to.
+    // This is the single source of truth for the static HTML/JS, so per-slot
+    // failures can't break the viewer loading.
+    vncPath: r.display_slot !== null && r.display_slot !== undefined
+      ? `/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&path=novnc/d${r.display_slot}/websockify`
+      : '/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&path=websockify',
+    createdAt: r.created_at,
+    createdBy: r.created_by,
+    notes: r.notes,
+  };
+}
+
 function mapRequestLog(log: RequestLogRecord) {
   return {
     id: log.id,
@@ -1149,6 +1435,8 @@ function mapRequestLog(log: RequestLogRecord) {
     userAgent: log.user_agent,
     requestPayload: parseJsonPayload(log.request_payload),
     responsePayload: parseJsonPayload(log.response_payload),
+    accountId: log.account_id,
+    accountLabel: log.account_label,
     createdAt: log.created_at,
   };
 }

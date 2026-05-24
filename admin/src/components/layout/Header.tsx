@@ -13,6 +13,7 @@ const routeTitles: Record<string, { title: string; description: string }> = {
   "/limits": { title: "Daily Limits", description: "Configure usage limits per key" },
   "/logs": { title: "Request Logs", description: "View and filter request history" },
   "/providers": { title: "Model Control", description: "Configure AI providers and models" },
+  "/accounts": { title: "Account Router", description: "Manage multi-account routing per provider" },
   "/playground": { title: "API Playground", description: "Test API requests interactively" },
   "/vnc": { title: "VNC Viewer", description: "Remote browser access" },
   "/docs": { title: "API Documentation", description: "REST API reference and examples" },

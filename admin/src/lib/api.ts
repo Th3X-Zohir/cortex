@@ -4,11 +4,13 @@ import type {
   ApiKey,
   BridgeStatus,
   Config,
+  CooldownConfig,
   Health,
   LoginResponse,
   ModelCatalog,
   PlaygroundRequest,
   PlaygroundResponse,
+  ProviderAccount,
   RequestLog,
   Stats,
   UsageSummary,
@@ -315,6 +317,58 @@ export const api = {
       request(`/providers/${provider}/login`, { method: 'POST' }),
     logout: (provider: string) =>
       request(`/providers/${provider}/logout`, { method: 'POST' }),
+    getCooldown: (provider: string) =>
+      request<CooldownConfig>(`/providers/${provider}/cooldown`),
+    setCooldown: (provider: string, cfg: Partial<CooldownConfig>) =>
+      request<CooldownConfig>(`/providers/${provider}/cooldown`, {
+        method: 'PUT',
+        body: JSON.stringify(cfg),
+      }),
+  },
+  accounts: {
+    list: (provider?: string) => {
+      const p = new URLSearchParams()
+      if (provider) p.set('provider', provider)
+      return request<{ accounts: ProviderAccount[] }>(`/accounts?${p}`)
+    },
+    create: (data: { provider: string; label: string; notes?: string }) =>
+      request<{ account: ProviderAccount }>('/accounts', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: { label?: string; enabled?: boolean; notes?: string | null; priority?: number }) =>
+      request<{ account: ProviderAccount }>(`/accounts/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    remove: (id: string) =>
+      request<{ status: string }>(`/accounts/${id}`, { method: 'DELETE' }),
+    login: (id: string) =>
+      request<{ status: string; account: ProviderAccount }>(`/accounts/${id}/login`, { method: 'POST' }),
+    logout: (id: string) =>
+      request<{ status: string }>(`/accounts/${id}/logout`, { method: 'POST' }),
+    check: (id: string) =>
+      request<{ connected: boolean }>(`/accounts/${id}/check`, { method: 'POST' }),
+    resetCooldown: (id: string) =>
+      request<{ account: ProviderAccount }>(`/accounts/${id}/reset-cooldown`, { method: 'POST' }),
+    forceCooldown: (id: string, data: { seconds: number; reason?: 'rate_limited' | 'unusual_activity' }) =>
+      request<{ account: ProviderAccount }>(`/accounts/${id}/force-cooldown`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    livePages: (id: string) =>
+      request<{ account: ProviderAccount; pages: Array<{ url: string; title: string }> }>(`/accounts/${id}/pages`),
+    screenshot: (id: string) =>
+      request<{ image: string | null; capturedAt: string }>(`/accounts/${id}/screenshot`),
+  },
+  browsers: {
+    list: () => request<{
+      browsers: Array<{
+        account: ProviderAccount;
+        pages: Array<{ url: string; title: string }>;
+        activity: { kind: 'idle' | 'chat' | 'login' | 'restoring' | 'logged_out'; detail?: string; startedAt: number };
+      }>;
+    }>('/browsers'),
   },
 
   user: {

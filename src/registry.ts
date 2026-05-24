@@ -3,6 +3,7 @@ import type { BaseProvider } from './providers/base.js';
 import { GrokProvider } from './providers/grok.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { ChatGPTProvider } from './providers/chatgpt.js';
+import type { AdminStore } from './admin/store.js';
 import { logger } from './logger.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -23,12 +24,20 @@ export class ProviderRegistry {
   private _restoreDone = false;
   private _restoring = false;
 
-  constructor(private _cfg: BridgeConfig) {
+  constructor(private _cfg: BridgeConfig, private _store: AdminStore | null = null) {
+    // Migrate any legacy accounts that don't yet have a display_slot assigned.
+    if (_store) {
+      try { _store.backfillDisplaySlots(); } catch (err) {
+        logger.warn(`Display slot backfill failed: ${(err as Error).message}`);
+      }
+    }
     // Web-based providers (Playwright)
     this._providers.set('grok',       new GrokProvider(_cfg));
     this._providers.set('gemini',     new GeminiProvider(_cfg));
-    this._providers.set('chatgpt',    new ChatGPTProvider(_cfg));
+    this._providers.set('chatgpt',    new ChatGPTProvider(_cfg, _store));
   }
+
+  get store(): AdminStore | null { return this._store; }
 
   get(name: ProviderName): ProviderAdapter {
     return this._providers.get(name)!;

@@ -3,6 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { hashPassword, hashApiKey } from './auth.js';
+import type {
+  ProviderName,
+  ProviderAccountRecord,
+  AccountStatus,
+  AccountCooldownConfig,
+  AccountFailureReason,
+} from '../types.js';
 
 export interface AdminRecord {
   id: string;
@@ -47,6 +54,8 @@ export interface RequestLogRecord {
   user_agent: string | null;
   request_payload: string | null;
   response_payload: string | null;
+  account_id: string | null;
+  account_label: string | null;
   created_at: string;
 }
 
@@ -215,6 +224,36 @@ CREATE TABLE IF NOT EXISTS user_key_requests (
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_user_key_requests_user_id ON user_key_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_key_requests_status ON user_key_requests(status);
+
+CREATE TABLE IF NOT EXISTS provider_accounts (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  label TEXT NOT NULL,
+  profile_dir TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'unknown',
+  cooldown_until TEXT,
+  last_used_at TEXT,
+  last_error TEXT,
+  error_count_24h INTEGER NOT NULL DEFAULT 0,
+  priority INTEGER NOT NULL DEFAULT 100,
+  display_slot INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_by TEXT,
+  notes TEXT,
+  UNIQUE(provider, label)
+);
+
+CREATE INDEX IF NOT EXISTS idx_provider_accounts_provider ON provider_accounts(provider);
+CREATE INDEX IF NOT EXISTS idx_provider_accounts_enabled ON provider_accounts(enabled);
+
+CREATE TABLE IF NOT EXISTS provider_account_settings (
+  provider TEXT PRIMARY KEY,
+  rate_limited_seconds INTEGER NOT NULL DEFAULT 300,
+  unusual_activity_seconds INTEGER NOT NULL DEFAULT 1800,
+  session_expired_seconds INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 export class AdminStore {
@@ -238,6 +277,13 @@ export class AdminStore {
     this.ensureColumn('request_logs', 'total_tokens', 'INTEGER');
     this.ensureColumn('request_logs', 'request_payload', 'TEXT');
     this.ensureColumn('request_logs', 'response_payload', 'TEXT');
+    this.ensureColumn('request_logs', 'account_id', 'TEXT');
+    this.ensureColumn('request_logs', 'account_label', 'TEXT');
+    // Lower priority number = picked first when LRU-ranking healthy accounts.
+    this.ensureColumn('provider_accounts', 'priority', 'INTEGER NOT NULL DEFAULT 100');
+    // display_slot: 0..9 = dedicated Xvfb slot (display :100+slot, ws port 6081+slot)
+    //               null = no slot, uses the shared :99 display
+    this.ensureColumn('provider_accounts', 'display_slot', 'INTEGER');
   }
 
   private ensureColumn(table: string, column: string, definition: string): void {
@@ -404,11 +450,11 @@ export class AdminStore {
 
   // ── Request Logs ─────────────────────────────────────────────────────
 
-  logRequest(log: Omit<RequestLogRecord, 'id' | 'created_at' | 'request_payload' | 'response_payload'> & { request_payload?: string | null; response_payload?: string | null }): void {
+  logRequest(log: Omit<RequestLogRecord, 'id' | 'created_at' | 'request_payload' | 'response_payload' | 'account_id' | 'account_label'> & { request_payload?: string | null; response_payload?: string | null; account_id?: string | null; account_label?: string | null }): void {
     const id = randomUUID();
     this.db.prepare(
-      `INSERT INTO request_logs (id, api_key_id, api_key_name, provider, model, messages_count, stream, status_code, response_time_ms, prompt_tokens, completion_tokens, total_tokens, tokens_used, error, ip_address, user_agent, request_payload, response_payload, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+      `INSERT INTO request_logs (id, api_key_id, api_key_name, provider, model, messages_count, stream, status_code, response_time_ms, prompt_tokens, completion_tokens, total_tokens, tokens_used, error, ip_address, user_agent, request_payload, response_payload, account_id, account_label, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
     ).run(
       id,
       log.api_key_id,
@@ -428,6 +474,8 @@ export class AdminStore {
       log.user_agent,
       log.request_payload ?? null,
       log.response_payload ?? null,
+      log.account_id ?? null,
+      log.account_label ?? null,
     );
   }
 
@@ -826,5 +874,158 @@ export class AdminStore {
       "INSERT INTO user_key_requests (id, user_id, user_username, name, reason, status) VALUES (?, ?, ?, ?, 'Issued directly by admin', 'pending')"
     ).run(reqId, userId, userUsername, name);
     return this.approveKeyRequest(reqId, adminId, dailyLimit, rateLimitPerMin, 'Issued directly by admin');
+  }
+
+  // ── Provider account CRUD ─────────────────────────────────────────────────
+
+  listProviderAccounts(provider?: ProviderName): ProviderAccountRecord[] {
+    const sql = provider
+      ? 'SELECT * FROM provider_accounts WHERE provider = ? ORDER BY created_at ASC'
+      : 'SELECT * FROM provider_accounts ORDER BY provider, created_at ASC';
+    const rows = (provider
+      ? this.db.prepare(sql).all(provider)
+      : this.db.prepare(sql).all()) as ProviderAccountRecord[];
+    return rows;
+  }
+
+  getProviderAccountById(id: string): ProviderAccountRecord | undefined {
+    return this.db.prepare('SELECT * FROM provider_accounts WHERE id = ?').get(id) as ProviderAccountRecord | undefined;
+  }
+
+  getProviderAccountByLabel(provider: ProviderName, label: string): ProviderAccountRecord | undefined {
+    return this.db.prepare('SELECT * FROM provider_accounts WHERE provider = ? AND label = ?').get(provider, label) as ProviderAccountRecord | undefined;
+  }
+
+  createProviderAccount(args: {
+    provider: ProviderName;
+    label: string;
+    profile_dir: string;
+    created_by: string | null;
+    notes?: string | null;
+  }): ProviderAccountRecord {
+    const id = randomUUID();
+    const display_slot = this.allocateDisplaySlot();
+    this.db.prepare(
+      `INSERT INTO provider_accounts (id, provider, label, profile_dir, enabled, status, created_by, notes, display_slot)
+       VALUES (?, ?, ?, ?, 1, 'unknown', ?, ?, ?)`
+    ).run(id, args.provider, args.label, args.profile_dir, args.created_by ?? null, args.notes ?? null, display_slot);
+    return this.getProviderAccountById(id)!;
+  }
+
+  /**
+   * Pick the lowest unused display slot (0..9). Returns null if all slots are
+   * taken — the account will run on the shared :99 display, with the trade-off
+   * that the Browsers page can't show it as a distinct iframe.
+   */
+  private allocateDisplaySlot(maxSlots: number = 10): number | null {
+    const rows = this.db.prepare('SELECT display_slot FROM provider_accounts WHERE display_slot IS NOT NULL').all() as { display_slot: number }[];
+    const used = new Set(rows.map(r => r.display_slot));
+    for (let i = 0; i < maxSlots; i++) {
+      if (!used.has(i)) return i;
+    }
+    return null;
+  }
+
+  /** Backfill display_slot for existing accounts that don't have one yet. */
+  backfillDisplaySlots(maxSlots: number = 10): void {
+    const rows = this.db.prepare('SELECT id, display_slot FROM provider_accounts ORDER BY created_at ASC').all() as { id: string; display_slot: number | null }[];
+    const used = new Set<number>(rows.filter(r => r.display_slot !== null).map(r => r.display_slot as number));
+    for (const r of rows) {
+      if (r.display_slot !== null) continue;
+      // Find first free slot
+      let chosen: number | null = null;
+      for (let i = 0; i < maxSlots; i++) {
+        if (!used.has(i)) { chosen = i; break; }
+      }
+      if (chosen === null) break;
+      used.add(chosen);
+      this.db.prepare('UPDATE provider_accounts SET display_slot = ? WHERE id = ?').run(chosen, r.id);
+    }
+  }
+
+  updateProviderAccount(id: string, updates: {
+    label?: string;
+    enabled?: boolean;
+    notes?: string | null;
+    priority?: number;
+  }): void {
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    if (updates.label !== undefined) { sets.push('label = ?'); vals.push(updates.label); }
+    if (updates.enabled !== undefined) { sets.push('enabled = ?'); vals.push(updates.enabled ? 1 : 0); }
+    if (updates.notes !== undefined) { sets.push('notes = ?'); vals.push(updates.notes); }
+    if (updates.priority !== undefined) { sets.push('priority = ?'); vals.push(Math.max(0, Math.floor(updates.priority))); }
+    if (sets.length === 0) return;
+    vals.push(id);
+    this.db.prepare(`UPDATE provider_accounts SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+  }
+
+  setProviderAccountStatus(
+    id: string,
+    status: AccountStatus,
+    lastError: string | null = null,
+  ): void {
+    this.db.prepare('UPDATE provider_accounts SET status = ?, last_error = ? WHERE id = ?')
+      .run(status, lastError, id);
+  }
+
+  markProviderAccountUsed(id: string): void {
+    this.db.prepare("UPDATE provider_accounts SET last_used_at = datetime('now') WHERE id = ?").run(id);
+  }
+
+  setProviderAccountCooldown(
+    id: string,
+    cooldownUntil: Date | null,
+    reason: AccountFailureReason | null,
+    status: AccountStatus,
+  ): void {
+    const iso = cooldownUntil ? cooldownUntil.toISOString() : null;
+    const last_error = reason ?? null;
+    this.db.prepare(
+      `UPDATE provider_accounts
+         SET cooldown_until = ?, status = ?, last_error = ?,
+             error_count_24h = error_count_24h + CASE WHEN ? IS NULL THEN 0 ELSE 1 END
+         WHERE id = ?`
+    ).run(iso, status, last_error, reason, id);
+  }
+
+  clearProviderAccountCooldown(id: string): void {
+    this.db.prepare("UPDATE provider_accounts SET cooldown_until = NULL, status = 'unknown', last_error = NULL WHERE id = ?").run(id);
+  }
+
+  resetProviderAccountErrorCounts(): void {
+    // call periodically to age out the 24h rolling counter
+    this.db.prepare('UPDATE provider_accounts SET error_count_24h = 0').run();
+  }
+
+  deleteProviderAccount(id: string): void {
+    this.db.prepare('DELETE FROM provider_accounts WHERE id = ?').run(id);
+  }
+
+  // ── Cooldown settings ─────────────────────────────────────────────────────
+
+  getCooldownConfig(provider: ProviderName): AccountCooldownConfig {
+    const row = this.db.prepare('SELECT rate_limited_seconds, unusual_activity_seconds, session_expired_seconds FROM provider_account_settings WHERE provider = ?').get(provider) as
+      | { rate_limited_seconds: number; unusual_activity_seconds: number; session_expired_seconds: number }
+      | undefined;
+    return {
+      rate_limited_seconds: row?.rate_limited_seconds ?? 300,
+      unusual_activity_seconds: row?.unusual_activity_seconds ?? 1800,
+      session_expired_seconds: row?.session_expired_seconds ?? 0,
+    };
+  }
+
+  setCooldownConfig(provider: ProviderName, cfg: Partial<AccountCooldownConfig>): void {
+    const current = this.getCooldownConfig(provider);
+    const next = { ...current, ...cfg };
+    this.db.prepare(
+      `INSERT INTO provider_account_settings (provider, rate_limited_seconds, unusual_activity_seconds, session_expired_seconds, updated_at)
+       VALUES (?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(provider) DO UPDATE SET
+         rate_limited_seconds = excluded.rate_limited_seconds,
+         unusual_activity_seconds = excluded.unusual_activity_seconds,
+         session_expired_seconds = excluded.session_expired_seconds,
+         updated_at = excluded.updated_at`
+    ).run(provider, next.rate_limited_seconds, next.unusual_activity_seconds, next.session_expired_seconds);
   }
 }

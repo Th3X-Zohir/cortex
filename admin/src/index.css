@@ -6,15 +6,51 @@
 
 @layer base {
   :root {
+    /* Legacy tokens (used by some inline styles in this file) */
     --bg: 247 250 252;
     --bg-elevated: 255 255 255;
     --bg-soft: 241 245 249;
     --text: 15 23 42;
     --text-muted: 71 85 105;
-    --primary: 29 78 216;
     --primary-soft: 219 234 254;
-    --ring: 59 130 246;
     --line: 226 232 240;
+
+    /* HSL design tokens consumed by tailwind.config.js (hsl(var(--xxx))) */
+    --background:           220 30%  97%;
+    --background-secondary: 222 47%  10%;   /* dark navigation surface */
+    --background-tertiary:  222 47%  14%;
+    --foreground:           222 47%  11%;
+    --border:               220 13%  91%;
+    --border-light:         220 13%  95%;
+    --input:                220 13%  91%;
+    --ring:                 217 91%  60%;
+    --primary:              217 91%  55%;
+    --primary-foreground:     0  0% 100%;
+    --primary-light:        217 91%  70%;
+    --primary-dark:         217 91%  40%;
+    --secondary:            220 14%  96%;
+    --secondary-foreground: 222 47%  11%;
+    --secondary-light:      220 14%  98%;
+    --secondary-dark:       220 14%  90%;
+    --destructive:            0 84%  60%;
+    --destructive-foreground: 0 0% 100%;
+    --muted:                220 14%  96%;
+    --muted-foreground:     220  9%  46%;
+    --accent:               175 60%  40%;
+    --accent-foreground:      0  0% 100%;
+    --accent-light:         175 60%  55%;
+    --accent-dark:          175 60%  30%;
+    --popover:                0  0% 100%;
+    --popover-foreground:   222 47%  11%;
+    --card:                   0  0% 100%;
+    --card-foreground:      222 47%  11%;
+    --success:              142 70%  45%;
+    --success-foreground:     0  0% 100%;
+    --warning:               38 92%  50%;
+    --warning-foreground:   222 47%  11%;
+    --info:                 199 89%  48%;
+    --info-foreground:        0  0% 100%;
+    --radius:               0.75rem;
   }
 
   * {

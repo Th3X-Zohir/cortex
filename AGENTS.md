@@ -123,9 +123,11 @@ When changing auth or admin permissions:
 2. Keep token and password rules aligned with [src/admin/auth.ts](src/admin/auth.ts).
 3. Check downstream UI expectations in [admin/src/hooks/useAuth.ts](admin/src/hooks/useAuth.ts) and related admin pages.
 
+
 <!-- lean-ctx -->
 ## lean-ctx
 
 Prefer lean-ctx MCP tools over native equivalents for token savings.
 Full rules: @LEAN-CTX.md
 <!-- /lean-ctx -->
+

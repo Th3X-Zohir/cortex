@@ -167,6 +167,7 @@ export function LogsPage() {
                     <th>Time</th>
                     <th>Key</th>
                     <th>Provider</th>
+                    <th>Account</th>
                     <th>Model</th>
                     <th>Status</th>
                     <th>Latency</th>
@@ -242,6 +243,13 @@ function RequestLogRow({
         <td>{formatDate(log.createdAt)}</td>
         <td>{log.apiKeyName ?? 'Unknown'}</td>
         <td>{log.provider}</td>
+        <td className="text-xs text-slate-600">
+          {log.accountLabel ? (
+            <Chip tone="default">{log.accountLabel}</Chip>
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
+        </td>
         <td className="font-mono text-xs text-slate-600">{log.model}</td>
         <td>
           {typeof log.statusCode === 'number' ? (
@@ -269,12 +277,14 @@ function RequestLogRow({
       </tr>
       {expanded ? (
         <tr>
-          <td colSpan={9}>
+          <td colSpan={10}>
             <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div className="grid gap-3 md:grid-cols-3">
                 <Detail label="Log ID" value={log.id} mono />
                 <Detail label="API Key ID" value={log.apiKeyId ?? 'None'} mono />
                 <Detail label="IP Address" value={log.ipAddress ?? 'Unknown'} mono />
+                <Detail label="Account" value={log.accountLabel ?? 'n/a'} />
+                <Detail label="Account ID" value={log.accountId ?? 'n/a'} mono />
                 <Detail label="Prompt Tokens" value={formatNumber(log.promptTokens ?? 0)} />
                 <Detail label="Completion Tokens" value={formatNumber(log.completionTokens ?? 0)} />
                 <Detail label="Total Tokens" value={formatNumber(log.totalTokens ?? log.tokensUsed ?? 0)} />

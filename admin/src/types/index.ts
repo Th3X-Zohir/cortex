@@ -50,6 +50,8 @@ export interface RequestLog {
   userAgent: string | null
   requestPayload: unknown | null
   responsePayload: unknown | null
+  accountId: string | null
+  accountLabel: string | null
   createdAt: string
 }
 
@@ -326,4 +328,41 @@ export interface UserKeyRequest {
   reviewNote: string | null
   reviewedAt: string | null
   createdAt: string
+}
+
+// ── Provider accounts (multi-account routing) ──────────────────────────────
+
+export type AccountStatus =
+  | 'connected'
+  | 'logged_out'
+  | 'cooldown'
+  | 'blocked'
+  | 'unknown'
+
+export interface ProviderAccount {
+  id: string
+  provider: string
+  label: string
+  profileDir: string
+  enabled: boolean
+  status: AccountStatus
+  cooldownUntil: string | null
+  inCooldown: boolean
+  cooldownSecondsRemaining: number
+  lastUsedAt: string | null
+  lastError: string | null
+  errorCount24h: number
+  priority: number
+  displaySlot: number | null
+  /** noVNC viewer URL for this account's dedicated Xvfb display. */
+  vncPath: string
+  createdAt: string
+  createdBy: string | null
+  notes: string | null
+}
+
+export interface CooldownConfig {
+  rate_limited_seconds: number
+  unusual_activity_seconds: number
+  session_expired_seconds: number
 }
