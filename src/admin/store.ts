@@ -250,7 +250,7 @@ CREATE INDEX IF NOT EXISTS idx_provider_accounts_enabled ON provider_accounts(en
 CREATE TABLE IF NOT EXISTS provider_account_settings (
   provider TEXT PRIMARY KEY,
   rate_limited_seconds INTEGER NOT NULL DEFAULT 300,
-  unusual_activity_seconds INTEGER NOT NULL DEFAULT 1800,
+        unusual_activity_seconds INTEGER NOT NULL DEFAULT 43200,
   session_expired_seconds INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -1010,14 +1010,14 @@ export class AdminStore {
       | undefined;
     return {
       rate_limited_seconds: row?.rate_limited_seconds ?? 300,
-      unusual_activity_seconds: row?.unusual_activity_seconds ?? 1800,
+      unusual_activity_seconds: 43200,
       session_expired_seconds: row?.session_expired_seconds ?? 0,
     };
   }
 
   setCooldownConfig(provider: ProviderName, cfg: Partial<AccountCooldownConfig>): void {
     const current = this.getCooldownConfig(provider);
-    const next = { ...current, ...cfg };
+    const next = { ...current, ...cfg, unusual_activity_seconds: 43200 };
     this.db.prepare(
       `INSERT INTO provider_account_settings (provider, rate_limited_seconds, unusual_activity_seconds, session_expired_seconds, updated_at)
        VALUES (?, ?, ?, ?, datetime('now'))

@@ -10,12 +10,21 @@ const STEALTH_ARGS = [
   '--disable-infobars',
   '--disable-background-timer-throttling',
   '--disable-renderer-backgrounding',
+  '--disable-dev-shm-usage',
+  '--no-first-run',
+  '--no-default-browser-check',
+  '--disable-session-crashed-bubble',
+  '--window-size=1280,900',
+  '--window-position=0,0',
+  '--force-device-scale-factor=1',
   ...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []),
 ];
 
+const BROWSER_VIEWPORT = { width: 1280, height: 900 };
+
 const STEALTH_OPTIONS = {
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-  viewport: { width: 1280, height: 900 },
+  viewport: BROWSER_VIEWPORT,
   locale: 'en-US',
   timezoneId: 'Europe/Berlin',
 };
@@ -71,6 +80,9 @@ export class ProviderAccount {
   get hasProfile(): boolean { return existsSync(this.profileDir); }
   get isConnected(): boolean { return this._ctx !== null; }
   get tag(): string { return `${this.record.provider}:${this.record.label}`; }
+  get loginInProgress(): boolean { return this._loginInProgress; }
+  get restoring(): boolean { return this._restoring; }
+  get displaySlot(): number | null { return this.record.display_slot ?? null; }
 
   async checkSession(): Promise<boolean> {
     if (!this._ctx) return false;
@@ -141,6 +153,7 @@ export class ProviderAccount {
           ...STEALTH_OPTIONS,
         });
         const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
+        await this._prepareVisiblePage(page);
         await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
 
@@ -192,11 +205,13 @@ export class ProviderAccount {
 
   async login(onReady: (loginUrl: string) => void): Promise<void> {
     if (this._loginInProgress) {
-      logger.debug(`[${this.tag}] login already in progress — skipping`);
+      logger.info(`[${this.tag}] login already in progress — reusing existing login window`);
+      onReady(this.loginUrl);
       return;
     }
     if (await this.checkSession()) {
       logger.info(`[${this.tag}] already connected — skipping login`);
+      onReady(this.loginUrl);
       return;
     }
     if (this._restoring) {
@@ -219,7 +234,8 @@ export class ProviderAccount {
     });
     this._ctx = loginCtx;
     const page = loginCtx.pages()[0] ?? await loginCtx.newPage();
-    await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
+    await this._prepareVisiblePage(page);
+    await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     onReady(this.loginUrl);
     logger.info(`[${this.tag}] browser open — waiting for login…`);
     try {
@@ -241,6 +257,11 @@ export class ProviderAccount {
       this._ctx = null;
     }
     logger.info(`[${this.tag}] logged out`);
+  }
+
+  private async _prepareVisiblePage(page: Page): Promise<void> {
+    await page.setViewportSize(BROWSER_VIEWPORT).catch(() => {});
+    await page.bringToFront().catch(() => {});
   }
 
   /**

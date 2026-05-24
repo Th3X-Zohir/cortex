@@ -99,7 +99,7 @@ export interface ProviderAccountRecord {
 
 export interface AccountCooldownConfig {
   rate_limited_seconds: number;       // default 300
-  unusual_activity_seconds: number;   // default 1800
+  unusual_activity_seconds: number;   // default 43200 (12 hours)
   session_expired_seconds: number;    // default 0 (re-login flow instead)
 }
 

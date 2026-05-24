@@ -215,6 +215,10 @@ export interface VncInfo {
   port: number
   path: string
   url: string
+  sharedUrl?: string
+  focusedUrl?: string
+  focusedDisplaySlot?: number | null
+  focusedAccountId?: string | null
 }
 
 export interface ModelUsage {

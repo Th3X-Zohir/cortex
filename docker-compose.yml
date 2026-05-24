@@ -3,6 +3,7 @@ services:
     build: .
     image: cortex
     container_name: cortex
+    init: true
     expose:
       - "31338"
       - "5900"

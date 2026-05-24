@@ -5,6 +5,8 @@ import type {
   ProviderAccountRecord,
 } from '../types.js';
 
+export const UNUSUAL_ACTIVITY_COOLDOWN_SECONDS = 12 * 60 * 60;
+
 /**
  * Pure account-router policy: which account to use, and what cooldown to apply
  * when one fails. Kept free of Playwright / I/O so it can be exhaustively tested.
@@ -61,7 +63,7 @@ export function cooldownForReason(
   now: number = Date.now(),
 ): CooldownDecision {
   const secs = reason === 'rate_limited' ? cfg.rate_limited_seconds
-             : reason === 'unusual_activity' ? cfg.unusual_activity_seconds
+             : reason === 'unusual_activity' ? UNUSUAL_ACTIVITY_COOLDOWN_SECONDS
              : cfg.session_expired_seconds;
   const status: AccountStatus =
     reason === 'unusual_activity' ? 'blocked'

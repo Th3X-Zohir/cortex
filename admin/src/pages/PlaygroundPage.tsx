@@ -211,9 +211,19 @@ export function PlaygroundPage() {
     if (!selectedModel) return
     setError(null)
 
+    const vncWindow = action === 'login' ? window.open('about:blank', '_blank', 'noopener,noreferrer') : null
     try {
-      if (action === 'login') await api.providers.login(selectedModel.provider)
-      else await api.providers.logout(selectedModel.provider)
+      if (action === 'login') {
+        const result = await api.providers.login(selectedModel.provider)
+        if (result.vncUrl) {
+          if (vncWindow) vncWindow.location.href = result.vncUrl
+          else window.open(result.vncUrl, '_blank', 'noopener,noreferrer')
+        } else {
+          vncWindow?.close()
+        }
+      } else {
+        await api.providers.logout(selectedModel.provider)
+      }
       await loadCatalog()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Provider action failed')
@@ -229,8 +239,8 @@ export function PlaygroundPage() {
           <button type="button" className="ui-btn-secondary" onClick={() => void loadCatalog()} disabled={loadingCatalog}>
             <RefreshCw size={14} className={loadingCatalog ? 'animate-spin' : ''} /> Refresh models
           </button>
-          {catalog?.vnc.url ? (
-            <a className="ui-btn-secondary" href={catalog.vnc.url} target="_blank" rel="noreferrer">
+          {catalog?.vnc.sharedUrl ? (
+            <a className="ui-btn-secondary" href={catalog.vnc.sharedUrl} target="_blank" rel="noreferrer">
               <ExternalLink size={14} /> Open VNC
             </a>
           ) : null}
@@ -440,10 +450,10 @@ export function PlaygroundPage() {
           ) : null}
 
           {activeTab === 'vnc' ? (
-            catalog?.vnc.url ? (
+            catalog?.vnc.sharedUrl ? (
               <iframe
                 title="Playground VNC"
-                src={catalog.vnc.url}
+                src={catalog.vnc.sharedUrl}
                 className="h-[620px] w-full rounded-2xl border border-slate-200 bg-white"
                 allow="clipboard-read; clipboard-write"
               />

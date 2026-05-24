@@ -43,9 +43,19 @@ export function ProvidersPage() {
     setError(null)
     setNotice(null)
 
+    const vncWindow = action === 'login' ? window.open('about:blank', '_blank', 'noopener,noreferrer') : null
     try {
-      if (action === 'login') await api.providers.login(provider)
-      else await api.providers.logout(provider)
+      if (action === 'login') {
+        const result = await api.providers.login(provider)
+        if (result.vncUrl) {
+          if (vncWindow) vncWindow.location.href = result.vncUrl
+          else window.open(result.vncUrl, '_blank', 'noopener,noreferrer')
+        } else {
+          vncWindow?.close()
+        }
+      } else {
+        await api.providers.logout(provider)
+      }
       setNotice(action === 'login' ? `Login started for ${provider}.` : `${provider} session closed.`)
       await load()
     } catch (err) {
@@ -147,8 +157,8 @@ export function ProvidersPage() {
                     <LogOut size={15} /> Logout
                   </button>
 
-                  {!isApiProvider && catalog?.vnc.url ? (
-                    <a className="ui-btn-secondary" href={catalog.vnc.url} target="_blank" rel="noreferrer">
+                  {!isApiProvider && catalog?.vnc.sharedUrl ? (
+                    <a className="ui-btn-secondary" href={catalog.vnc.sharedUrl} target="_blank" rel="noreferrer">
                       <ExternalLink size={15} /> Open VNC
                     </a>
                   ) : null}

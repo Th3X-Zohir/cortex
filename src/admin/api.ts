@@ -458,12 +458,13 @@ export class AdminApi {
           this.audit(req, ctx, 'provider_logout', 'provider', provider);
           json(res, 200, { status: 'ok', provider });
         } else {
+          const vnc = this.sharedVncInfo();
           void this.registry.get(provider).login(loginUrl => {
             this.audit(req, ctx, 'provider_login_started', 'provider', provider, { loginUrl });
           }).catch(err => {
             this.audit(req, ctx, 'provider_login_failed', 'provider', provider, { error: (err as Error).message });
           });
-          json(res, 202, { status: 'login_started', provider });
+          json(res, 202, { status: 'login_started', provider, vncUrl: vnc.url, vnc });
         }
         return true;
       }
@@ -578,6 +579,7 @@ export class AdminApi {
         if (!accountInstance) return notFound(res);
 
         if (action === 'login' && req.method === 'POST') {
+          const vnc = this.accountVncInfo(record.display_slot ?? null);
           void accountInstance.login(loginUrl => {
             this.audit(req, ctx, 'account_login_started', 'provider_account', accountId, { provider: record.provider, label: record.label, loginUrl });
           }).then(() => {
@@ -586,7 +588,7 @@ export class AdminApi {
             this.store.setProviderAccountStatus(accountId, 'logged_out', (err as Error).message);
             this.audit(req, ctx, 'account_login_failed', 'provider_account', accountId, { error: (err as Error).message });
           });
-          json(res, 202, { status: 'login_started', account: mapProviderAccount(record) });
+          json(res, 202, { status: 'login_started', account: mapProviderAccount(record), vncUrl: vnc.url, vnc });
           return true;
         }
         if (action === 'logout' && req.method === 'POST') {
@@ -1124,7 +1126,7 @@ export class AdminApi {
     const hostHeader = req.headers.host || 'localhost';
     const host = hostHeader.split(':')[0] || 'localhost';
     const portMatch = hostHeader.match(/:(\d+)$/);
-    const path = '/novnc/vnc.html';
+    const shared = this.sharedVncInfo();
     const accounts = this.store.listProviderAccounts()
       .filter(account => (
         account.enabled === 1
@@ -1140,16 +1142,40 @@ export class AdminApi {
         return bLastUsed - aLastUsed;
       });
     const account = accounts[0];
-    const websocketPath = account
-      ? `novnc/d${account.display_slot}/websockify`
-      : 'websockify';
+    const focused = account ? this.accountVncInfo(account.display_slot) : shared;
 
     return {
       enabled: true,
       host,
       port: portMatch ? Number(portMatch[1]) : this.cfg.port,
+      path: shared.path,
+      url: focused.url,
+      sharedUrl: shared.url,
+      focusedUrl: focused.url,
+      focusedDisplaySlot: account?.display_slot ?? null,
+      focusedAccountId: account?.id ?? null,
+    };
+  }
+
+  private sharedVncInfo() {
+    const path = '/novnc/vnc.html';
+    return {
+      path,
+      url: `${path}?autoconnect=1&resize=scale&reconnect=1&path=websockify`,
+      websocketPath: 'websockify',
+      displaySlot: null as number | null,
+    };
+  }
+
+  private accountVncInfo(displaySlot: number | null) {
+    if (displaySlot === null || displaySlot === undefined) return this.sharedVncInfo();
+    const path = '/novnc/vnc.html';
+    const websocketPath = `novnc/d${displaySlot}/websockify`;
+    return {
       path,
       url: `${path}?autoconnect=1&resize=scale&reconnect=1&path=${websocketPath}`,
+      websocketPath,
+      displaySlot,
     };
   }
 

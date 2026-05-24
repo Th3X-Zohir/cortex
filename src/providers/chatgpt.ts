@@ -1,3 +1,6 @@
+/* global document */
+declare const document: any;
+
 import type { BridgeConfig, ChatRequest, ChatRunContext, ModelDefinition, ProviderAccountRecord, AccountFailureReason } from '../types.js';
 import { BaseProvider } from './base.js';
 import { ProviderAccount } from './account.js';
@@ -21,6 +24,11 @@ export interface AccountActivity {
   startedAt: number;
 }
 
+type DirectChatGPTState = {
+  conversationId: string | null;
+  parentMessageId: string | null;
+};
+
 export class ChatGPTProvider extends BaseProvider {
   readonly name = 'chatgpt' as const;
   readonly loginUrl = CHATGPT_LOGIN_URL;
@@ -40,6 +48,7 @@ export class ChatGPTProvider extends BaseProvider {
 
   /** Per-account current activity — surfaced via /api/browsers for the dashboard. */
   private _activity: Map<string, AccountActivity> = new Map();
+  private _directState: Map<string, DirectChatGPTState> = new Map();
 
   constructor(cfg: BridgeConfig, store: AdminStore | null = null) {
     super(cfg);
@@ -368,12 +377,18 @@ export class ChatGPTProvider extends BaseProvider {
   private async _chatOnAccount(account: ProviderAccount, req: ChatRequest): Promise<string> {
     const page = await this._createIsolatedRequestPage(account);
     try {
+      const userMsg = buildUserMessage(req.messages);
+      logPromptComposition('chatgpt', req.messages, userMsg);
+
+      const direct = await this._tryDirectChat(page, account, req, userMsg);
+      if (direct) {
+        logger.info(`[chatgpt] direct browser API result (${direct.length} chars)`);
+        return direct;
+      }
+
       if (req.newConversation) {
         await this._startNewConversation(page);
       }
-
-      const userMsg = buildUserMessage(req.messages);
-      logPromptComposition('chatgpt', req.messages, userMsg);
 
       await this._submitPromptWithRateLimitRecovery(page, userMsg);
 
@@ -462,6 +477,9 @@ export class ChatGPTProvider extends BaseProvider {
             } else if (text) {
               observedText = cleanGenuiPrefix(text);
             }
+            if (observedText) {
+              this._throwIfUnusualActivityText(observedText, 'non-streaming DOM response');
+            }
           }
         }
 
@@ -507,7 +525,9 @@ export class ChatGPTProvider extends BaseProvider {
       }
 
       const finalText = await page.locator(matchedSelector).last().textContent().catch(() => '') ?? '';
-      return cleanGenuiPrefix(finalText);
+      const cleanedFinalText = cleanGenuiPrefix(finalText);
+      this._throwIfUnusualActivityText(cleanedFinalText, 'non-streaming final DOM response');
+      return cleanedFinalText;
     } finally {
       await page.close().catch(() => {});
     }
@@ -607,6 +627,7 @@ export class ChatGPTProvider extends BaseProvider {
         if (result.text.length > lastLength) {
           if (!firstChunkTime) firstChunkTime = Date.now() - start;
           const fullCleaned = cleanGenuiPrefix(result.text);
+          this._throwIfUnusualActivityText(fullCleaned, 'stream interceptor response');
           const newContent = fullCleaned.slice(lastCleanedLength > 0 ? lastCleanedLength : 0);
           if (newContent) yield newContent;
           lastCleanedLength = fullCleaned.length;
@@ -753,6 +774,13 @@ export class ChatGPTProvider extends BaseProvider {
     return 'Our systems have detected unusual activity. Please try again later.'
   }
 
+  private _throwIfUnusualActivityText(text: string, source: string): void {
+    const normalized = normalizeStatusText(text);
+    if (!isUnusualActivityMessage(normalized)) return;
+    logger.warn(`[chatgpt] detected unusual-activity ${source}`);
+    throw new AccountFailureError('unusual_activity', normalized);
+  }
+
   private async *_pollForResponseDOM(
     page: import('playwright').Page,
     immediateFallback = false,
@@ -812,6 +840,7 @@ export class ChatGPTProvider extends BaseProvider {
       if (!text) continue;
 
       const cleaned = cleanGenuiPrefix(text);
+      this._throwIfUnusualActivityText(cleaned, 'DOM fallback response');
       if (cleaned.length > lastLength) {
         logger.info(`[chatgpt] DOM yielding ${cleaned.length - lastLength} chars (total: ${cleaned.length})`);
         yield cleaned.slice(lastLength);
@@ -862,6 +891,425 @@ export class ChatGPTProvider extends BaseProvider {
 
     await page.locator('#prompt-textarea, [contenteditable="true"]').waitFor({ timeout: 15000 });
     await this._clearRateLimitBlockers(page, 'new conversation post-ready');
+  }
+
+  private async _tryDirectChat(
+    page: import('playwright').Page,
+    account: ProviderAccount,
+    req: ChatRequest,
+    userMsg: string,
+  ): Promise<string | null> {
+    const keepDirectState = shouldKeepProviderConversationState(req);
+    const state = req.newConversation || !keepDirectState
+      ? { conversationId: null, parentMessageId: null }
+      : (this._directState.get(account.id) ?? { conversationId: null, parentMessageId: null });
+
+    try {
+      const result = await page.evaluate(
+        async ({ message, model, state }) => {
+          const timeoutMs = 180000;
+
+          async function getToken(): Promise<string> {
+            const res = await fetch('/api/auth/session', { credentials: 'include' });
+            if (!res.ok) throw new Error(`session failed (${res.status})`);
+            const data = await res.json() as { accessToken?: string };
+            if (!data?.accessToken) throw new Error('not logged in to ChatGPT');
+            return data.accessToken;
+          }
+
+          function sha3_512(message: string): string {
+            const RC = [
+              [0x00000001, 0x00000000], [0x00008082, 0x00000000], [0x0000808a, 0x80000000],
+              [0x80008000, 0x80000000], [0x0000808b, 0x00000000], [0x80000001, 0x00000000],
+              [0x80008081, 0x80000000], [0x00008009, 0x80000000], [0x0000008a, 0x00000000],
+              [0x00000088, 0x00000000], [0x80008009, 0x00000000], [0x8000000a, 0x00000000],
+              [0x8000808b, 0x00000000], [0x0000008b, 0x80000000], [0x00008089, 0x80000000],
+              [0x00008003, 0x80000000], [0x00008002, 0x80000000], [0x00000080, 0x80000000],
+              [0x0000800a, 0x00000000], [0x8000000a, 0x80000000], [0x80008081, 0x80000000],
+              [0x00008080, 0x80000000], [0x80000001, 0x00000000], [0x80008008, 0x80000000],
+            ];
+            const ROTL = [
+              [0, 0], [1, 0], [62, 0], [28, 0], [27, 0], [36, 0], [44, 0], [6, 0], [55, 0], [20, 0],
+              [3, 0], [10, 0], [43, 0], [25, 0], [39, 0], [41, 0], [45, 0], [15, 0], [21, 0], [8, 0],
+              [18, 0], [2, 0], [61, 0], [56, 0], [14, 0],
+            ];
+            const PI = [0, 10, 20, 5, 15, 16, 1, 11, 21, 6, 7, 17, 2, 12, 22, 23, 8, 18, 3, 13, 14, 24, 9, 19, 4];
+            function rot64(lo: number, hi: number, n: number): [number, number] {
+              if (n === 0) return [lo, hi];
+              if (n < 32) return [(lo << n) | (hi >>> (32 - n)), (hi << n) | (lo >>> (32 - n))];
+              n -= 32;
+              return [(hi << n) | (lo >>> (32 - n)), (lo << n) | (hi >>> (32 - n))];
+            }
+            function keccakf(state: Int32Array): void {
+              const s = new Int32Array(50);
+              for (let i = 0; i < 50; i++) s[i] = state[i];
+              for (let round = 0; round < 24; round++) {
+                const C = new Int32Array(10);
+                for (let x = 0; x < 5; x++) {
+                  C[x * 2] = s[x * 2] ^ s[(x + 5) * 2] ^ s[(x + 10) * 2] ^ s[(x + 15) * 2] ^ s[(x + 20) * 2];
+                  C[x * 2 + 1] = s[x * 2 + 1] ^ s[(x + 5) * 2 + 1] ^ s[(x + 10) * 2 + 1] ^ s[(x + 15) * 2 + 1] ^ s[(x + 20) * 2 + 1];
+                }
+                for (let x = 0; x < 5; x++) {
+                  const px = (x + 4) % 5;
+                  const nx = (x + 1) % 5;
+                  const d = rot64(C[nx * 2], C[nx * 2 + 1], 1);
+                  const tlo = C[px * 2] ^ d[0];
+                  const thi = C[px * 2 + 1] ^ d[1];
+                  for (let y = 0; y < 25; y += 5) {
+                    s[(y + x) * 2] ^= tlo;
+                    s[(y + x) * 2 + 1] ^= thi;
+                  }
+                }
+                const B = new Int32Array(50);
+                for (let i = 0; i < 25; i++) {
+                  const r = rot64(s[i * 2], s[i * 2 + 1], ROTL[i][0] % 64);
+                  B[PI[i] * 2] = r[0];
+                  B[PI[i] * 2 + 1] = r[1];
+                }
+                for (let y = 0; y < 25; y += 5) {
+                  for (let x = 0; x < 5; x++) {
+                    s[(y + x) * 2] = B[(y + x) * 2] ^ (~B[(y + ((x + 1) % 5)) * 2] & B[(y + ((x + 2) % 5)) * 2]);
+                    s[(y + x) * 2 + 1] = B[(y + x) * 2 + 1] ^ (~B[(y + ((x + 1) % 5)) * 2 + 1] & B[(y + ((x + 2) % 5)) * 2 + 1]);
+                  }
+                }
+                s[0] ^= RC[round][0];
+                s[1] ^= RC[round][1];
+              }
+              for (let i = 0; i < 50; i++) state[i] = s[i];
+            }
+            const rate = 72;
+            const msgBytes = new TextEncoder().encode(message);
+            const padLen = rate - (msgBytes.length % rate);
+            const padded = new Uint8Array(msgBytes.length + padLen);
+            padded.set(msgBytes);
+            padded[msgBytes.length] = 0x06;
+            padded[padded.length - 1] |= 0x80;
+            const state = new Int32Array(50);
+            for (let offset = 0; offset < padded.length; offset += rate) {
+              for (let i = 0; i < rate; i += 4) {
+                const idx = i / 4;
+                if (idx < 50) {
+                  state[idx] ^= padded[offset + i] | (padded[offset + i + 1] << 8) | (padded[offset + i + 2] << 16) | (padded[offset + i + 3] << 24);
+                }
+              }
+              keccakf(state);
+            }
+            const hash = new Uint8Array(64);
+            for (let i = 0; i < 64; i += 4) {
+              const word = state[i / 4];
+              hash[i] = word & 0xff;
+              hash[i + 1] = (word >> 8) & 0xff;
+              hash[i + 2] = (word >> 16) & 0xff;
+              hash[i + 3] = (word >> 24) & 0xff;
+            }
+            return Array.from(hash).map(byte => byte.toString(16).padStart(2, '0')).join('');
+          }
+
+          async function getScriptsAndDpl(): Promise<{ scripts: Array<string | null>; dpl: string }> {
+            try {
+              const html = await fetch('/', { credentials: 'include' }).then(res => res.text());
+              const scripts: string[] = [];
+              const re = /src="([^"]*)"/g;
+              let match: RegExpExecArray | null;
+              while ((match = re.exec(html)) !== null) scripts.push(match[1]);
+              const dplMatch = html.match(/dpl=([a-zA-Z0-9_-]+)/);
+              return { scripts: scripts.length > 0 ? scripts : [null], dpl: dplMatch ? dplMatch[1] : '' };
+            } catch {
+              return { scripts: [null], dpl: '' };
+            }
+          }
+
+          async function solveProofOfWork(seed: string, difficulty: string, scripts: Array<string | null>, dpl: string): Promise<string | null> {
+            const browser = globalThis as any;
+            const nav = browser.navigator ?? {};
+            const scr = browser.screen ?? {};
+            const perf = browser.performance ?? { now: () => Date.now() };
+            const doc = browser.document ?? {};
+            const win = browser.window ?? browser;
+            const startTime = perf.now();
+            const navKeys = Object.keys(Object.getPrototypeOf(nav) ?? {});
+            const pickRandom = <T>(arr: T[]): T | null => arr.length ? arr[Math.floor(Math.random() * arr.length)] : null;
+            const encode = (value: unknown[]): string => {
+              const json = JSON.stringify(value);
+              const bytes = Array.from(new TextEncoder().encode(json));
+              return browser.btoa(String.fromCharCode(...bytes));
+            };
+            const config = [
+              (nav.hardwareConcurrency ?? 0) + (scr.width ?? 0) + (scr.height ?? 0),
+              new Date().toString(),
+              (perf.memory && perf.memory.jsHeapSizeLimit) || 4294705152,
+              0,
+              nav.userAgent || '',
+              pickRandom(scripts) ?? null,
+              dpl || '',
+              nav.language || '',
+              Array.isArray(nav.languages) ? nav.languages.join(',') : '',
+              0,
+              `${pickRandom(navKeys) ?? 'navigator'}-${nav[pickRandom(navKeys) ?? 'userAgent'] ?? ''}`,
+              pickRandom(Object.keys(doc)) ?? 'document',
+              pickRandom(Object.keys(win)) ?? 'window',
+              perf.now(),
+              browser.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+            ];
+            for (let i = 1; i < 100000; i++) {
+              if (i % 2000 === 0) await new Promise(resolve => setTimeout(resolve, 10));
+              config[3] = i;
+              config[9] = Math.round(perf.now() - startTime);
+              const encoded = encode(config);
+              if (sha3_512(seed + encoded).substring(0, difficulty.length) <= difficulty) {
+                return encoded;
+              }
+            }
+            return null;
+          }
+
+          async function getSentinelHeaders(token: string): Promise<Record<string, string>> {
+            try {
+              const res = await fetch('/backend-api/sentinel/chat-requirements', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ conversation_mode_kind: 'primary_assistant' }),
+              });
+              if (!res.ok) return {};
+              const data = await res.json() as {
+                token?: string;
+                requirements_token?: string;
+                proofofwork?: { required?: boolean; seed?: string; difficulty?: string };
+              };
+              const headers: Record<string, string> = {};
+              const requirementsToken = typeof data?.token === 'string' && data.token
+                ? data.token
+                : typeof data?.requirements_token === 'string' && data.requirements_token
+                  ? data.requirements_token
+                  : '';
+              if (requirementsToken) headers['Openai-Sentinel-Chat-Requirements-Token'] = requirementsToken;
+              const pow = data?.proofofwork;
+              if (pow?.required && pow.seed && pow.difficulty) {
+                const pageData = await getScriptsAndDpl();
+                const proofToken = await solveProofOfWork(pow.seed, pow.difficulty, pageData.scripts, pageData.dpl);
+                if (proofToken) headers['Openai-Sentinel-Proof-Token'] = `gAAAAAB${proofToken}`;
+              }
+              return headers;
+            } catch {
+              return {};
+            }
+          }
+
+          function deviceId(): string {
+            try {
+              const cookie = String(document.cookie || '').split(';').map((c: string) => c.trim()).find((c: string) => c.startsWith('oai-did='));
+              return cookie ? cookie.slice('oai-did='.length) : '';
+            } catch {
+              return '';
+            }
+          }
+
+          function wantedModel(modelId: string): string {
+            if (modelId.includes('/o3')) return 'o3';
+            if (modelId.includes('thinking-mini')) return 'gpt-5-thinking-mini';
+            if (modelId.includes('thinking')) return 'gpt-5.4-thinking';
+            if (modelId.includes('instant')) return 'gpt-5.3-instant';
+            if (modelId.includes('pro')) return 'gpt-5.4-pro';
+            return 'auto';
+          }
+
+          async function parseStream(res: Response) {
+            if (!res.body) throw new Error('ChatGPT response body was empty');
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let fullText = '';
+            let conversationId = state.conversationId;
+            let parentMessageId = state.parentMessageId;
+            let lastTextPatchPath = '';
+            let lastTextPatchOp = '';
+
+            function cleanText(value: string): string {
+              let text = value;
+              while (text.length > 0 && (text.charCodeAt(0) === 0x200B || text.charCodeAt(0) === 0x00 || text.charCodeAt(0) === 0x200E)) {
+                text = text.slice(1);
+              }
+              text = text.replace(/^\x00/, '').replace(/\x00/g, '');
+              if (text.startsWith('genui')) {
+                const spaceIdx = text.indexOf(' ');
+                if (spaceIdx > 0) text = text.slice(spaceIdx + 1);
+              }
+              while (text.length > 0 && (text.charCodeAt(text.length - 1) === 0x200B || text.charCodeAt(text.length - 1) === 0x00 || text.charCodeAt(text.length - 1) === 0x200E)) {
+                text = text.slice(0, -1);
+              }
+              return text;
+            }
+
+            function isTextPatchPath(path: string): boolean {
+              return path.includes('/message/content/parts/')
+                || path.includes('/text/')
+                || path.includes('/message/content/-')
+                || path.endsWith('/content');
+            }
+
+            function appendTextChunk(value: unknown): boolean {
+              const patchVal = cleanText(String(value ?? ''));
+              if (!patchVal) return false;
+              if (patchVal === 'finished_successfully') return false;
+              if (/^(true|false|null|undefined)$/i.test(patchVal)) return false;
+              fullText += patchVal;
+              return true;
+            }
+
+            function acceptMessage(message: any): void {
+              if (message?.author?.role !== 'assistant') return;
+              const parts = message?.content?.parts;
+              if (!Array.isArray(parts)) return;
+              const joined = cleanText(parts.join(''));
+              if (joined.length >= fullText.length) fullText = joined;
+              if (message.id) parentMessageId = message.id;
+            }
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+              for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                const raw = line.slice(6).trim();
+                if (!raw || raw === '[DONE]') continue;
+                try {
+                  const parsed = JSON.parse(raw);
+                  if (parsed.conversation_id) conversationId = parsed.conversation_id;
+                  acceptMessage(parsed.message);
+                  acceptMessage(parsed.v?.message);
+
+                  let consumedDirectString = false;
+                  if (parsed.p && parsed.v !== undefined && typeof parsed.v !== 'object') {
+                    const patchPath = String(parsed.p);
+                    if (isTextPatchPath(patchPath)) {
+                      lastTextPatchPath = patchPath;
+                      lastTextPatchOp = parsed.o ?? 'patch';
+                      consumedDirectString = appendTextChunk(parsed.v);
+                    }
+                  }
+
+                  if (!consumedDirectString && typeof parsed.v === 'string' && lastTextPatchPath && isTextPatchPath(lastTextPatchPath)) {
+                    appendTextChunk(parsed.v);
+                  }
+
+                  if (Array.isArray(parsed.v)) {
+                    for (const patch of parsed.v) {
+                      if (!patch?.p || patch.v === undefined || typeof patch.v === 'object') continue;
+                      const p = String(patch.p);
+                      if (p.includes('/message/content/parts/') || p.includes('/text/') || p.endsWith('/content')) {
+                        lastTextPatchPath = p;
+                        lastTextPatchOp = patch.o ?? lastTextPatchOp;
+                        appendTextChunk(patch.v);
+                      }
+                    }
+                  }
+                } catch {
+                  // Ignore malformed diagnostic lines.
+                }
+              }
+            }
+
+            reader.releaseLock();
+            return { text: fullText, conversationId, parentMessageId };
+          }
+
+          const token = await getToken();
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'text/event-stream',
+            'OAI-Language': 'en-US',
+          };
+          const did = deviceId();
+          if (did) headers['OAI-Device-Id'] = did;
+          Object.assign(headers, await getSentinelHeaders(token));
+
+          const payload: Record<string, unknown> = {
+            action: 'next',
+            messages: [{
+              id: crypto.randomUUID(),
+              author: { role: 'user' },
+              content: { content_type: 'text', parts: [message] },
+              metadata: {},
+            }],
+            model: wantedModel(model),
+            parent_message_id: state.parentMessageId || crypto.randomUUID(),
+            timezone_offset_min: new Date().getTimezoneOffset(),
+            history_and_training_disabled: false,
+            conversation_mode: { kind: 'primary_assistant' },
+            force_paragen: false,
+            force_nulligen: false,
+            force_rate_limit: false,
+            websocket_request_id: crypto.randomUUID(),
+          };
+          if (state.conversationId) payload.conversation_id = state.conversationId;
+
+          async function sendConversation(activeHeaders: Record<string, string>) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+              return await fetch('/backend-api/conversation', {
+                method: 'POST',
+                credentials: 'include',
+                headers: activeHeaders,
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+              });
+            } finally {
+              clearTimeout(timer);
+            }
+          }
+
+          let res = await sendConversation(headers);
+          if (res.status === 401) {
+            const freshToken = await getToken();
+            headers.Authorization = `Bearer ${freshToken}`;
+            Object.assign(headers, await getSentinelHeaders(freshToken));
+            res = await sendConversation(headers);
+          }
+
+          if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            throw new Error(`conversation failed (${res.status}): ${body.slice(0, 240)}`);
+          }
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const body = await res.text().catch(() => '');
+            throw new Error(`conversation returned non-stream response: ${body.slice(0, 240)}`);
+          }
+          return await parseStream(res);
+        },
+        { message: userMsg, model: req.model, state },
+      ) as { text: string; conversationId: string | null; parentMessageId: string | null };
+
+      const text = cleanGenuiPrefix(result.text || '');
+      if (!text.trim()) {
+        logger.warn('[chatgpt] direct browser API returned empty text; falling back to UI path');
+        return null;
+      }
+      this._throwIfUnusualActivityText(text, 'direct browser API response');
+
+      if (keepDirectState) {
+        this._directState.set(account.id, {
+          conversationId: result.conversationId ?? null,
+          parentMessageId: result.parentMessageId ?? null,
+        });
+      } else {
+        this._directState.delete(account.id);
+      }
+      return text;
+    } catch (err) {
+      if (isAccountFailure(err)) throw err;
+      logger.warn(`[chatgpt] direct browser API failed; falling back to UI path: ${(err as Error).message}`);
+      return null;
+    }
   }
 
 private _cortex_log(text: string) { console.log(`[CORTEX] ${text}`); }
@@ -1070,4 +1518,11 @@ function isUnusualActivityMessage(value: string): boolean {
   if (text.includes('our systems have detected unusual activity')) return true
   if (text.includes('unusual activity') && text.includes('please try again later')) return true
   return false
+}
+
+function shouldKeepProviderConversationState(req: ChatRequest): boolean {
+  const providerMessages = req.messages
+    .filter(message => message.role !== 'system')
+    .filter(message => message.content.trim());
+  return providerMessages.length === 1 && providerMessages[0]?.role === 'user';
 }

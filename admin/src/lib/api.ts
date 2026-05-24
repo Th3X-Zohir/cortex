@@ -11,6 +11,7 @@ import type {
   PlaygroundRequest,
   PlaygroundResponse,
   ProviderAccount,
+  VncInfo,
   RequestLog,
   Stats,
   UsageSummary,
@@ -314,9 +315,9 @@ export const api = {
         body: JSON.stringify({ provider, key }),
       }),
     login: (provider: string) =>
-      request(`/providers/${provider}/login`, { method: 'POST' }),
+      request<{ status: string; provider: string; vncUrl?: string; vnc?: VncInfo }>(`/providers/${provider}/login`, { method: 'POST' }),
     logout: (provider: string) =>
-      request(`/providers/${provider}/logout`, { method: 'POST' }),
+      request<{ status: string; provider: string }>(`/providers/${provider}/logout`, { method: 'POST' }),
     getCooldown: (provider: string) =>
       request<CooldownConfig>(`/providers/${provider}/cooldown`),
     setCooldown: (provider: string, cfg: Partial<CooldownConfig>) =>
@@ -344,7 +345,7 @@ export const api = {
     remove: (id: string) =>
       request<{ status: string }>(`/accounts/${id}`, { method: 'DELETE' }),
     login: (id: string) =>
-      request<{ status: string; account: ProviderAccount }>(`/accounts/${id}/login`, { method: 'POST' }),
+      request<{ status: string; account: ProviderAccount; vncUrl?: string; vnc?: VncInfo }>(`/accounts/${id}/login`, { method: 'POST' }),
     logout: (id: string) =>
       request<{ status: string }>(`/accounts/${id}/logout`, { method: 'POST' }),
     check: (id: string) =>

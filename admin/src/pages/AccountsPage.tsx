@@ -97,15 +97,19 @@ export function AccountsPage() {
   }
 
   async function onLogin(account: ProviderAccount) {
+    const vncWindow = window.open('about:blank', '_blank', 'noopener,noreferrer')
     const r = await withBusy(account.id, () => api.accounts.login(account.id))
     if (r) {
       // Open THIS account's per-slot VNC URL so the admin sees the right
       // browser window (not the shared display). The server-mapped vncPath
       // is in the response account record.
-      const targetUrl = r.account?.vncPath ?? account.vncPath
-      window.open(targetUrl, '_blank', 'noopener,noreferrer')
+      const targetUrl = r.vncUrl ?? r.account?.vncPath ?? account.vncPath
+      if (vncWindow) vncWindow.location.href = targetUrl
+      else window.open(targetUrl, '_blank', 'noopener,noreferrer')
       setNotice(`Login started for '${account.label}'. Complete sign-in in the VNC tab that just opened.`)
       setTimeout(() => void load(), 3000)
+    } else {
+      vncWindow?.close()
     }
   }
   async function onLogout(account: ProviderAccount) {

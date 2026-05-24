@@ -12,12 +12,21 @@ const STEALTH_ARGS = [
   '--disable-infobars',
   '--disable-background-timer-throttling',
   '--disable-renderer-backgrounding',
+  '--disable-dev-shm-usage',
+  '--no-first-run',
+  '--no-default-browser-check',
+  '--disable-session-crashed-bubble',
+  '--window-size=1280,900',
+  '--window-position=0,0',
+  '--force-device-scale-factor=1',
   ...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []),
 ];
 
+const BROWSER_VIEWPORT = { width: 1280, height: 900 };
+
 const STEALTH_OPTIONS = {
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-  viewport: { width: 1280, height: 900 },
+  viewport: BROWSER_VIEWPORT,
   locale: 'en-US',
   timezoneId: 'Europe/Berlin',
 };
@@ -44,6 +53,14 @@ export abstract class BaseProvider implements ProviderAdapter {
 
   get hasProfile(): boolean {
     return existsSync(this.profileDir);
+  }
+
+  get loginInProgress(): boolean {
+    return this._loginInProgress;
+  }
+
+  get restoring(): boolean {
+    return this._restoring;
   }
 
   // ── Session management ────────────────────────────────────────────────────
@@ -133,6 +150,7 @@ export abstract class BaseProvider implements ProviderAdapter {
         });
 
         const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
+        await this._prepareVisiblePage(page);
 
         // Navigate with generous timeout
         await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -201,11 +219,13 @@ export abstract class BaseProvider implements ProviderAdapter {
   async login(onReady: (loginUrl: string) => void): Promise<void> {
     // Skip if already connected or login already running
     if (this._loginInProgress) {
-      logger.debug(`[${this.name}] login already in progress — skipping`);
+      logger.info(`[${this.name}] login already in progress — reusing existing login window`);
+      onReady(this.loginUrl);
       return;
     }
     if (await this.checkSession()) {
       logger.info(`[${this.name}] already connected — skipping login`);
+      onReady(this.loginUrl);
       return;
     }
 
@@ -239,7 +259,8 @@ export abstract class BaseProvider implements ProviderAdapter {
     this._ctx = loginCtx;
 
     const page = loginCtx.pages()[0] ?? await loginCtx.newPage();
-    await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
+    await this._prepareVisiblePage(page);
+    await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
     onReady(this.loginUrl);
     logger.info(`[${this.name}] browser open — waiting for login…`);
@@ -265,6 +286,11 @@ export abstract class BaseProvider implements ProviderAdapter {
       this._ctx = null;
     }
     logger.info(`[${this.name}] logged out`);
+  }
+
+  private async _prepareVisiblePage(page: Page): Promise<void> {
+    await page.setViewportSize(BROWSER_VIEWPORT).catch(() => {});
+    await page.bringToFront().catch(() => {});
   }
 
   protected async _insertPromptText(page: Page, input: Locator, text: string): Promise<void> {
