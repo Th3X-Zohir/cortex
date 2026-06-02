@@ -555,6 +555,23 @@ export class BridgeServer {
       const reason = validation.reason ?? 'Invalid API key';
       const keyName = validation.key?.name ?? token.substring(0, 16);
       logger.warn(`[AUTH] ${statusCode} — ${reason} — key: ${keyName} — ${req.method ?? 'GET'} ${req.url ?? '/'} — IP: ${ip} — UA: ${ua}`);
+
+      const watchKeys = (process.env.CORTEX_WATCH_KEYS ?? '').split(',').map(s => s.trim()).filter(Boolean);
+      if (watchKeys.some(k => token === k || token.startsWith(k))) {
+        const chunks: Buffer[] = [];
+        let total = 0;
+        req.on('data', (c: Buffer) => {
+          if (total > 65536) return;
+          chunks.push(c);
+          total += c.length;
+        });
+        req.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf8');
+          logger.warn(`[AUTH-TRAP] key=${token} ip=${ip} ua=${ua} headers=${safeJsonStringify(req.headers)} body=${body}`);
+        });
+        req.on('error', () => {});
+      }
+
       this._adminStore.logRequest({
         api_key_id: validation.key?.id ?? null,
         api_key_name: validation.key?.name ?? null,
