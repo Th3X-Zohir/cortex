@@ -36,7 +36,7 @@ export function VncPage() {
     void load()
   }, [])
 
-  const activeVncUrl = catalog?.vnc.sharedUrl ?? catalog?.vnc.url
+  const activeVncUrl = catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl ?? catalog?.vnc.url
   const viewerHeight =
     size === 'fit'
       ? 'h-[58vh] min-h-[440px]'

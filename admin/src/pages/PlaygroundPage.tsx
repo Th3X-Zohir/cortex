@@ -239,8 +239,8 @@ export function PlaygroundPage() {
           <button type="button" className="ui-btn-secondary" onClick={() => void loadCatalog()} disabled={loadingCatalog}>
             <RefreshCw size={14} className={loadingCatalog ? 'animate-spin' : ''} /> Refresh models
           </button>
-          {catalog?.vnc.sharedUrl ? (
-            <a className="ui-btn-secondary" href={catalog.vnc.sharedUrl} target="_blank" rel="noreferrer">
+          {catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl ? (
+            <a className="ui-btn-secondary" href={(catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl) as string} target="_blank" rel="noreferrer">
               <ExternalLink size={14} /> Open VNC
             </a>
           ) : null}
@@ -450,10 +450,10 @@ export function PlaygroundPage() {
           ) : null}
 
           {activeTab === 'vnc' ? (
-            catalog?.vnc.sharedUrl ? (
+            (catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl) ? (
               <iframe
                 title="Playground VNC"
-                src={catalog.vnc.sharedUrl}
+                src={(catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl) as string}
                 className="h-[620px] w-full rounded-2xl border border-slate-200 bg-white"
                 allow="clipboard-read; clipboard-write"
               />

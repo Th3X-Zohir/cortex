@@ -157,8 +157,8 @@ export function ProvidersPage() {
                     <LogOut size={15} /> Logout
                   </button>
 
-                  {!isApiProvider && catalog?.vnc.sharedUrl ? (
-                    <a className="ui-btn-secondary" href={catalog.vnc.sharedUrl} target="_blank" rel="noreferrer">
+                  {!isApiProvider && (catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl) ? (
+                    <a className="ui-btn-secondary" href={(catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl) as string} target="_blank" rel="noreferrer">
                       <ExternalLink size={15} /> Open VNC
                     </a>
                   ) : null}
