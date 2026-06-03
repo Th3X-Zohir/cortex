@@ -51,6 +51,11 @@ export function PlaygroundPage() {
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [activeTab, setActiveTab] = useState<'response' | 'json' | 'history' | 'vnc'>('response')
   const [abortController, setAbortController] = useState<AbortController | null>(null)
+  // VNC path returned by the most recent run (cortex_meta.vncPath). When set,
+  // the iframe follows the exact account that served that request. Cleared
+  // whenever the selected model's provider changes.
+  const [liveVncPath, setLiveVncPath] = useState<string | null>(null)
+  const [liveAccountLabel, setLiveAccountLabel] = useState<string | null>(null)
 
   async function loadCatalog() {
     setLoadingCatalog(true)
@@ -77,6 +82,29 @@ export function PlaygroundPage() {
     () => catalog?.providers.find(item => item.name === selectedModel?.provider),
     [catalog?.providers, selectedModel?.provider],
   )
+
+  // Drop the live (account-specific) VNC path the moment the user switches
+  // providers — otherwise the iframe would show, say, a ChatGPT slot while
+  // the user has just selected Gemini.
+  useEffect(() => {
+    setLiveVncPath(null)
+    setLiveAccountLabel(null)
+  }, [selectedModel?.provider])
+
+  // The provider type drives which display we follow:
+  //   chatgpt     -> a per-account slot (live one if known, else focused, else shared)
+  //   grok/gemini/claude (web) -> the shared :99 display
+  //   *-api       -> no browser at all
+  const providerName = selectedModel?.provider
+  const providerHasBrowser =
+    !!providerName && !providerName.endsWith('-api')
+  const vncIframeUrl = useMemo<string | null>(() => {
+    if (!providerHasBrowser) return null
+    if (providerName === 'chatgpt') {
+      return liveVncPath ?? catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl ?? null
+    }
+    return catalog?.vnc.sharedUrl ?? null
+  }, [providerHasBrowser, providerName, liveVncPath, catalog?.vnc.focusedUrl, catalog?.vnc.sharedUrl])
 
   async function runRequest(event: React.FormEvent) {
     event.preventDefault()
@@ -130,11 +158,17 @@ export function PlaygroundPage() {
             finalText += chunk
             setResponseText(finalText)
           },
+          onMeta: meta => {
+            if (meta.vncPath) setLiveVncPath(meta.vncPath)
+            if (meta.accountLabel) setLiveAccountLabel(meta.accountLabel)
+          },
           onDone: donePayload => {
             if (donePayload.usage) {
               finalUsage = donePayload.usage
               setUsage(donePayload.usage)
             }
+            if (donePayload.cortex_meta?.vncPath) setLiveVncPath(donePayload.cortex_meta.vncPath)
+            if (donePayload.cortex_meta?.accountLabel) setLiveAccountLabel(donePayload.cortex_meta.accountLabel)
           },
           onError: message => {
             setError(message)
@@ -169,6 +203,8 @@ export function PlaygroundPage() {
         setResponseText(assistant)
         setUsage(response.usage)
         setRawResponse(JSON.stringify(response, null, 2))
+        if (response.cortex_meta?.vncPath) setLiveVncPath(response.cortex_meta.vncPath)
+        if (response.cortex_meta?.accountLabel) setLiveAccountLabel(response.cortex_meta.accountLabel)
 
         pushHistory({
           id: response.id,
@@ -239,8 +275,8 @@ export function PlaygroundPage() {
           <button type="button" className="ui-btn-secondary" onClick={() => void loadCatalog()} disabled={loadingCatalog}>
             <RefreshCw size={14} className={loadingCatalog ? 'animate-spin' : ''} /> Refresh models
           </button>
-          {catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl ? (
-            <a className="ui-btn-secondary" href={(catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl) as string} target="_blank" rel="noreferrer">
+          {vncIframeUrl ? (
+            <a className="ui-btn-secondary" href={vncIframeUrl} target="_blank" rel="noreferrer">
               <ExternalLink size={14} /> Open VNC
             </a>
           ) : null}
@@ -450,13 +486,23 @@ export function PlaygroundPage() {
           ) : null}
 
           {activeTab === 'vnc' ? (
-            (catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl) ? (
-              <iframe
-                title="Playground VNC"
-                src={(catalog?.vnc.focusedUrl ?? catalog?.vnc.sharedUrl) as string}
-                className="h-[620px] w-full rounded-2xl border border-slate-200 bg-white"
-                allow="clipboard-read; clipboard-write"
-              />
+            !providerHasBrowser ? (
+              <EmptyPanel text={`${providerName ?? 'This'} is an API provider — there is no browser session to display.`} />
+            ) : vncIframeUrl ? (
+              <div className="space-y-2">
+                {liveAccountLabel ? (
+                  <p className="text-xs text-slate-500">
+                    Following last-served account: <span className="font-mono text-slate-700">{liveAccountLabel}</span>
+                  </p>
+                ) : null}
+                <iframe
+                  key={vncIframeUrl}
+                  title="Playground VNC"
+                  src={vncIframeUrl}
+                  className="h-[620px] w-full rounded-2xl border border-slate-200 bg-white"
+                  allow="clipboard-read; clipboard-write"
+                />
+              </div>
             ) : (
               <EmptyPanel text="VNC endpoint is unavailable in this environment." />
             )

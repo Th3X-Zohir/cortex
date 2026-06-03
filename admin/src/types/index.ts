@@ -260,6 +260,15 @@ export interface PlaygroundRequest {
   newConversation?: boolean
 }
 
+export interface CortexMeta {
+  provider: string
+  accountId: string | null
+  accountLabel: string | null
+  displaySlot: number | null
+  vncPath: string | null
+  hasBrowser: boolean
+}
+
 export interface PlaygroundResponse {
   id: string
   object: 'chat.completion'
@@ -278,6 +287,7 @@ export interface PlaygroundResponse {
     completion_tokens: number
     total_tokens: number
   }
+  cortex_meta?: CortexMeta
 }
 
 export interface BridgeStatus {

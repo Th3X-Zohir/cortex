@@ -252,6 +252,7 @@ export const api = {
       data: PlaygroundRequest,
       handlers: {
         onChunk: (chunk: string) => void
+        onMeta?: (meta: NonNullable<PlaygroundResponse['cortex_meta']>) => void
         onDone: (payload: Partial<PlaygroundResponse> & { usage?: PlaygroundResponse['usage'] }) => void
         onError: (message: string) => void
         signal?: AbortSignal
@@ -299,6 +300,7 @@ export const api = {
             }
             const chunk = payload.choices?.[0]?.delta?.content
             if (chunk) handlers.onChunk(String(chunk))
+            if (payload.cortex_meta && handlers.onMeta) handlers.onMeta(payload.cortex_meta)
             if (payload.usage) handlers.onDone(payload)
           }
         }

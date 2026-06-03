@@ -831,6 +831,45 @@ export class AdminApi {
     });
   }
 
+  /**
+   * Build cortex_meta for a Playground response. Tells the UI which provider
+   * + (for chatgpt) which pooled account actually served the request, plus
+   * the noVNC viewer URL for the matching display slot so the iframe can
+   * follow the real browser session. Returns shared-display fallback for
+   * non-pooled web providers (grok/gemini/claude) and null for API providers.
+   */
+  private buildCortexMeta(
+    providerName: string,
+    runCtx?: import('../types.js').ChatRunContext,
+  ): {
+    provider: string;
+    accountId: string | null;
+    accountLabel: string | null;
+    displaySlot: number | null;
+    vncPath: string | null;
+    hasBrowser: boolean;
+  } {
+    const apiOnly = providerName.endsWith('-api');
+    if (apiOnly) {
+      return { provider: providerName, accountId: null, accountLabel: null, displaySlot: null, vncPath: null, hasBrowser: false };
+    }
+    let displaySlot: number | null = null;
+    let accountId: string | null = null;
+    let accountLabel: string | null = null;
+    if (runCtx?.accountId) {
+      accountId = runCtx.accountId;
+      accountLabel = runCtx.accountLabel ?? null;
+      const rec = this.store.getProviderAccountById(runCtx.accountId);
+      if (rec && rec.display_slot !== null && rec.display_slot !== undefined) {
+        displaySlot = rec.display_slot;
+      }
+    }
+    const vncPath = displaySlot !== null
+      ? `/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&path=novnc/d${displaySlot}/websockify`
+      : '/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&path=websockify';
+    return { provider: providerName, accountId, accountLabel, displaySlot, vncPath, hasBrowser: true };
+  }
+
   private async playgroundChat(req: IncomingMessage, res: ServerResponse, ctx: AdminContext): Promise<void> {
     const startedAt = Date.now();
     const body = await readJson(req);
@@ -891,6 +930,7 @@ export class AdminApi {
         newConversation,
       }, runCtx);
       const usage = this.tokenUsage(provider, messages, content);
+      const cortex_meta = this.buildCortexMeta(providerName, runCtx);
       const responsePayload = {
         id: `admin-playground-${Date.now()}`,
         object: 'chat.completion',
@@ -905,6 +945,7 @@ export class AdminApi {
           finish_reason: 'stop',
         }],
         usage,
+        cortex_meta,
       };
       this.logPlaygroundRequest(req, ctx, providerName, model, messages.length, false, 200, startedAt, null, usage, body, responsePayload, runCtx);
       this.audit(req, ctx, 'playground_chat', 'provider', providerName, { model, stream: false, usage });
@@ -949,17 +990,20 @@ export class AdminApi {
     try {
       for await (const chunk of provider.chatStream({ model, messages, temperature, max_tokens: maxTokens, newConversation }, runCtx)) {
         chunks.push(chunk);
+        const cortex_meta = this.buildCortexMeta(providerName, runCtx);
         res.write(`data: ${JSON.stringify({
           id,
           object: 'chat.completion.chunk',
           model,
           provider: providerName,
           choices: [{ index: 0, delta: { content: chunk }, finish_reason: null }],
+          cortex_meta,
         })}\n\n`);
         if ((res as any).flush) (res as any).flush();
       }
 
       const usage = this.tokenUsage(provider, messages, chunks.join(''));
+      const cortex_meta = this.buildCortexMeta(providerName, runCtx);
       res.write(`data: ${JSON.stringify({
         id,
         object: 'chat.completion.chunk',
@@ -970,6 +1014,7 @@ export class AdminApi {
         loggedAs: `Admin Playground (${ctx.admin.username})`,
         masterApi: true,
         limited: false,
+        cortex_meta,
       })}\n\n`);
       res.write('data: [DONE]\n\n');
       responsePayloadForLog = {
