@@ -25,6 +25,18 @@ export function formatNumber(num: number): string {
   return new Intl.NumberFormat('en-US').format(num)
 }
 
+// Compact, human-friendly abbreviation: 91246 -> "91.2K", 165789097 -> "166M".
+// Use for high-volume dashboard metrics where exact digits aren't needed.
+// Numbers below 1000 are returned as-is (no abbreviation).
+export function formatCompact(num: number): string {
+  if (!Number.isFinite(num)) return '0'
+  if (Math.abs(num) < 1000) return new Intl.NumberFormat('en-US').format(num)
+  return new Intl.NumberFormat('en-US', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(num)
+}
+
 export function formatPercent(num: number): string {
   return `${num.toFixed(1)}%`
 }
