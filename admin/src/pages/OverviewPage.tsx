@@ -22,7 +22,7 @@ import {
 } from 'recharts'
 import { api } from '@/lib/api'
 import { formatCompact, formatDate, formatNumber } from '@/lib/utils'
-import type { BridgeStatus, DashboardAnalytics, ModelCatalog, RequestLog, Stats, UsageSummary } from '@/types'
+import type { BridgeStatus, ModelCatalog, RequestLog, Stats, UsageSummary } from '@/types'
 import {
   BusyPanel,
   Chip,
@@ -36,8 +36,10 @@ import {
 
 const LIVE_REFRESH_MS = 10_000
 const LIVE_REFRESH_SECONDS = LIVE_REFRESH_MS / 1000
+const GRAPH_LOG_LIMIT = 1000
 const GRAPH_POINT_LIMIT = 48
 
+const PROVIDER_SERIES_COLORS = ['#2563eb', '#0891b2', '#0f766e']
 const HIDDEN_PROVIDER_NAMES = new Set(['unknown', 'system'])
 
 const EMPTY_STATS: Stats = {
@@ -72,7 +74,10 @@ type ModelOverviewRow = {
   lastUsed: string | null
 }
 
-type NamedCount = DashboardAnalytics['overallProviders'][number]
+type NamedCount = {
+  name: string
+  count: number
+}
 
 type ThroughputPoint = {
   bucket: string
@@ -95,12 +100,26 @@ type ThroughputPoint = {
   [key: string]: string | number | NamedCount[]
 }
 
+type ProviderSeries = {
+  name: string
+  key: string
+  color: string
+}
+
+type ThroughputAnalytics = {
+  points: ThroughputPoint[]
+  providerSeries: ProviderSeries[]
+  overallProviders: NamedCount[]
+  overallModels: NamedCount[]
+  overallApiKeys: NamedCount[]
+}
+
 export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
   const [stats, setStats] = useState<Stats>(EMPTY_STATS)
   const [status, setStatus] = useState<BridgeStatus | null>(null)
   const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
-  const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null)
+  const [graphLogs, setGraphLogs] = useState<RequestLog[]>([])
   const [recentLogs, setRecentLogs] = useState<RequestLog[]>([])
   const [initialLoading, setInitialLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -122,20 +141,20 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
     }
 
     try {
-      const [nextStats, nextStatus, nextUsage, nextCatalog, nextAnalytics] = await Promise.all([
+      const [nextStats, nextStatus, nextUsage, nextCatalog, nextLogs] = await Promise.all([
         api.stats.get(),
         api.providers.status(),
         api.admin.usage(),
         api.providers.models(),
-        api.dashboard.analytics(),
+        api.logs.list({ limit: GRAPH_LOG_LIMIT }),
       ])
 
       setStats(nextStats)
       setStatus(nextStatus)
       setUsage(nextUsage)
       setCatalog(nextCatalog)
-      setAnalytics(nextAnalytics)
-      setRecentLogs(nextAnalytics.recentLogs)
+      setGraphLogs(nextLogs.logs)
+      setRecentLogs(nextLogs.logs.slice(0, 12))
       setLastSync(new Date())
       setNextRefreshIn(LIVE_REFRESH_SECONDS)
       setError(null)
@@ -231,14 +250,10 @@ export function OverviewPage({ adminName = 'Admin' }: { adminName?: string }) {
     return { maxRequests, maxTokens, maxLatency }
   }, [providerRows])
 
-  const throughputAnalytics = analytics ?? {
-    points: [],
-    providerSeries: [],
-    overallProviders: [],
-    overallModels: [],
-    overallApiKeys: [],
-    recentLogs: [],
-  }
+  const throughputAnalytics = useMemo(
+    () => buildThroughputAnalytics(graphLogs),
+    [graphLogs],
+  )
 
   const topModels = useMemo<ModelOverviewRow[]>(() => {
     if (catalog?.models.length) {
@@ -827,6 +842,158 @@ function TooltipBreakdown({ title, items }: { title: string; items: NamedCount[]
   )
 }
 
+function buildThroughputAnalytics(logs: RequestLog[]): ThroughputAnalytics {
+  if (logs.length === 0) {
+    return {
+      points: [],
+      providerSeries: [],
+      overallProviders: [],
+      overallModels: [],
+      overallApiKeys: [],
+    }
+  }
+
+  type BucketAggregate = {
+    requests: number
+    tokens: number
+    errors: number
+    latencyTotal: number
+    latencyCount: number
+    streamRequests: number
+    providers: Map<string, number>
+    models: Map<string, number>
+    apiKeys: Map<string, number>
+  }
+
+  const bucketMap = new Map<string, BucketAggregate>()
+
+  for (const log of logs) {
+    const timestamp = new Date(log.createdAt)
+    if (Number.isNaN(timestamp.getTime())) continue
+
+    const bucket = toHourBucket(timestamp)
+    const aggregate = bucketMap.get(bucket) ?? {
+      requests: 0,
+      tokens: 0,
+      errors: 0,
+      latencyTotal: 0,
+      latencyCount: 0,
+      streamRequests: 0,
+      providers: new Map<string, number>(),
+      models: new Map<string, number>(),
+      apiKeys: new Map<string, number>(),
+    }
+
+    aggregate.requests += 1
+    aggregate.tokens += asNumber(log.totalTokens ?? log.tokensUsed)
+    if (log.statusCode != null && log.statusCode >= 500 || (log.statusCode != null && log.statusCode < 400 && Boolean(log.error))) aggregate.errors += 1
+    if (log.stream) aggregate.streamRequests += 1
+
+    const latency = asNumber(log.responseTimeMs)
+    if (latency > 0) {
+      aggregate.latencyTotal += latency
+      aggregate.latencyCount += 1
+    }
+
+    if (isVisibleProviderName(log.provider)) {
+      incrementCount(aggregate.providers, log.provider)
+    }
+    if (isVisibleModelId(log.model)) {
+      incrementCount(aggregate.models, log.model)
+    }
+    incrementCount(aggregate.apiKeys, log.apiKeyName || log.apiKeyId || 'anonymous')
+
+    bucketMap.set(bucket, aggregate)
+  }
+
+  const bucketEntries = [...bucketMap.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(-GRAPH_POINT_LIMIT)
+
+  const overallProvidersMap = new Map<string, number>()
+  const overallModelsMap = new Map<string, number>()
+  const overallApiKeysMap = new Map<string, number>()
+
+  for (const [, aggregate] of bucketEntries) {
+    mergeCounts(overallProvidersMap, aggregate.providers)
+    mergeCounts(overallModelsMap, aggregate.models)
+    mergeCounts(overallApiKeysMap, aggregate.apiKeys)
+  }
+
+  const overallProviders = mapToSortedCounts(overallProvidersMap)
+  const overallModels = mapToSortedCounts(overallModelsMap)
+  const overallApiKeys = mapToSortedCounts(overallApiKeysMap)
+
+  const providerSeries = overallProviders.slice(0, 3).map((provider, index) => ({
+    name: provider.name,
+    key: `provider_${toSeriesKey(provider.name)}`,
+    color: PROVIDER_SERIES_COLORS[index] ?? '#2563eb',
+  }))
+
+  const points: ThroughputPoint[] = bucketEntries.map(([bucket, aggregate]) => {
+    const providerBreakdown = mapToSortedCounts(aggregate.providers)
+    const modelBreakdown = mapToSortedCounts(aggregate.models)
+    const apiKeyBreakdown = mapToSortedCounts(aggregate.apiKeys)
+
+    const point: ThroughputPoint = {
+      bucket,
+      label: formatBucketLabel(bucket),
+      requests: aggregate.requests,
+      tokens: aggregate.tokens,
+      errors: aggregate.errors,
+      avgLatency: aggregate.latencyCount > 0 ? Math.round(aggregate.latencyTotal / aggregate.latencyCount) : 0,
+      streamRequests: aggregate.streamRequests,
+      uniqueModels: aggregate.models.size,
+      uniqueApiKeys: aggregate.apiKeys.size,
+      uniqueProviders: aggregate.providers.size,
+      topProvider: providerBreakdown[0]?.name ?? '-',
+      topModel: modelBreakdown[0]?.name ?? '-',
+      topApiKey: apiKeyBreakdown[0]?.name ?? '-',
+      providerBreakdown,
+      modelBreakdown,
+      apiKeyBreakdown,
+      otherProviders: 0,
+    }
+
+    let represented = 0
+    for (const series of providerSeries) {
+      const count = aggregate.providers.get(series.name) ?? 0
+      point[series.key] = count
+      represented += count
+    }
+    point.otherProviders = Math.max(0, aggregate.requests - represented)
+
+    return point
+  })
+
+  return {
+    points,
+    providerSeries,
+    overallProviders,
+    overallModels,
+    overallApiKeys,
+  }
+}
+
+function toHourBucket(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hour}:00`
+}
+
+function formatBucketLabel(bucket: string): string {
+  const asDate = new Date(bucket.replace(' ', 'T') + ':00')
+  if (Number.isNaN(asDate.getTime())) return bucket
+  return asDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function toSeriesKey(name: string): string {
+  const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  return key || 'unknown'
+}
+
 function isVisibleProviderName(name: string | null | undefined): name is string {
   if (!name) return false
   const normalized = name.trim().toLowerCase()
@@ -846,3 +1013,22 @@ function isVisibleModelId(modelId: string | null | undefined): modelId is string
   return providerFamily.startsWith('web-') && !HIDDEN_PROVIDER_NAMES.has(providerFamily)
 }
 
+function asNumber(value: number | null | undefined): number {
+  return Number.isFinite(value) ? Math.max(0, Number(value)) : 0
+}
+
+function incrementCount(map: Map<string, number>, key: string): void {
+  map.set(key, (map.get(key) ?? 0) + 1)
+}
+
+function mergeCounts(target: Map<string, number>, source: Map<string, number>): void {
+  for (const [key, count] of source.entries()) {
+    target.set(key, (target.get(key) ?? 0) + count)
+  }
+}
+
+function mapToSortedCounts(map: Map<string, number>): NamedCount[] {
+  return [...map.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((left, right) => right.count - left.count)
+}
